@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Python tooling
+        run: pip install -r tools/model_release/requirements.txt
+
+      - name: Get Dart and Flutter dependencies
+        run: |
+          (cd packages/local_models_core && dart pub get)
+          (cd packages/local_models_flutter && flutter pub get)
+          (cd apps/local_models_cli && dart pub get)
+          (cd apps/local_models_studio && flutter pub get)
+
+      - name: Run Dart core tests
+        run: (cd packages/local_models_core && dart test)
+
+      - name: Run CLI tests
+        run: (cd apps/local_models_cli && dart test)
+
+      - name: Run Flutter plugin tests
+        run: (cd packages/local_models_flutter && flutter test)
+
+      - name: Run Flutter studio tests
+        run: (cd apps/local_models_studio && flutter test)
+
+      - name: Run Swift bridge tests
+        run: swift test --package-path native/mlx_bridge
+
+      - name: Run Python tests
+        run: python -m unittest discover -s tests/python

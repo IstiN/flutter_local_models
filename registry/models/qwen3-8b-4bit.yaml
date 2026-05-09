@@ -1,0 +1,28 @@
+id: qwen3-8b-4bit
+display_name: Qwen3 8B 4bit
+description: General-purpose local Qwen text model for chat, automation, and coding.
+runtime_adapter: mlx_lm
+tasks:
+  - chat
+  - code
+source:
+  provider: huggingface
+  repo: mlx-community/Qwen3-8B-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-qwen3-8b-4bit
+  archive_name: qwen3-8b-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: qwen3-8b-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 16
+  recommended_memory_gb: 24
+  notes:
+    - MLX text runtime
+    - Balanced local text model
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: true

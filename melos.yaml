@@ -1,0 +1,21 @@
+name: flutter_local_models
+
+packages:
+  - apps/**
+  - packages/**
+
+scripts:
+  get:
+    run: |
+      (cd packages/local_models_core && dart pub get)
+      (cd packages/local_models_flutter && flutter pub get)
+      (cd apps/local_models_cli && dart pub get)
+      (cd apps/local_models_studio && flutter pub get)
+  test:
+    run: |
+      (cd packages/local_models_core && dart test)
+      (cd apps/local_models_cli && dart test)
+      (cd packages/local_models_flutter && flutter test)
+      (cd apps/local_models_studio && flutter test)
+      swift test --package-path native/mlx_bridge
+      python3 -m unittest discover -s tests/python

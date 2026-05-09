@@ -1,0 +1,71 @@
+name: Release Model Bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_id:
+        description: Manifest id from registry/models without the .yaml suffix
+        required: true
+        type: string
+      revision:
+        description: Optional Hugging Face revision override
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install bundling dependencies
+        run: pip install -r tools/model_release/requirements.txt
+
+      - name: Build release bundle
+        env:
+          HF_HUB_ENABLE_HF_TRANSFER: 1
+        run: |
+          MANIFEST="registry/models/${{ inputs.manifest_id }}.yaml"
+          test -f "$MANIFEST"
+          if [ -n "${{ inputs.revision }}" ]; then
+            python tools/model_release/bundle_model.py \
+              --manifest "$MANIFEST" \
+              --output-dir dist \
+              --revision "${{ inputs.revision }}"
+          else
+            python tools/model_release/bundle_model.py \
+              --manifest "$MANIFEST" \
+              --output-dir dist
+          fi
+
+      - name: Extract release metadata
+        id: metadata
+        run: |
+          METADATA_PATH=$(find dist -name release_metadata.json | head -n 1)
+          python - <<'PY' "$METADATA_PATH" >> "$GITHUB_OUTPUT"
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+print(f"release_tag={data['release_tag']}")
+print(f"bundle_dir={path.parent}")
+print(f"title={data['id']} @ {data['resolved_revision']}")
+PY
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ steps.metadata.outputs.release_tag }}" >/dev/null 2>&1 || \
+            gh release create "${{ steps.metadata.outputs.release_tag }}" \
+              --title "${{ steps.metadata.outputs.title }}" \
+              --notes "Automated model bundle release for ${{ inputs.manifest_id }}."
+          gh release upload "${{ steps.metadata.outputs.release_tag }}" \
+            "${{ steps.metadata.outputs.bundle_dir }}"/* \
+            --clobber

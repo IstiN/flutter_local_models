@@ -1,0 +1,26 @@
+name: local_models_studio
+description: Minimal macOS desktop app for local model catalog browsing and runtime inspection.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  local_models_core:
+    path: ../../packages/local_models_core
+  local_models_flutter:
+    path: ../../packages/local_models_flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/catalog.json
