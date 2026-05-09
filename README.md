@@ -36,6 +36,7 @@ The repo is pre-wired with manifests for:
 
 - `ci.yml` runs Dart, Flutter, Swift, and Python tests
 - `release-model.yml` downloads one manifest-defined model, archives it, splits it into release-safe parts, and publishes one GitHub Release per model
+- add `HF_TOKEN` as a repository secret when you want the release workflow to access gated or private Hugging Face repos
 
 ## Local dev
 
