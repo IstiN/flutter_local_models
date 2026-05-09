@@ -1,47 +1,109 @@
 # flutter_local_models
 
-Flutter-first local AI runtime for Apple Silicon, starting with MLX.
+Flutter-first local AI runtime for Apple Silicon.
 
-This repo is intentionally shaped as a product skeleton, not a throwaway demo:
+This project is building a native Flutter bridge for running local models on-device, starting with an `MLX`-focused backend on macOS. The long-term goal is simple: Flutter apps should be able to discover, install, load, and use local models without depending on a separate daemon or managing local ports.
 
-- `packages/local_models_core` — pure Dart manifest, registry, release-plan, and runtime-summary types
-- `packages/local_models_flutter` — Flutter package with a macOS-native FFI bridge
-- `apps/local_models_studio` — minimal desktop UI for catalog and runtime management
-- `apps/local_models_cli` — CLI for registry inspection and install/release planning
-- `native/mlx_bridge` — standalone Swift package for the future shared native runtime
-- `registry/models` — source-of-truth model manifests
-- `tools/model_release` — Hugging Face → archive chunks → GitHub Release packaging pipeline
+## What this repo is
 
-## MVP direction
+- a `Flutter plugin` for local AI runtimes
+- a `native bridge` approach instead of a background server
+- a `macOS-first` implementation for Apple Silicon
+- a foundation for `chat`, `speech-to-text`, `text-to-speech`, and future multimodal adapters
 
-The current MVP focuses on:
+## What this repo is not
 
-- `macOS + Apple Silicon`
-- `MLX-first adapters`
-- GitHub Releases as the bundle distribution format
-- resumable model bundling and deterministic chunked archives
-- a Flutter wrapper that can later grow from local management into full inference UX
+- not an app-specific assistant
+- not a hosted API wrapper
+- not a model zoo with bundled weights checked into git
+- not locked to a single runtime forever, even though `MLX` is the first focus
 
-## Seed model set
+## Why native bridge
 
-The repo is pre-wired with manifests for:
+We are intentionally starting with `FFI + native bridge` instead of a local daemon.
 
-- `mlx-community/gemma-4-e4b-it-4bit`
-- `mlx-community/Qwen3-8B-4bit`
-- `mlx-community/Qwen2-Audio-7B-Instruct-4bit`
-- `mlx-community/Qwen3-ASR-0.6B-4bit`
-- `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit`
+That gives us a cleaner product story for Flutter developers:
 
-## GitHub workflows
+- no port conflicts
+- no background server lifecycle to babysit
+- no extra “start service first” step
+- a more natural path toward embedding local AI directly into desktop apps
 
-- `ci.yml` runs Dart, Flutter, Swift, and Python tests
-- `release-model.yml` downloads one manifest-defined model, archives it, splits it into release-safe parts, and publishes one GitHub Release per model
-- add `HF_TOKEN` as a repository secret when you want the release workflow to access gated or private Hugging Face repos
+If a service layer becomes useful later, we can add it as an optional adapter instead of making it the core requirement.
 
-## Local dev
+## Current shape
+
+Today the repo contains the first product skeleton:
+
+- `packages/local_models_core` — pure Dart types for manifests, registry loading, release planning, and runtime summaries
+- `packages/local_models_flutter` — Flutter plugin with a macOS native FFI bridge
+- `apps/local_models_studio` — minimal desktop UI for runtime inspection and future model management
+- `apps/local_models_cli` — CLI companion for registry and packaging flows
+- `native/mlx_bridge` — standalone Swift package that will evolve into the shared MLX runtime layer
+
+The native runtime is still a scaffold, but the project structure is now aligned with the intended product direction.
+
+## Product direction
+
+The target developer experience looks like this:
+
+1. Add a Flutter package
+2. Check runtime capabilities from Dart
+3. Install or repair a local model bundle
+4. Open a local session through the native bridge
+5. Run inference from Flutter without spinning up a daemon
+
+That means the most important future work is:
+
+- real `MLX` session loading and inference
+- robust install/repair/download flows
+- resumable bundle delivery
+- stable Dart APIs for text, audio, and multimodal use cases
+
+## Repository layout
+
+```text
+packages/
+  local_models_core/      # Pure Dart contracts and registry logic
+  local_models_flutter/   # Flutter plugin + FFI bridge
+apps/
+  local_models_cli/       # CLI for dev and packaging workflows
+  local_models_studio/    # Minimal desktop management UI
+native/
+  mlx_bridge/             # Shared Swift runtime layer
+tools/
+  model_release/          # Packaging automation for release assets
+registry/
+  models/                 # Internal manifest source for release workflows
+```
+
+## Flutter-first API direction
+
+The intended public API should feel like Flutter, not like shell orchestration.
+
+Example direction:
+
+```dart
+final localModels = LocalModelsFlutter();
+final runtime = await localModels.getRuntimeSummary();
+```
+
+This is deliberately small right now. We want to grow it carefully into a stable API surface instead of exposing raw runtime internals too early.
+
+## Local development
+
+### Prerequisites
+
+- `macOS` on Apple Silicon
+- `Flutter stable`
+- `Xcode` with command line tools
+- `Python 3` for packaging scripts and tests
+
+### Setup
 
 ```bash
-cd /Users/uladzimir_klyshevich/git/flutter_local_models
+git clone https://github.com/IstiN/flutter_local_models.git
+cd flutter_local_models
 
 python3 -m venv .venv
 ./.venv/bin/python -m pip install -r tools/model_release/requirements.txt
@@ -50,7 +112,11 @@ python3 -m venv .venv
 (cd packages/local_models_flutter && flutter pub get)
 (cd apps/local_models_cli && dart pub get)
 (cd apps/local_models_studio && flutter pub get)
+```
 
+### Run tests
+
+```bash
 (cd packages/local_models_core && dart test)
 (cd apps/local_models_cli && dart test)
 (cd packages/local_models_flutter && flutter test)
@@ -59,9 +125,39 @@ swift test --package-path native/mlx_bridge
 ./.venv/bin/python -m unittest discover -s tests/python
 ```
 
-## Immediate next build-out
+## Automation
 
-- replace the placeholder native bridge with real MLX runtime loading/session APIs
-- add GitHub Release install/download logic to the Flutter package
-- add signed model bundle manifests and repair flows
-- add direct install/uninstall actions in the desktop app
+The repo already includes:
+
+- `CI` for Dart, Flutter, Swift, and Python tests
+- a `release-model` workflow that can turn an external model source into resumable release assets
+
+This packaging layer exists to support installation workflows for the Flutter runtime. It is infrastructure for the plugin ecosystem, not the primary public story of the repository.
+
+If you need access to gated Hugging Face assets in automation, add `HF_TOKEN` as a repository secret.
+
+## Roadmap
+
+### Near term
+
+- implement the first real `MLX` text runtime
+- add install/download/repair APIs to the Flutter package
+- connect the desktop app to real local bundle state
+- add end-to-end tests around install and runtime bootstrap
+
+### After that
+
+- speech-to-text adapter
+- text-to-speech adapter
+- multimodal adapter support
+- optional non-MLX backends behind the same Dart contracts
+
+## Status
+
+Early, but intentionally structured.
+
+The important thing already in place is the architecture: Flutter package, native bridge, companion UI, CLI, release automation, and tests all live in one repo and point toward the same product.
+
+## License
+
+MIT
