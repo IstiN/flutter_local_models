@@ -19,6 +19,19 @@ class MockLocalModelsFlutterPlatform
   }
 }
 
+class FakeChatRuntime implements LocalChatRuntime {
+  @override
+  Stream<LocalChatDelta> chatStream({
+    required List<LocalChatMessage> messages,
+    LocalChatParams params = const LocalChatParams(),
+  }) async* {
+    expect(messages.single.role, LocalChatRole.user);
+    expect(params.maxTokens, 12);
+    yield const LocalChatDelta(content: 'hel');
+    yield const LocalChatDelta(content: 'lo', done: true);
+  }
+}
+
 void main() {
   test(
     'getRuntimeSummary delegates to the active platform implementation',
@@ -33,4 +46,15 @@ void main() {
       expect(summary.metalAvailable, isTrue);
     },
   );
+
+  test('chat builds a response from the configured stream runtime', () async {
+    final plugin = LocalModelsFlutter(chatRuntime: FakeChatRuntime());
+    final response = await plugin.chat(
+      messages: const [LocalChatMessage.user('hi')],
+      params: const LocalChatParams(maxTokens: 12),
+    );
+
+    expect(response.message.role, LocalChatRole.assistant);
+    expect(response.message.content, 'hello');
+  });
 }

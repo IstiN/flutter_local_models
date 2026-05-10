@@ -1,15 +1,36 @@
 # local_models_flutter
 
-A new Flutter plugin project.
+Flutter SDK surface for local model runtimes.
 
-## Getting Started
+The public chat shape is intentionally Flutter-native and model-agnostic:
 
-This project is a starting point for a Flutter
-[plug-in package](https://flutter.dev/to/develop-plugins),
-a specialized package that includes platform-specific implementation code for
-Android and/or iOS.
+```dart
+final localModels = LocalModelsFlutter(chatRuntime: myRuntimeAdapter);
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+final stream = localModels.chatStream(
+  messages: [
+    const LocalChatMessage.system('You are a concise local assistant.'),
+    LocalChatMessage.user(
+      'What is in this image?',
+      attachments: [
+        LocalMessageAttachment.file(
+          type: LocalAttachmentType.image,
+          path: '/Users/me/image.png',
+        ),
+      ],
+    ),
+  ],
+  params: const LocalChatParams(maxTokens: 256, temperature: 0.2),
+);
 
+await for (final delta in stream) {
+  // Append delta.content to your UI.
+}
+```
+
+For non-streaming use, `chat(...)` consumes `chatStream(...)` and returns a
+single `LocalChatResponse`.
+
+Runtime adapters are still evolving. The macOS Studio app currently provides a
+development adapter for MLX-backed local testing while the native bridge API is
+being finalized.

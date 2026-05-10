@@ -525,6 +525,59 @@ class LocalChatRunner {
     onText(output);
     return output;
   }
+
+  Future<String> chatStream({
+    required InstalledModel model,
+    required List<LocalChatMessage> messages,
+    required ValueChanged<String> onText,
+    LocalChatParams params = const LocalChatParams(),
+  }) {
+    final prompt = _promptFromMessages(messages);
+    final attachments = messages
+        .expand((message) => message.attachments)
+        .toList(growable: false);
+    final audioPath = _lastAttachmentPath(
+      attachments,
+      LocalAttachmentType.audio,
+    );
+    final imagePath = _lastAttachmentPath(
+      attachments,
+      LocalAttachmentType.image,
+    );
+    return generateResponseStreaming(
+      model: model,
+      prompt: prompt,
+      audioPath: audioPath,
+      imagePath: imagePath,
+      maxTokens: params.maxTokens,
+      onText: onText,
+    );
+  }
+}
+
+String _promptFromMessages(List<LocalChatMessage> messages) {
+  final buffer = StringBuffer();
+  for (final message in messages) {
+    final content = message.content.trim();
+    if (content.isEmpty) {
+      continue;
+    }
+    buffer.writeln('${localChatRoleToString(message.role)}: $content');
+  }
+  buffer.write('assistant:');
+  return buffer.toString().trim();
+}
+
+String? _lastAttachmentPath(
+  List<LocalMessageAttachment> attachments,
+  LocalAttachmentType type,
+) {
+  for (final attachment in attachments.reversed) {
+    if (attachment.type == type && attachment.filePath != null) {
+      return attachment.filePath;
+    }
+  }
+  return null;
 }
 
 String _cleanGeneratedText(String rawOutput) {

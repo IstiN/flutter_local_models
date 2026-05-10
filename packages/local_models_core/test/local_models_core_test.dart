@@ -73,4 +73,29 @@ void main() {
     expect(plan.sampleChunks.first.fileName, 'qwen3-asr-0.6b-4bit.part-000');
     expect(plan.sampleChunks.last.fileName, 'qwen3-asr-0.6b-4bit.part-001');
   });
+
+  test('serializes chat messages with attachments and params', () {
+    final attachment = LocalMessageAttachment.file(
+      type: LocalAttachmentType.audio,
+      path: '/tmp/input.wav',
+      mimeType: 'audio/wav',
+    );
+    final message = LocalChatMessage.user(
+      'transcribe this',
+      attachments: [attachment],
+    );
+    final decoded = LocalChatMessage.fromJsonMap(message.toJson());
+
+    expect(decoded.role, LocalChatRole.user);
+    expect(decoded.content, 'transcribe this');
+    expect(decoded.attachments.single.type, LocalAttachmentType.audio);
+    expect(decoded.attachments.single.filePath, '/tmp/input.wav');
+
+    final params = LocalChatParams(
+      modelId: 'qwen3-8b-4bit',
+      maxTokens: 128,
+      temperature: 0.2,
+    );
+    expect(LocalChatParams.fromJsonMap(params.toJson()).maxTokens, 128);
+  });
 }

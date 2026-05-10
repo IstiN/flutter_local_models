@@ -1441,6 +1441,7 @@ class _StudioShellState extends State<StudioShell> {
     if (prompt.isEmpty) {
       return;
     }
+    final messages = _messagesForCurrentChat(LocalChatMessage.user(prompt));
     chatPromptController.clear();
     setState(() {
       testBusy = true;
@@ -1451,9 +1452,9 @@ class _StudioShellState extends State<StudioShell> {
     _scrollChatToBottom();
 
     try {
-      await controller.chatRunner.generateResponseStreaming(
+      await controller.chatRunner.chatStream(
         model: model,
-        prompt: prompt,
+        messages: messages,
         onText: _replaceStreamingAssistant,
       );
     } catch (error) {
@@ -1476,6 +1477,17 @@ class _StudioShellState extends State<StudioShell> {
     final userMessage = prompt.isEmpty
         ? 'Audio: ${p.basename(audioPath)}'
         : 'Audio: ${p.basename(audioPath)}\n$prompt';
+    final messages = _messagesForCurrentChat(
+      LocalChatMessage.user(
+        prompt,
+        attachments: [
+          LocalMessageAttachment.file(
+            type: LocalAttachmentType.audio,
+            path: audioPath,
+          ),
+        ],
+      ),
+    );
     setState(() {
       testBusy = true;
       testErrorMessage = null;
@@ -1492,10 +1504,9 @@ class _StudioShellState extends State<StudioShell> {
         setState(() => controller.chatTurns.add(ChatTurn.assistant(response)));
       } else {
         setState(() => controller.chatTurns.add(const ChatTurn.assistant('')));
-        await controller.chatRunner.generateResponseStreaming(
+        await controller.chatRunner.chatStream(
           model: model,
-          prompt: prompt,
-          audioPath: audioPath,
+          messages: messages,
           onText: _replaceStreamingAssistant,
         );
       }
@@ -1516,6 +1527,17 @@ class _StudioShellState extends State<StudioShell> {
     if (prompt.isEmpty) {
       return;
     }
+    final messages = _messagesForCurrentChat(
+      LocalChatMessage.user(
+        prompt,
+        attachments: [
+          LocalMessageAttachment.file(
+            type: LocalAttachmentType.image,
+            path: imagePath,
+          ),
+        ],
+      ),
+    );
     chatPromptController.clear();
     setState(() {
       testBusy = true;
@@ -1528,10 +1550,9 @@ class _StudioShellState extends State<StudioShell> {
     _scrollChatToBottom();
 
     try {
-      await controller.chatRunner.generateResponseStreaming(
+      await controller.chatRunner.chatStream(
         model: model,
-        prompt: prompt,
-        imagePath: imagePath,
+        messages: messages,
         onText: _replaceStreamingAssistant,
       );
     } catch (error) {
@@ -1585,6 +1606,22 @@ class _StudioShellState extends State<StudioShell> {
       }
     });
     _scrollChatToBottom();
+  }
+
+  List<LocalChatMessage> _messagesForCurrentChat(LocalChatMessage nextMessage) {
+    final messages = <LocalChatMessage>[];
+    for (final turn in controller.chatTurns) {
+      if (turn.message.trim().isEmpty) {
+        continue;
+      }
+      messages.add(
+        turn.isUser
+            ? LocalChatMessage.user(turn.message)
+            : LocalChatMessage.assistant(turn.message),
+      );
+    }
+    messages.add(nextMessage);
+    return messages;
   }
 
   String _testModeLabel(InstalledModel model) {

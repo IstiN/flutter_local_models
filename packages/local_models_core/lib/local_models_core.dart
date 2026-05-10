@@ -19,6 +19,62 @@ enum ModelTask {
   textToSpeech,
 }
 
+enum LocalChatRole { system, user, assistant, tool }
+
+enum LocalAttachmentType { image, audio, file }
+
+String localChatRoleToString(LocalChatRole value) {
+  switch (value) {
+    case LocalChatRole.system:
+      return 'system';
+    case LocalChatRole.user:
+      return 'user';
+    case LocalChatRole.assistant:
+      return 'assistant';
+    case LocalChatRole.tool:
+      return 'tool';
+  }
+}
+
+LocalChatRole localChatRoleFromString(String value) {
+  switch (value) {
+    case 'system':
+      return LocalChatRole.system;
+    case 'user':
+      return LocalChatRole.user;
+    case 'assistant':
+      return LocalChatRole.assistant;
+    case 'tool':
+      return LocalChatRole.tool;
+    default:
+      throw FormatException('Unsupported chat role: $value');
+  }
+}
+
+String localAttachmentTypeToString(LocalAttachmentType value) {
+  switch (value) {
+    case LocalAttachmentType.image:
+      return 'image';
+    case LocalAttachmentType.audio:
+      return 'audio';
+    case LocalAttachmentType.file:
+      return 'file';
+  }
+}
+
+LocalAttachmentType localAttachmentTypeFromString(String value) {
+  switch (value) {
+    case 'image':
+      return LocalAttachmentType.image;
+    case 'audio':
+      return LocalAttachmentType.audio;
+    case 'file':
+      return LocalAttachmentType.file;
+    default:
+      throw FormatException('Unsupported attachment type: $value');
+  }
+}
+
 RuntimeAdapter _runtimeAdapterFromString(String value) {
   switch (value) {
     case 'mlx_lm':
@@ -338,6 +394,197 @@ class NativeRuntimeSummary {
     'mlxFocused': mlxFocused,
     'ffiEnabled': ffiEnabled,
     'errorMessage': errorMessage,
+  };
+}
+
+@immutable
+class LocalMessageAttachment {
+  const LocalMessageAttachment({
+    required this.type,
+    required this.uri,
+    this.mimeType,
+    this.name,
+  });
+
+  final LocalAttachmentType type;
+  final Uri uri;
+  final String? mimeType;
+  final String? name;
+
+  factory LocalMessageAttachment.file({
+    required LocalAttachmentType type,
+    required String path,
+    String? mimeType,
+    String? name,
+  }) {
+    return LocalMessageAttachment(
+      type: type,
+      uri: Uri.file(path),
+      mimeType: mimeType,
+      name: name ?? p.basename(path),
+    );
+  }
+
+  factory LocalMessageAttachment.fromJsonMap(Map<String, Object?> map) {
+    return LocalMessageAttachment(
+      type: localAttachmentTypeFromString(map['type'] as String),
+      uri: Uri.parse(map['uri'] as String),
+      mimeType: map['mimeType'] as String?,
+      name: map['name'] as String?,
+    );
+  }
+
+  String? get filePath => uri.isScheme('file') ? uri.toFilePath() : null;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'type': localAttachmentTypeToString(type),
+    'uri': uri.toString(),
+    if (mimeType != null) 'mimeType': mimeType,
+    if (name != null) 'name': name,
+  };
+}
+
+@immutable
+class LocalChatMessage {
+  const LocalChatMessage({
+    required this.role,
+    required this.content,
+    this.attachments = const <LocalMessageAttachment>[],
+    this.metadata = const <String, Object?>{},
+  });
+
+  const LocalChatMessage.system(
+    String content, {
+    List<LocalMessageAttachment> attachments = const <LocalMessageAttachment>[],
+    Map<String, Object?> metadata = const <String, Object?>{},
+  }) : this(
+         role: LocalChatRole.system,
+         content: content,
+         attachments: attachments,
+         metadata: metadata,
+       );
+
+  const LocalChatMessage.user(
+    String content, {
+    List<LocalMessageAttachment> attachments = const <LocalMessageAttachment>[],
+    Map<String, Object?> metadata = const <String, Object?>{},
+  }) : this(
+         role: LocalChatRole.user,
+         content: content,
+         attachments: attachments,
+         metadata: metadata,
+       );
+
+  const LocalChatMessage.assistant(
+    String content, {
+    List<LocalMessageAttachment> attachments = const <LocalMessageAttachment>[],
+    Map<String, Object?> metadata = const <String, Object?>{},
+  }) : this(
+         role: LocalChatRole.assistant,
+         content: content,
+         attachments: attachments,
+         metadata: metadata,
+       );
+
+  final LocalChatRole role;
+  final String content;
+  final List<LocalMessageAttachment> attachments;
+  final Map<String, Object?> metadata;
+
+  factory LocalChatMessage.fromJsonMap(Map<String, Object?> map) {
+    return LocalChatMessage(
+      role: localChatRoleFromString(map['role'] as String),
+      content: map['content'] as String? ?? '',
+      attachments: List<Map<String, Object?>>.from(
+        map['attachments'] as List? ?? const <Map<String, Object?>>[],
+      ).map(LocalMessageAttachment.fromJsonMap).toList(growable: false),
+      metadata: Map<String, Object?>.from(
+        map['metadata'] as Map? ?? const <String, Object?>{},
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'role': localChatRoleToString(role),
+    'content': content,
+    'attachments': attachments.map((item) => item.toJson()).toList(),
+    if (metadata.isNotEmpty) 'metadata': metadata,
+  };
+}
+
+@immutable
+class LocalChatParams {
+  const LocalChatParams({
+    this.modelId,
+    this.maxTokens = 256,
+    this.temperature,
+    this.topP,
+    this.stop = const <String>[],
+    this.extra = const <String, Object?>{},
+  });
+
+  final String? modelId;
+  final int maxTokens;
+  final double? temperature;
+  final double? topP;
+  final List<String> stop;
+  final Map<String, Object?> extra;
+
+  factory LocalChatParams.fromJsonMap(Map<String, Object?> map) {
+    return LocalChatParams(
+      modelId: map['modelId'] as String?,
+      maxTokens: (map['maxTokens'] as num?)?.toInt() ?? 256,
+      temperature: (map['temperature'] as num?)?.toDouble(),
+      topP: (map['topP'] as num?)?.toDouble(),
+      stop: List<String>.from(map['stop'] as List? ?? const <String>[]),
+      extra: Map<String, Object?>.from(
+        map['extra'] as Map? ?? const <String, Object?>{},
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    if (modelId != null) 'modelId': modelId,
+    'maxTokens': maxTokens,
+    if (temperature != null) 'temperature': temperature,
+    if (topP != null) 'topP': topP,
+    if (stop.isNotEmpty) 'stop': stop,
+    if (extra.isNotEmpty) 'extra': extra,
+  };
+}
+
+@immutable
+class LocalChatDelta {
+  const LocalChatDelta({
+    required this.content,
+    this.done = false,
+    this.metadata = const <String, Object?>{},
+  });
+
+  final String content;
+  final bool done;
+  final Map<String, Object?> metadata;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'content': content,
+    'done': done,
+    if (metadata.isNotEmpty) 'metadata': metadata,
+  };
+}
+
+@immutable
+class LocalChatResponse {
+  const LocalChatResponse({
+    required this.message,
+    this.metadata = const <String, Object?>{},
+  });
+
+  final LocalChatMessage message;
+  final Map<String, Object?> metadata;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'message': message.toJson(),
+    if (metadata.isNotEmpty) 'metadata': metadata,
   };
 }
 
