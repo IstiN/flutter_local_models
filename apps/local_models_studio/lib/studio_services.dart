@@ -252,6 +252,7 @@ class InstalledModel {
     required this.sourceLabel,
     required this.installedAt,
     required this.sizeBytes,
+    this.metadataUpdatedAt,
   });
 
   final LocalModelManifest manifest;
@@ -259,6 +260,7 @@ class InstalledModel {
   final String sourceLabel;
   final DateTime installedAt;
   final int sizeBytes;
+  final DateTime? metadataUpdatedAt;
 
   bool get chatSupported =>
       manifest.tasks.contains(ModelTask.chat) &&
@@ -464,6 +466,32 @@ class StudioApiClient {
         .toList(growable: false);
   }
 
+  Future<LocalModelManifest?> fetchReleaseManifest(
+    GitHubReleaseRecord release,
+  ) async {
+    final yamlAsset = _firstWhereOrNull(
+      release.assets,
+      (asset) => asset.name == 'manifest.source.yaml',
+    );
+    if (yamlAsset != null) {
+      return LocalModelManifest.fromYaml(
+        await _requestText(yamlAsset.downloadUri),
+      );
+    }
+    final jsonAsset = _firstWhereOrNull(
+      release.assets,
+      (asset) => asset.name == 'model_metadata.json',
+    );
+    if (jsonAsset != null) {
+      return LocalModelManifest.fromJsonMap(
+        Map<String, Object?>.from(
+          jsonDecode(await _requestJson(jsonAsset.downloadUri)) as Map,
+        ),
+      );
+    }
+    return null;
+  }
+
   Future<HuggingFaceRepoDetails> fetchHuggingFaceRepo(
     String repoId, {
     String revision = 'main',
@@ -569,6 +597,16 @@ class StudioApiClient {
         HttpHeaders.acceptHeader: 'application/json',
         HttpHeaders.userAgentHeader: 'flutter_local_models/0.1',
         ...headers,
+      },
+    );
+  }
+
+  Future<String> _requestText(Uri uri) async {
+    return _runCurl(
+      uri,
+      headers: const <String, String>{
+        HttpHeaders.acceptHeader: 'text/plain, application/x-yaml, */*',
+        HttpHeaders.userAgentHeader: 'flutter_local_models/0.1',
       },
     );
   }
@@ -1126,6 +1164,7 @@ class StudioController extends ChangeNotifier {
   String customHfRepoId = '';
   int maxDownloadRetries = 5;
   String settingsStatusMessage = '';
+  String metadataStatusMessage = '';
   String? customHfErrorMessage;
   HuggingFaceRepoDetails? customHfRepoDetails;
   List<GitHubReleaseRecord> githubReleases = const [];
@@ -1380,6 +1419,9 @@ class StudioController extends ChangeNotifier {
             installedAt:
                 DateTime.tryParse(decoded['installedAt'] as String? ?? '') ??
                 DateTime.now(),
+            metadataUpdatedAt: DateTime.tryParse(
+              decoded['metadataUpdatedAt'] as String? ?? '',
+            ),
             sizeBytes: sizeBytes,
           ),
         );
@@ -1397,6 +1439,7 @@ class StudioController extends ChangeNotifier {
             sourceLabel: 'Unknown',
             installedAt: (await entity.stat()).modified,
             sizeBytes: sizeBytes,
+            metadataUpdatedAt: null,
           ),
         );
       }
@@ -1425,6 +1468,53 @@ class StudioController extends ChangeNotifier {
       chatErrorMessage = null;
     }
     await reloadInstalledModels();
+  }
+
+  Future<InstalledModel> refreshInstalledModelMetadata(
+    InstalledModel model,
+  ) async {
+    final manifest = await _latestManifestForInstalledModel(model);
+    await _writeInstallMetadata(
+      model.directory,
+      manifest,
+      sourceLabel: model.sourceLabel,
+      installedAt: model.installedAt,
+      metadataUpdatedAt: DateTime.now(),
+    );
+    metadataStatusMessage =
+        'Updated config metadata for ${manifest.displayName}';
+    await reloadInstalledModels();
+    final refreshed = _firstWhereOrNull(
+      installedModels,
+      (item) => item.directory.path == model.directory.path,
+    );
+    if (refreshed != null) {
+      return refreshed;
+    }
+    return InstalledModel(
+      manifest: manifest,
+      directory: model.directory,
+      sourceLabel: model.sourceLabel,
+      installedAt: model.installedAt,
+      metadataUpdatedAt: DateTime.now(),
+      sizeBytes: await _directorySizeBytes(model.directory),
+    );
+  }
+
+  Future<void> refreshAllInstalledModelMetadata() async {
+    if (installedModels.isEmpty) {
+      metadataStatusMessage = 'No installed models to update';
+      notifyListeners();
+      return;
+    }
+    var updatedCount = 0;
+    for (final model in List<InstalledModel>.from(installedModels)) {
+      await refreshInstalledModelMetadata(model);
+      updatedCount += 1;
+    }
+    metadataStatusMessage =
+        'Updated config metadata for $updatedCount installed model${updatedCount == 1 ? '' : 's'}';
+    notifyListeners();
   }
 
   void selectChatModel(InstalledModel? model) {
@@ -2093,18 +2183,42 @@ class StudioController extends ChangeNotifier {
     Directory modelDirectory,
     LocalModelManifest manifest, {
     required String sourceLabel,
+    DateTime? installedAt,
+    DateTime? metadataUpdatedAt,
   }) async {
     final metadataFile = File(
       p.join(modelDirectory.path, _installMetadataFileName),
     );
+    final now = DateTime.now();
     final payload = <String, Object?>{
       'sourceLabel': sourceLabel,
-      'installedAt': DateTime.now().toIso8601String(),
+      'installedAt': (installedAt ?? now).toIso8601String(),
+      'metadataUpdatedAt': (metadataUpdatedAt ?? now).toIso8601String(),
       'manifest': manifest.toJson(),
     };
     await metadataFile.writeAsString(
       const JsonEncoder.withIndent('  ').convert(payload),
     );
+  }
+
+  Future<LocalModelManifest> _latestManifestForInstalledModel(
+    InstalledModel model,
+  ) async {
+    final release = _firstWhereOrNull(
+      githubReleases,
+      (item) => item.tagName == model.manifest.packaging.releaseTag,
+    );
+    if (release != null) {
+      final releaseManifest = await apiClient.fetchReleaseManifest(release);
+      if (releaseManifest != null) {
+        return releaseManifest;
+      }
+    }
+    final registryManifest = _firstWhereOrNull(
+      registry.manifests,
+      (item) => item.id == model.manifest.id,
+    );
+    return registryManifest ?? model.manifest;
   }
 
   Future<void> _concatenateFiles(List<File> parts, File destination) async {

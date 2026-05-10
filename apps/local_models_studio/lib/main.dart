@@ -641,13 +641,30 @@ class _StudioShellState extends State<StudioShell> {
             ),
           ),
         const SizedBox(height: 16),
-        Text(
-          'Installed Models (${controller.installedModels.length})',
-          style: Theme.of(context).textTheme.titleLarge,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Installed Models (${controller.installedModels.length})',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: controller.installedModels.isEmpty
+                  ? null
+                  : () => _runAction(_refreshAllInstalledModelMetadata),
+              icon: const StudioSvgIcon('refresh', size: 20),
+              label: const Text('Update Configs'),
+            ),
+          ],
         ),
         if (controller.installedModels.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text('Total disk usage: ${formatBytes(installedBytes)}'),
+        ],
+        if (controller.metadataStatusMessage.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(controller.metadataStatusMessage),
         ],
         const SizedBox(height: 12),
         if (controller.installedModels.isEmpty)
@@ -2176,6 +2193,12 @@ class _StudioShellState extends State<StudioShell> {
             Text(
               'Tasks: ${model.manifest.tasks.map(modelTaskToString).join(', ')}',
             ),
+            if (!model.manifest.runtimeConfig.isEmpty)
+              Text(_runtimeConfigSummary(model.manifest.runtimeConfig)),
+            if (model.metadataUpdatedAt != null)
+              Text(
+                'Config updated: ${_formatDateTime(model.metadataUpdatedAt!)}',
+              ),
             const SizedBox(height: 8),
             SelectableText(model.directory.path),
             const SizedBox(height: 12),
@@ -2187,6 +2210,12 @@ class _StudioShellState extends State<StudioShell> {
                   onPressed: () => _openModelInTest(model, context),
                   icon: const StudioSvgIcon('play', size: 20),
                   label: const Text('Open in Test'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      _runAction(() => _refreshInstalledModelMetadata(model)),
+                  icon: const StudioSvgIcon('refresh', size: 20),
+                  label: const Text('Update Config'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => controller.deleteInstalledModel(model),
@@ -2750,6 +2779,15 @@ class _StudioShellState extends State<StudioShell> {
     return '$minutes:$seconds';
   }
 
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    final date =
+        '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+    final time =
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    return '$date $time';
+  }
+
   String _runtimeConfigSummary(ModelRuntimeConfig config) {
     final parts = <String>[];
     if (config.voices.isNotEmpty) {
@@ -2861,6 +2899,54 @@ class _StudioShellState extends State<StudioShell> {
       return 'chat';
     }
     return 'installed';
+  }
+
+  Future<void> _refreshInstalledModelMetadata(InstalledModel model) async {
+    final updated = await controller.refreshInstalledModelMetadata(model);
+    _replaceSelectedModelReferences(updated);
+  }
+
+  Future<void> _refreshAllInstalledModelMetadata() async {
+    await controller.refreshAllInstalledModelMetadata();
+    _replaceSelectedModelReferences(null);
+  }
+
+  void _replaceSelectedModelReferences(InstalledModel? updated) {
+    InstalledModel? resolve(InstalledModel? selected) {
+      if (selected == null) {
+        return null;
+      }
+      return _firstWhereOrNull(
+            controller.installedModels,
+            (model) => model.directory.path == selected.directory.path,
+          ) ??
+          selected;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      if (updated != null) {
+        if (selectedTestModel?.directory.path == updated.directory.path) {
+          selectedTestModel = updated;
+        }
+        if (selectedAsrModel?.directory.path == updated.directory.path) {
+          selectedAsrModel = updated;
+        }
+        if (selectedVoiceChatModel?.directory.path == updated.directory.path) {
+          selectedVoiceChatModel = updated;
+        }
+        if (selectedTtsModel?.directory.path == updated.directory.path) {
+          selectedTtsModel = updated;
+        }
+        return;
+      }
+      selectedTestModel = resolve(selectedTestModel);
+      selectedAsrModel = resolve(selectedAsrModel);
+      selectedVoiceChatModel = resolve(selectedVoiceChatModel);
+      selectedTtsModel = resolve(selectedTtsModel);
+    });
   }
 
   Future<void> _runAction(Future<void> Function() action) async {
