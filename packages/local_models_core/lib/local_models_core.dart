@@ -315,6 +315,104 @@ class CapabilitySpec {
 }
 
 @immutable
+class ModelVoice {
+  const ModelVoice({
+    required this.id,
+    required this.displayName,
+    this.locale,
+    this.description,
+    this.parameters = const <String, Object?>{},
+  });
+
+  final String id;
+  final String displayName;
+  final String? locale;
+  final String? description;
+  final Map<String, Object?> parameters;
+
+  factory ModelVoice.fromMap(Map<Object?, Object?> map) {
+    return ModelVoice(
+      id: map['id'] as String,
+      displayName:
+          map['display_name'] as String? ?? map['displayName'] as String,
+      locale: map['locale'] as String?,
+      description: map['description'] as String?,
+      parameters: Map<String, Object?>.from(
+        map['parameters'] as Map? ?? const <String, Object?>{},
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'id': id,
+    'displayName': displayName,
+    if (locale != null) 'locale': locale,
+    if (description != null) 'description': description,
+    if (parameters.isNotEmpty) 'parameters': parameters,
+  };
+}
+
+@immutable
+class ModelRuntimeConfig {
+  const ModelRuntimeConfig({
+    this.defaultParameters = const <String, Object?>{},
+    this.parameterSchema = const <String, Object?>{},
+    this.voices = const <ModelVoice>[],
+    this.output = const <String, Object?>{},
+    this.extra = const <String, Object?>{},
+  });
+
+  final Map<String, Object?> defaultParameters;
+  final Map<String, Object?> parameterSchema;
+  final List<ModelVoice> voices;
+  final Map<String, Object?> output;
+  final Map<String, Object?> extra;
+
+  bool get isEmpty =>
+      defaultParameters.isEmpty &&
+      parameterSchema.isEmpty &&
+      voices.isEmpty &&
+      output.isEmpty &&
+      extra.isEmpty;
+
+  factory ModelRuntimeConfig.fromMap(Map<Object?, Object?> map) {
+    return ModelRuntimeConfig(
+      defaultParameters: Map<String, Object?>.from(
+        map['default_parameters'] as Map? ??
+            map['defaultParameters'] as Map? ??
+            const <String, Object?>{},
+      ),
+      parameterSchema: Map<String, Object?>.from(
+        map['parameter_schema'] as Map? ??
+            map['parameterSchema'] as Map? ??
+            const <String, Object?>{},
+      ),
+      voices: List<Object?>.from(map['voices'] as List? ?? const <Object?>[])
+          .map(
+            (item) =>
+                ModelVoice.fromMap(Map<Object?, Object?>.from(item as Map)),
+          )
+          .toList(growable: false),
+      output: Map<String, Object?>.from(
+        map['output'] as Map? ?? const <String, Object?>{},
+      ),
+      extra: Map<String, Object?>.from(
+        map['extra'] as Map? ?? const <String, Object?>{},
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    if (defaultParameters.isNotEmpty) 'defaultParameters': defaultParameters,
+    if (parameterSchema.isNotEmpty) 'parameterSchema': parameterSchema,
+    if (voices.isNotEmpty)
+      'voices': voices.map((voice) => voice.toJson()).toList(growable: false),
+    if (output.isNotEmpty) 'output': output,
+    if (extra.isNotEmpty) 'extra': extra,
+  };
+}
+
+@immutable
 class LocalModelManifest {
   const LocalModelManifest({
     required this.id,
@@ -326,6 +424,7 @@ class LocalModelManifest {
     required this.packaging,
     required this.requirements,
     required this.capabilities,
+    this.runtimeConfig = const ModelRuntimeConfig(),
   });
 
   final String id;
@@ -337,6 +436,7 @@ class LocalModelManifest {
   final PackagingSpec packaging;
   final SystemRequirements requirements;
   final CapabilitySpec capabilities;
+  final ModelRuntimeConfig runtimeConfig;
 
   factory LocalModelManifest.fromYaml(String yaml) {
     final dynamic data = loadYaml(yaml);
@@ -368,6 +468,14 @@ class LocalModelManifest {
       capabilities: CapabilitySpec.fromMap(
         Map<Object?, Object?>.from(map['capabilities'] as Map),
       ),
+      runtimeConfig:
+          map['runtime_config'] == null && map['runtimeConfig'] == null
+          ? const ModelRuntimeConfig()
+          : ModelRuntimeConfig.fromMap(
+              Map<Object?, Object?>.from(
+                (map['runtime_config'] ?? map['runtimeConfig']) as Map,
+              ),
+            ),
     );
   }
 
@@ -381,6 +489,7 @@ class LocalModelManifest {
     'packaging': packaging.toJson(),
     'requirements': requirements.toJson(),
     'capabilities': capabilities.toJson(),
+    if (!runtimeConfig.isEmpty) 'runtimeConfig': runtimeConfig.toJson(),
   };
 }
 

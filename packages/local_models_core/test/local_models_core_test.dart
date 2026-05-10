@@ -31,6 +31,15 @@ capabilities:
   audio_input: true
   audio_output: false
   tool_calling: false
+runtime_config:
+  default_parameters:
+    language: auto
+  voices:
+    - id: default
+      display_name: Default voice
+      locale: multilingual
+  output:
+    format: text
 ''';
 
 void main() {
@@ -40,6 +49,9 @@ void main() {
     expect(manifest.runtimeAdapter, RuntimeAdapter.mlxAudio);
     expect(manifest.tasks, [ModelTask.speechToText]);
     expect(manifest.capabilities.audioInput, isTrue);
+    expect(manifest.runtimeConfig.defaultParameters['language'], 'auto');
+    expect(manifest.runtimeConfig.voices.single.displayName, 'Default voice');
+    expect(manifest.runtimeConfig.output['format'], 'text');
     expect(manifest.packaging.releaseTag, 'model-qwen3-asr-0.6b-4bit');
   });
 

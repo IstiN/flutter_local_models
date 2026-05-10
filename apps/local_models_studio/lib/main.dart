@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -148,10 +149,12 @@ class _StudioShellState extends State<StudioShell> {
   late final TextEditingController chatPromptController;
   late final ScrollController chatScrollController;
   late final AudioRecorder audioRecorder;
+  late final AudioPlayer audioPlayer;
   InstalledModel? selectedTestModel;
   String? selectedAudioPath;
   String? selectedImagePath;
   String? generatedAudioPath;
+  String? playingAudioPath;
   bool audioInputMode = false;
   bool imageInputMode = false;
   bool recordingAudio = false;
@@ -185,6 +188,7 @@ class _StudioShellState extends State<StudioShell> {
     chatPromptController = TextEditingController();
     chatScrollController = ScrollController();
     audioRecorder = AudioRecorder();
+    audioPlayer = AudioPlayer();
     controller.addListener(_handleControllerUpdate);
     unawaited(controller.initialize());
   }
@@ -199,6 +203,7 @@ class _StudioShellState extends State<StudioShell> {
     chatPromptController.dispose();
     chatScrollController.dispose();
     audioRecorder.dispose();
+    audioPlayer.dispose();
     super.dispose();
   }
 
@@ -911,7 +916,7 @@ class _StudioShellState extends State<StudioShell> {
                               borderRadius: BorderRadius.circular(22),
                             ),
                             padding: const EdgeInsets.all(18),
-                            child: SelectableText(turn.message),
+                            child: _buildChatTurnBody(turn),
                           ),
                         ],
                       );
@@ -934,23 +939,6 @@ class _StudioShellState extends State<StudioShell> {
                     hintText: 'Type text to synthesize locally...',
                   ),
                 ),
-                if (generatedAudioPath != null) ...[
-                  const SizedBox(height: 12),
-                  Card(
-                    margin: EdgeInsets.zero,
-                    child: ListTile(
-                      leading: const Icon(Icons.graphic_eq),
-                      title: Text(p.basename(generatedAudioPath!)),
-                      subtitle: SelectableText(generatedAudioPath!),
-                      trailing: IconButton(
-                        tooltip: 'Play generated audio',
-                        onPressed: () =>
-                            Process.run('open', [generatedAudioPath!]),
-                        icon: const Icon(Icons.play_arrow),
-                      ),
-                    ),
-                  ),
-                ],
               ],
             )
           else if (useAudioInput && selectedModel != null)
@@ -1083,6 +1071,58 @@ class _StudioShellState extends State<StudioShell> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildChatTurnBody(ChatTurn turn) {
+    final audioPath = turn.audioPath;
+    if (audioPath == null) {
+      return SelectableText(turn.message);
+    }
+    final isPlaying = playingAudioPath == audioPath;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (turn.message.trim().isNotEmpty) ...[
+          SelectableText(turn.message),
+          const SizedBox(height: 12),
+        ],
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C2038),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFF464B70)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton.filledTonal(
+                tooltip: isPlaying ? 'Stop audio' : 'Play audio',
+                onPressed: () => _toggleAudioPlayback(audioPath),
+                icon: Icon(isPlaying ? Icons.stop : Icons.play_arrow),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(p.basename(audioPath)),
+                  Text(
+                    [
+                      'Generated speech',
+                      if (turn.duration != null)
+                        _formatDuration(turn.duration!),
+                    ].join(' • '),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1413,6 +1453,10 @@ class _StudioShellState extends State<StudioShell> {
                   ? 'GitHub release: not published yet'
                   : 'GitHub release: ${release.tagName}',
             ),
+            if (!manifest.runtimeConfig.isEmpty) ...[
+              const SizedBox(height: 8),
+              Text(_runtimeConfigSummary(manifest.runtimeConfig)),
+            ],
             if (installed != null) ...[
               const SizedBox(height: 8),
               Text('Installed: ${installed.directory.path}'),
@@ -1869,8 +1913,19 @@ class _StudioShellState extends State<StudioShell> {
 
     try {
       final file = await controller.synthesizeSpeech(model: model, text: text);
-      setState(() => generatedAudioPath = file.path);
-      _replaceStreamingAssistant('Generated audio: ${file.path}');
+      final duration = await _probeAudioDuration(file.path);
+      setState(() {
+        generatedAudioPath = file.path;
+        if (controller.chatTurns.isNotEmpty &&
+            !controller.chatTurns.last.isUser) {
+          controller.chatTurns[controller.chatTurns.length -
+              1] = ChatTurn.assistant(
+            'Generated audio',
+            audioPath: file.path,
+            duration: duration,
+          );
+        }
+      });
     } catch (error) {
       setState(() => testErrorMessage = '$error');
     } finally {
@@ -1894,6 +1949,66 @@ class _StudioShellState extends State<StudioShell> {
       }
     });
     _scrollChatToBottom();
+  }
+
+  Future<void> _toggleAudioPlayback(String path) async {
+    if (playingAudioPath == path) {
+      await audioPlayer.stop();
+      if (mounted) {
+        setState(() => playingAudioPath = null);
+      }
+      return;
+    }
+    await audioPlayer.stop();
+    await audioPlayer.play(DeviceFileSource(path));
+    if (!mounted) {
+      return;
+    }
+    setState(() => playingAudioPath = path);
+    audioPlayer.onPlayerComplete.first.then((_) {
+      if (mounted && playingAudioPath == path) {
+        setState(() => playingAudioPath = null);
+      }
+    });
+  }
+
+  Future<Duration?> _probeAudioDuration(String path) async {
+    await audioPlayer.setSource(DeviceFileSource(path));
+    return audioPlayer.getDuration();
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  String _runtimeConfigSummary(ModelRuntimeConfig config) {
+    final parts = <String>[];
+    if (config.voices.isNotEmpty) {
+      parts.add(
+        'Voices: ${config.voices.take(3).map((voice) => voice.displayName).join(', ')}${config.voices.length > 3 ? '…' : ''}',
+      );
+    }
+    final mediaType = config.output['media_type'];
+    final defaultSize = config.output['default_size'];
+    if (mediaType != null) {
+      parts.add('Output: $mediaType');
+    }
+    if (defaultSize != null) {
+      parts.add('Size: $defaultSize');
+    }
+    final defaults = config.defaultParameters.entries
+        .where(
+          (entry) => entry.key != 'audio_format' && entry.key != 'join_audio',
+        )
+        .take(4)
+        .map((entry) => '${entry.key}: ${entry.value}')
+        .join(', ');
+    if (defaults.isNotEmpty) {
+      parts.add('Defaults: $defaults');
+    }
+    return parts.join(' • ');
   }
 
   List<LocalChatMessage> _messagesForCurrentChat(LocalChatMessage nextMessage) {

@@ -26,3 +26,24 @@ capabilities:
   audio_input: false
   audio_output: true
   tool_calling: false
+runtime_config:
+  default_parameters:
+    audio_format: wav
+    join_audio: true
+  parameter_schema:
+    type: object
+    properties:
+      voice:
+        type: string
+      speed:
+        type: number
+        minimum: 0.5
+        maximum: 2.0
+  voices:
+    - id: default
+      display_name: Default VibeVoice
+      locale: multilingual
+  output:
+    media_type: audio/wav
+    extension: wav
+    supports_inline_playback: true

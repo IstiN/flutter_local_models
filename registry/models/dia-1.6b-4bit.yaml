@@ -26,3 +26,28 @@ capabilities:
   audio_input: false
   audio_output: true
   tool_calling: false
+runtime_config:
+  default_parameters:
+    audio_format: wav
+    join_audio: true
+  parameter_schema:
+    type: object
+    properties:
+      voice:
+        type: string
+        description: Optional Dia dialogue voice preset or speaker tag.
+      speed:
+        type: number
+        minimum: 0.5
+        maximum: 2.0
+      seed:
+        type: integer
+  voices:
+    - id: default
+      display_name: Default Dia voice
+      locale: multilingual
+      description: Dia default expressive voice profile.
+  output:
+    media_type: audio/wav
+    extension: wav
+    supports_inline_playback: true

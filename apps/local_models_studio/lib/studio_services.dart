@@ -277,11 +277,17 @@ class InstalledModel {
 }
 
 class ChatTurn {
-  const ChatTurn.user(this.message) : isUser = true;
-  const ChatTurn.assistant(this.message) : isUser = false;
+  const ChatTurn.user(this.message)
+    : isUser = true,
+      audioPath = null,
+      duration = null;
+  const ChatTurn.assistant(this.message, {this.audioPath, this.duration})
+    : isUser = false;
 
   final bool isUser;
   final String message;
+  final String? audioPath;
+  final Duration? duration;
 }
 
 class DownloadTaskRecord {
@@ -837,6 +843,9 @@ class LocalAudioRunner {
     final tempDirectory = await Directory.systemTemp.createTemp(
       'flm-tts-${sanitizeId(model.manifest.id)}-',
     );
+    final runtimeDefaults = model.manifest.runtimeConfig.defaultParameters;
+    final audioFormat = runtimeDefaults['audio_format'] as String? ?? 'wav';
+    final joinAudio = runtimeDefaults['join_audio'] as bool? ?? true;
     final result = await Process.run(pythonExecutable, <String>[
       '-m',
       'mlx_audio.tts.generate',
@@ -849,8 +858,8 @@ class LocalAudioRunner {
       '--file_prefix',
       'speech-${DateTime.now().millisecondsSinceEpoch}',
       '--audio_format',
-      'wav',
-      '--join_audio',
+      audioFormat,
+      if (joinAudio) '--join_audio',
     ]);
     if (result.exitCode != 0) {
       final stderr = (result.stderr as String).trim();
@@ -862,7 +871,7 @@ class LocalAudioRunner {
         tempDirectory
             .listSync()
             .whereType<File>()
-            .where((file) => file.path.endsWith('.wav'))
+            .where((file) => file.path.endsWith('.$audioFormat'))
             .toList()
           ..sort((left, right) => left.path.compareTo(right.path));
     if (audioFiles.isEmpty) {

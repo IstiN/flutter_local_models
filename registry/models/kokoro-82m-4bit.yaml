@@ -26,3 +26,31 @@ capabilities:
   audio_input: false
   audio_output: true
   tool_calling: false
+runtime_config:
+  default_parameters:
+    audio_format: wav
+    join_audio: true
+    voice: af_heart
+  parameter_schema:
+    type: object
+    properties:
+      voice:
+        type: string
+      speed:
+        type: number
+        minimum: 0.5
+        maximum: 2.0
+  voices:
+    - id: af_heart
+      display_name: AF Heart
+      locale: en-US
+    - id: af_bella
+      display_name: AF Bella
+      locale: en-US
+    - id: am_adam
+      display_name: AM Adam
+      locale: en-US
+  output:
+    media_type: audio/wav
+    extension: wav
+    supports_inline_playback: true

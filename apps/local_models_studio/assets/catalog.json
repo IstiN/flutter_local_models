@@ -33,6 +33,42 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "audio_format": "wav",
+        "join_audio": true
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string",
+            "description": "Optional Dia dialogue voice preset or speaker tag."
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.0
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "default",
+          "display_name": "Default Dia voice",
+          "locale": "multilingual",
+          "description": "Dia default expressive voice profile."
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "supports_inline_playback": true
+      }
     }
   },
   {
@@ -177,6 +213,39 @@
       "audioInput": false,
       "audioOutput": false,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 30,
+        "guidance": 5.0
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "steps": {
+            "type": "integer"
+          },
+          "guidance": {
+            "type": "number"
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      },
+      "output": {
+        "media_type": "image/png",
+        "extension": "png",
+        "default_size": "1024x1024"
+      }
     }
   },
   {
@@ -213,6 +282,48 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "audio_format": "wav",
+        "join_audio": true,
+        "voice": "af_heart"
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.0
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "af_heart",
+          "display_name": "AF Heart",
+          "locale": "en-US"
+        },
+        {
+          "id": "af_bella",
+          "display_name": "AF Bella",
+          "locale": "en-US"
+        },
+        {
+          "id": "am_adam",
+          "display_name": "AM Adam",
+          "locale": "en-US"
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "supports_inline_playback": true
+      }
     }
   },
   {
@@ -248,6 +359,39 @@
       "audioInput": false,
       "audioOutput": false,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 30,
+        "guidance": 4.0
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "steps": {
+            "type": "integer"
+          },
+          "guidance": {
+            "type": "number"
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      },
+      "output": {
+        "media_type": "image/png",
+        "extension": "png",
+        "default_size": "1024x1024"
+      }
     }
   },
   {
@@ -283,6 +427,39 @@
       "audioInput": false,
       "audioOutput": false,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 30,
+        "guidance": 4.0
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "steps": {
+            "type": "integer"
+          },
+          "guidance": {
+            "type": "number"
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      },
+      "output": {
+        "media_type": "image/png",
+        "extension": "png",
+        "default_size": "1024x1024"
+      }
     }
   },
   {
@@ -426,6 +603,37 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "audio_format": "wav",
+        "join_audio": true
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.0
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "default",
+          "display_name": "Default Qwen3 TTS voice",
+          "locale": "multilingual"
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "supports_inline_playback": true
+      }
     }
   },
   {
@@ -462,6 +670,40 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "audio_format": "wav",
+        "join_audio": true
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.0
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "default",
+          "display_name": "Default Qwen3 TTS voice",
+          "locale": "multilingual"
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "supports_inline_playback": true
+      }
     }
   },
   {
@@ -498,6 +740,42 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "audio_format": "wav",
+        "join_audio": true
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "voice_prompt": {
+            "type": "string",
+            "description": "Natural language voice design prompt."
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.0
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "designed",
+          "display_name": "Designed voice",
+          "locale": "multilingual",
+          "description": "Voice controlled by a voice_prompt parameter."
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "supports_inline_playback": true
+      }
     }
   },
   {
@@ -534,6 +812,37 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "audio_format": "wav",
+        "join_audio": true
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.0
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "default",
+          "display_name": "Default VibeVoice",
+          "locale": "multilingual"
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "supports_inline_playback": true
+      }
     }
   },
   {
@@ -570,6 +879,37 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "runtimeConfig": {
+      "default_parameters": {
+        "audio_format": "wav",
+        "join_audio": true
+      },
+      "parameter_schema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.0
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "default",
+          "display_name": "Default VoxCPM2",
+          "locale": "multilingual"
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "supports_inline_playback": true
+      }
     }
   }
 ]

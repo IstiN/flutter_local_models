@@ -26,3 +26,28 @@ capabilities:
   audio_input: false
   audio_output: true
   tool_calling: false
+runtime_config:
+  default_parameters:
+    audio_format: wav
+    join_audio: true
+  parameter_schema:
+    type: object
+    properties:
+      voice_prompt:
+        type: string
+        description: Natural language voice design prompt.
+      speed:
+        type: number
+        minimum: 0.5
+        maximum: 2.0
+      seed:
+        type: integer
+  voices:
+    - id: designed
+      display_name: Designed voice
+      locale: multilingual
+      description: Voice controlled by a voice_prompt parameter.
+  output:
+    media_type: audio/wav
+    extension: wav
+    supports_inline_playback: true

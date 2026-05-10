@@ -25,3 +25,26 @@ capabilities:
   audio_input: false
   audio_output: false
   tool_calling: false
+runtime_config:
+  default_parameters:
+    width: 1024
+    height: 1024
+    steps: 30
+    guidance: 4.0
+  parameter_schema:
+    type: object
+    properties:
+      width:
+        type: integer
+      height:
+        type: integer
+      steps:
+        type: integer
+      guidance:
+        type: number
+      seed:
+        type: integer
+  output:
+    media_type: image/png
+    extension: png
+    default_size: 1024x1024
