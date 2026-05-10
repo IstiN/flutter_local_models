@@ -295,13 +295,15 @@ class ChatTurn {
     : isUser = true,
       audioPath = null,
       duration = null,
-      generationDuration = null;
+      generationDuration = null,
+      progress = null;
   const ChatTurn.assistant(
     this.message, {
     this.audioPath,
     this.imagePath,
     this.duration,
     this.generationDuration,
+    this.progress,
   }) : isUser = false;
 
   final bool isUser;
@@ -310,6 +312,7 @@ class ChatTurn {
   final String? imagePath;
   final Duration? duration;
   final Duration? generationDuration;
+  final double? progress;
 }
 
 class DownloadTaskRecord {
@@ -1009,6 +1012,7 @@ class LocalImageRunner {
   Future<File> generateImage({
     required InstalledModel model,
     required String prompt,
+    ValueChanged<double>? onProgress,
   }) async {
     if (!model.imageGenerationSupported) {
       throw StateError(
@@ -1055,18 +1059,54 @@ class LocalImageRunner {
             executable.endsWith('mflux-generate-qwen'))) {
       args.insertAll(2, <String>['--base-model', baseModel]);
     }
-    final result = await Process.run(executable, args);
-    if (result.exitCode != 0) {
-      final stderr = (result.stderr as String).trim();
+    final process = await Process.start(executable, args);
+    final stdoutBuffer = StringBuffer();
+    final stderrBuffer = StringBuffer();
+    final stdoutDone = process.stdout
+        .transform(utf8.decoder)
+        .listen(stdoutBuffer.write)
+        .asFuture<void>();
+    final stderrDone = process.stderr.transform(utf8.decoder).listen((chunk) {
+      stderrBuffer.write(chunk);
+      final progress = _parseMfluxProgress(stderrBuffer.toString());
+      if (progress != null) {
+        onProgress?.call(progress);
+      }
+    }).asFuture<void>();
+    final exitCode = await process.exitCode;
+    await stdoutDone;
+    await stderrDone;
+    if (exitCode != 0) {
+      final stderr = stderrBuffer.toString().trim();
       throw StateError(
-        'Local image generation failed using $executable: ${stderr.isEmpty ? result.stdout : stderr}',
+        'Local image generation failed using $executable: ${stderr.isEmpty ? stdoutBuffer.toString().trim() : stderr}',
       );
     }
     final outputFile = File(outputPath);
     if (!outputFile.existsSync()) {
       throw StateError('Image generation finished without producing output.');
     }
+    onProgress?.call(1);
     return outputFile;
+  }
+
+  double? _parseMfluxProgress(String chunk) {
+    final percentMatches = RegExp(r'(\d{1,3})%').allMatches(chunk).toList();
+    if (percentMatches.isNotEmpty) {
+      final percent = int.tryParse(percentMatches.last.group(1)!);
+      if (percent != null) {
+        return percent.clamp(0, 100).toDouble() / 100;
+      }
+    }
+    final stepMatches = RegExp(r'(\d+)\s*/\s*(\d+)').allMatches(chunk).toList();
+    if (stepMatches.isNotEmpty) {
+      final current = int.tryParse(stepMatches.last.group(1)!);
+      final total = int.tryParse(stepMatches.last.group(2)!);
+      if (current != null && total != null && total > 0) {
+        return (current / total).clamp(0, 1).toDouble();
+      }
+    }
+    return null;
   }
 
   String _mfluxExecutableFor(InstalledModel model) {
@@ -1640,8 +1680,13 @@ class StudioController extends ChangeNotifier {
   Future<File> generateImage({
     required InstalledModel model,
     required String prompt,
+    ValueChanged<double>? onProgress,
   }) {
-    return imageRunner.generateImage(model: model, prompt: prompt);
+    return imageRunner.generateImage(
+      model: model,
+      prompt: prompt,
+      onProgress: onProgress,
+    );
   }
 
   void clearChat() {

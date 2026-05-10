@@ -1214,6 +1214,10 @@ class _StudioShellState extends State<StudioShell> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SelectableText(turn.message),
+          if (turn.progress != null) ...[
+            const SizedBox(height: 10),
+            LinearProgressIndicator(value: turn.progress),
+          ],
           _buildGenerationTimeFooter(turn),
         ],
       );
@@ -3180,7 +3184,9 @@ class _StudioShellState extends State<StudioShell> {
       testBusy = true;
       testErrorMessage = null;
       controller.chatTurns.add(ChatTurn.user(prompt));
-      controller.chatTurns.add(const ChatTurn.assistant('Generating image...'));
+      controller.chatTurns.add(
+        const ChatTurn.assistant('Generating image... 0%', progress: 0),
+      );
     });
     _scrollChatToBottom();
 
@@ -3189,6 +3195,28 @@ class _StudioShellState extends State<StudioShell> {
       final imageFile = await controller.generateImage(
         model: model,
         prompt: prompt,
+        onProgress: (progress) {
+          if (!mounted) {
+            return;
+          }
+          final safeProgress = progress.clamp(0.0, 1.0).toDouble();
+          final percent = (safeProgress * 100).round();
+          setState(() {
+            final lastIndex = controller.chatTurns.lastIndexWhere(
+              (turn) => !turn.isUser,
+            );
+            final progressTurn = ChatTurn.assistant(
+              'Generating image... $percent%',
+              progress: safeProgress,
+            );
+            if (lastIndex == -1) {
+              controller.chatTurns.add(progressTurn);
+            } else {
+              controller.chatTurns[lastIndex] = progressTurn;
+            }
+          });
+          _scrollChatToBottom();
+        },
       );
       stopwatch.stop();
       setState(() {
@@ -3391,6 +3419,7 @@ class _StudioShellState extends State<StudioShell> {
   void _replaceStreamingAssistant(
     String message, {
     Duration? generationDuration,
+    double? progress,
   }) {
     if (!mounted) {
       return;
@@ -3401,7 +3430,11 @@ class _StudioShellState extends State<StudioShell> {
       );
       if (lastIndex == -1) {
         controller.chatTurns.add(
-          ChatTurn.assistant(message, generationDuration: generationDuration),
+          ChatTurn.assistant(
+            message,
+            generationDuration: generationDuration,
+            progress: progress,
+          ),
         );
       } else {
         final current = controller.chatTurns[lastIndex];
@@ -3411,6 +3444,7 @@ class _StudioShellState extends State<StudioShell> {
           imagePath: current.imagePath,
           duration: current.duration,
           generationDuration: generationDuration ?? current.generationDuration,
+          progress: progress ?? current.progress,
         );
       }
     });
