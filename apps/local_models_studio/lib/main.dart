@@ -180,6 +180,10 @@ class _StudioShellState extends State<StudioShell> {
   late final TextEditingController customRepoController;
   late final TextEditingController downloadRetryCountController;
   late final TextEditingController chatPromptController;
+  late final TextEditingController ttsVoiceController;
+  late final TextEditingController ttsInstructController;
+  late final TextEditingController ttsLanguageController;
+  late final TextEditingController ttsSpeedController;
   late final ScrollController chatScrollController;
   late final AudioRecorder audioRecorder;
   late final AudioPlayer audioPlayer;
@@ -189,6 +193,7 @@ class _StudioShellState extends State<StudioShell> {
   InstalledModel? selectedTtsModel;
   String? selectedAudioPath;
   String? selectedImagePath;
+  String? ttsReferenceAudioPath;
   String? generatedAudioPath;
   String? playingAudioPath;
   bool audioInputMode = false;
@@ -226,6 +231,12 @@ class _StudioShellState extends State<StudioShell> {
       text: controller.maxDownloadRetries.toString(),
     );
     chatPromptController = TextEditingController();
+    ttsVoiceController = TextEditingController(text: 'Ethan');
+    ttsInstructController = TextEditingController(
+      text: 'A calm, natural assistant voice with stable tone.',
+    );
+    ttsLanguageController = TextEditingController(text: 'ru');
+    ttsSpeedController = TextEditingController(text: '1.0');
     chatScrollController = ScrollController();
     audioRecorder = AudioRecorder();
     audioPlayer = AudioPlayer();
@@ -242,6 +253,10 @@ class _StudioShellState extends State<StudioShell> {
     customRepoController.dispose();
     downloadRetryCountController.dispose();
     chatPromptController.dispose();
+    ttsVoiceController.dispose();
+    ttsInstructController.dispose();
+    ttsLanguageController.dispose();
+    ttsSpeedController.dispose();
     chatScrollController.dispose();
     audioRecorder.dispose();
     audioPlayer.dispose();
@@ -869,6 +884,9 @@ class _StudioShellState extends State<StudioShell> {
                               value?.textPromptSupported != true;
                           imageInputMode = false;
                           testErrorMessage = null;
+                          if (value?.textToSpeechSupported == true) {
+                            _applyTtsDefaultsForModel(value);
+                          }
                         });
                         controller.clearChat();
                       },
@@ -947,6 +965,8 @@ class _StudioShellState extends State<StudioShell> {
           if (useSpeechOutput && selectedModel != null)
             Column(
               children: [
+                _buildTtsVoiceControls(selectedModel),
+                const SizedBox(height: 12),
                 TextField(
                   controller: chatPromptController,
                   minLines: 2,
@@ -1259,12 +1279,18 @@ class _StudioShellState extends State<StudioShell> {
                           models: ttsModels,
                           value: ttsModel,
                           emptyText: 'Install a text-to-speech model',
-                          onChanged: (value) =>
-                              setState(() => selectedTtsModel = value),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedTtsModel = value;
+                              _applyTtsDefaultsForModel(value);
+                            });
+                          },
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 14),
+                  _buildTtsVoiceControls(ttsModel),
                   const SizedBox(height: 14),
                   TextField(
                     controller: chatPromptController,
@@ -1422,6 +1448,122 @@ class _StudioShellState extends State<StudioShell> {
           .toList(growable: false),
       hint: Text(emptyText),
       onChanged: testBusy ? null : onChanged,
+    );
+  }
+
+  Widget _buildTtsVoiceControls(InstalledModel? model) {
+    final voiceNames =
+        model?.manifest.runtimeConfig.voices
+            .map((voice) => voice.id)
+            .where((id) => id.trim().isNotEmpty && id != 'default')
+            .toList(growable: false) ??
+        const <String>[];
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'TTS voice lock',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: ttsVoiceController,
+                    enabled: !testBusy,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Voice / speaker',
+                      hintText: voiceNames.isEmpty
+                          ? 'Ethan, Chelsie, Vivian...'
+                          : voiceNames.join(', '),
+                      prefixIcon: const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: StudioSvgIcon('mic', size: 20),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 130,
+                  child: TextField(
+                    controller: ttsLanguageController,
+                    enabled: !testBusy,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Language',
+                      hintText: 'ru',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 120,
+                  child: TextField(
+                    controller: ttsSpeedController,
+                    enabled: !testBusy,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Speed',
+                      hintText: '1.0',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: ttsInstructController,
+              enabled: !testBusy,
+              minLines: 2,
+              maxLines: 3,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Voice design / instruction',
+                hintText:
+                    'A calm middle-aged male voice speaking Russian clearly...',
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const StudioSvgIcon('audio', size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    ttsReferenceAudioPath == null
+                        ? 'No reference voice audio selected'
+                        : p.basename(ttsReferenceAudioPath!),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: testBusy ? null : _chooseTtsReferenceAudioFile,
+                  icon: const StudioSvgIcon('folder', size: 20),
+                  label: const Text('Ref Audio'),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: testBusy || ttsReferenceAudioPath == null
+                      ? null
+                      : () => setState(() => ttsReferenceAudioPath = null),
+                  icon: const StudioSvgIcon('trash', size: 18),
+                  label: const Text('Clear'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -2028,22 +2170,61 @@ class _StudioShellState extends State<StudioShell> {
           model.speechToTextSupported && model.textPromptSupported != true;
       testErrorMessage = null;
       selectedPageIndex = 2;
+      if (model.textToSpeechSupported) {
+        _applyTtsDefaultsForModel(model);
+      }
     });
     controller.clearChat();
   }
 
+  void _applyTtsDefaultsForModel(InstalledModel? model) {
+    if (model == null) {
+      return;
+    }
+    final defaults = model.manifest.runtimeConfig.defaultParameters;
+    final voice = defaults['voice'] as String?;
+    final voicePrompt = defaults['voice_prompt'] as String?;
+    final language =
+        defaults['lang_code'] as String? ?? defaults['language'] as String?;
+    final speed = defaults['speed'];
+    if (voice != null && voice.trim().isNotEmpty) {
+      ttsVoiceController.text = voice.trim();
+    } else if (model.manifest.id.contains('qwen3-tts')) {
+      ttsVoiceController.text = 'Ethan';
+    }
+    if (voicePrompt != null && voicePrompt.trim().isNotEmpty) {
+      ttsInstructController.text = voicePrompt.trim();
+    }
+    if (language != null && language.trim().isNotEmpty) {
+      ttsLanguageController.text = language.trim();
+    }
+    if (speed != null) {
+      ttsSpeedController.text = '$speed';
+    }
+  }
+
   Future<void> _chooseAudioFile() async {
-    const audioTypeGroup = XTypeGroup(
-      label: 'audio',
-      extensions: <String>['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg'],
-    );
-    final file = await openFile(
-      acceptedTypeGroups: <XTypeGroup>[audioTypeGroup],
-    );
+    final file = await _openAudioFile();
     if (file == null) {
       return;
     }
     setState(() => selectedAudioPath = file.path);
+  }
+
+  Future<void> _chooseTtsReferenceAudioFile() async {
+    final file = await _openAudioFile();
+    if (file == null) {
+      return;
+    }
+    setState(() => ttsReferenceAudioPath = file.path);
+  }
+
+  Future<XFile?> _openAudioFile() {
+    const audioTypeGroup = XTypeGroup(
+      label: 'audio',
+      extensions: <String>['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg'],
+    );
+    return openFile(acceptedTypeGroups: <XTypeGroup>[audioTypeGroup]);
   }
 
   Future<void> _startAudioRecording() async {
@@ -2294,7 +2475,11 @@ class _StudioShellState extends State<StudioShell> {
     _scrollChatToBottom();
 
     try {
-      final file = await controller.synthesizeSpeech(model: model, text: text);
+      final file = await controller.synthesizeSpeech(
+        model: model,
+        text: text,
+        options: _speechOptionsFromUi(),
+      );
       final duration = await _probeAudioDuration(file.path);
       setState(() {
         generatedAudioPath = file.path;
@@ -2354,9 +2539,8 @@ class _StudioShellState extends State<StudioShell> {
       _scrollChatToBottom();
 
       final instruction = chatPromptController.text.trim();
-      final voicePrompt = instruction.isEmpty
-          ? transcript
-          : '$transcript\n\nInstruction: $instruction';
+      final voicePrompt =
+          '$transcript\n\nInstruction: ${instruction.isEmpty ? 'Answer in the same language as the user. Keep the response concise.' : instruction}';
       final response = await controller.chatRunner.chatStream(
         model: chatModel,
         messages: [LocalChatMessage.user(voicePrompt)],
@@ -2366,6 +2550,7 @@ class _StudioShellState extends State<StudioShell> {
       final speechFile = await controller.synthesizeSpeech(
         model: ttsModel,
         text: response,
+        options: _speechOptionsFromUi(),
       );
       final duration = await _probeAudioDuration(speechFile.path);
       setState(() {
@@ -2388,6 +2573,16 @@ class _StudioShellState extends State<StudioShell> {
       setState(() => testBusy = false);
       _scrollChatToBottom();
     }
+  }
+
+  SpeechSynthesisOptions _speechOptionsFromUi() {
+    return SpeechSynthesisOptions(
+      voice: ttsVoiceController.text.trim(),
+      instruct: ttsInstructController.text.trim(),
+      languageCode: ttsLanguageController.text.trim(),
+      referenceAudioPath: ttsReferenceAudioPath,
+      speed: double.tryParse(ttsSpeedController.text.trim()),
+    );
   }
 
   void _replaceStreamingAssistant(String message) {

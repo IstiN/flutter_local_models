@@ -863,6 +863,7 @@ class LocalAudioRunner {
   Future<File> synthesizeSpeech({
     required InstalledModel model,
     required String text,
+    SpeechSynthesisOptions options = const SpeechSynthesisOptions(),
   }) async {
     if (!model.textToSpeechSupported) {
       throw StateError(
@@ -889,6 +890,27 @@ class LocalAudioRunner {
       'speech-${DateTime.now().millisecondsSinceEpoch}',
       '--audio_format',
       audioFormat,
+      if (options.voice.trim().isNotEmpty) ...<String>[
+        '--voice',
+        options.voice.trim(),
+      ],
+      if (options.instruct.trim().isNotEmpty) ...<String>[
+        '--instruct',
+        options.instruct.trim(),
+      ],
+      if (options.languageCode.trim().isNotEmpty) ...<String>[
+        '--lang_code',
+        options.languageCode.trim(),
+      ],
+      if (options.referenceAudioPath?.trim().isNotEmpty == true) ...<String>[
+        '--ref_audio',
+        options.referenceAudioPath!.trim(),
+      ],
+      if (options.referenceText.trim().isNotEmpty) ...<String>[
+        '--ref_text',
+        options.referenceText.trim(),
+      ],
+      if (options.speed != null) ...<String>['--speed', '${options.speed}'],
       if (joinAudio) '--join_audio',
     ]);
     if (result.exitCode != 0) {
@@ -909,6 +931,24 @@ class LocalAudioRunner {
     }
     return audioFiles.first;
   }
+}
+
+class SpeechSynthesisOptions {
+  const SpeechSynthesisOptions({
+    this.voice = '',
+    this.instruct = '',
+    this.languageCode = '',
+    this.referenceAudioPath,
+    this.referenceText = '',
+    this.speed,
+  });
+
+  final String voice;
+  final String instruct;
+  final String languageCode;
+  final String? referenceAudioPath;
+  final String referenceText;
+  final double? speed;
 }
 
 class StudioController extends ChangeNotifier {
@@ -1287,9 +1327,14 @@ class StudioController extends ChangeNotifier {
   Future<File> synthesizeSpeech({
     required InstalledModel model,
     required String text,
+    SpeechSynthesisOptions options = const SpeechSynthesisOptions(),
   }) {
     final speechText = _sanitizeTextForSpeech(text);
-    return audioRunner.synthesizeSpeech(model: model, text: speechText);
+    return audioRunner.synthesizeSpeech(
+      model: model,
+      text: speechText,
+      options: options,
+    );
   }
 
   void clearChat() {
