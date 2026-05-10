@@ -37,7 +37,7 @@ Today the repo contains the first product skeleton:
 
 - `packages/local_models_core` — pure Dart types for manifests, registry loading, release planning, and runtime summaries
 - `packages/local_models_flutter` — Flutter plugin with a macOS native FFI bridge
-- `apps/local_models_studio` — minimal desktop UI for runtime inspection and future model management
+- `apps/local_models_studio` — desktop app for catalog browsing, resumable downloads, and local text/audio/image testing
 - `apps/local_models_cli` — CLI companion for registry and packaging flows
 - `native/mlx_bridge` — standalone Swift package that will evolve into the shared MLX runtime layer
 
@@ -142,14 +142,14 @@ If you need access to gated Hugging Face assets in automation, add `HF_TOKEN` as
 
 - implement the first real `MLX` text runtime
 - add install/download/repair APIs to the Flutter package
-- connect the desktop app to real local bundle state
+- keep polishing the Studio app as a production-quality SDK showcase
 - add end-to-end tests around install and runtime bootstrap
 
 ### After that
 
-- speech-to-text adapter
-- text-to-speech adapter
-- multimodal adapter support
+- native speech-to-text adapter
+- native text-to-speech adapter
+- native multimodal adapter support
 - optional non-MLX backends behind the same Dart contracts
 
 ## Status

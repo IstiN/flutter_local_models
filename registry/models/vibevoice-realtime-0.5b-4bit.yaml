@@ -1,0 +1,28 @@
+id: vibevoice-realtime-0.5b-4bit
+display_name: VibeVoice Realtime 0.5B 4bit
+description: Realtime-oriented MIT-licensed MLX TTS model for lightweight local voice responses.
+runtime_adapter: mlx_audio
+tasks:
+  - text_to_speech
+  - audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/VibeVoice-Realtime-0.5B-4bit
+  revision: main
+  license: mit
+packaging:
+  release_tag: model-vibevoice-realtime-0.5b-4bit
+  archive_name: vibevoice-realtime-0.5b-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: vibevoice-realtime-0.5b-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 8
+  recommended_memory_gb: 16
+  notes:
+    - Realtime TTS candidate
+    - MIT licensed model
+capabilities:
+  audio_input: false
+  audio_output: true
+  tool_calling: false

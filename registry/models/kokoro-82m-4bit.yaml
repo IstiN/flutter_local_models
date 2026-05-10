@@ -1,0 +1,28 @@
+id: kokoro-82m-4bit
+display_name: Kokoro 82M 4bit
+description: Tiny MLX TTS model for very fast local English voice output on Apple Silicon.
+runtime_adapter: mlx_audio
+tasks:
+  - text_to_speech
+  - audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/Kokoro-82M-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-kokoro-82m-4bit
+  archive_name: kokoro-82m-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: kokoro-82m-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+    - Very small TTS runtime
+    - Fast local speech output
+capabilities:
+  audio_input: false
+  audio_output: true
+  tool_calling: false

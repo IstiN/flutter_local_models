@@ -75,7 +75,25 @@ class StudioApp extends StatelessWidget {
     return MaterialApp(
       title: 'Local Models Studio',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4C6FFF)),
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF9B6BFF),
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF0D1020),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF242640),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: const BorderSide(color: Color(0xFF343957)),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF2E314F),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
+        ),
         useMaterial3: true,
       ),
       home: FutureBuilder<StudioSnapshot>(
@@ -126,16 +144,19 @@ class _StudioShellState extends State<StudioShell> {
   late final TextEditingController hfTokenController;
   late final TextEditingController customRepoController;
   late final TextEditingController chatPromptController;
+  late final ScrollController chatScrollController;
   late final AudioRecorder audioRecorder;
   InstalledModel? selectedTestModel;
   String? selectedAudioPath;
   String? selectedImagePath;
+  String? generatedAudioPath;
   bool audioInputMode = false;
   bool imageInputMode = false;
   bool recordingAudio = false;
   bool testBusy = false;
   String? testErrorMessage;
   bool obscureHfToken = true;
+  int selectedPageIndex = 0;
 
   @override
   void initState() {
@@ -154,6 +175,7 @@ class _StudioShellState extends State<StudioShell> {
       text: controller.customHfRepoId,
     );
     chatPromptController = TextEditingController();
+    chatScrollController = ScrollController();
     audioRecorder = AudioRecorder();
     controller.addListener(_handleControllerUpdate);
     unawaited(controller.initialize());
@@ -165,6 +187,7 @@ class _StudioShellState extends State<StudioShell> {
     hfTokenController.dispose();
     customRepoController.dispose();
     chatPromptController.dispose();
+    chatScrollController.dispose();
     audioRecorder.dispose();
     super.dispose();
   }
@@ -174,39 +197,110 @@ class _StudioShellState extends State<StudioShell> {
       return;
     }
     setState(() {});
+    _scrollChatToBottom();
+  }
+
+  void _scrollChatToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !chatScrollController.hasClients) {
+        return;
+      }
+      chatScrollController.animateTo(
+        chatScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Local Models Studio'),
-          actions: [
-            IconButton(
-              tooltip: 'Refresh sources',
-              onPressed: controller.loadingSources
-                  ? null
-                  : () => _runAction(controller.refreshSources),
-              icon: const Icon(Icons.refresh),
+    return Scaffold(
+      body: Row(
+        children: [
+          NavigationRail(
+            backgroundColor: const Color(0xFF11162B),
+            selectedIndex: selectedPageIndex,
+            onDestinationSelected: (index) {
+              setState(() => selectedPageIndex = index);
+            },
+            labelType: NavigationRailLabelType.all,
+            leading: const Padding(
+              padding: EdgeInsets.only(top: 20, bottom: 24),
+              child: Icon(Icons.hub_outlined, size: 34),
             ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Catalog', icon: Icon(Icons.inventory_2_outlined)),
-              Tab(text: 'Downloads', icon: Icon(Icons.download_outlined)),
-              Tab(text: 'Test', icon: Icon(Icons.play_circle_outline)),
+            destinations: const [
+              NavigationRailDestination(
+                icon: Icon(Icons.inventory_2_outlined),
+                selectedIcon: Icon(Icons.inventory_2),
+                label: Text('Catalog'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.download_outlined),
+                selectedIcon: Icon(Icons.download),
+                label: Text('Downloads'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.play_circle_outline),
+                selectedIcon: Icon(Icons.play_circle),
+                label: Text('Test'),
+              ),
             ],
           ),
-        ),
-        body: TabBarView(
-          children: [
-            _buildCatalogTab(context),
-            _buildDownloadsTab(context),
-            _buildTestTab(context),
-          ],
-        ),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: Column(
+              children: [
+                Container(
+                  height: 72,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  decoration: const BoxDecoration(color: Color(0xFF101429)),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Local Models Studio',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2E314F),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text('Flutter SDK demo'),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Refresh sources',
+                        onPressed: controller.loadingSources
+                            ? null
+                            : () => _runAction(controller.refreshSources),
+                        icon: const Icon(Icons.refresh),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: IndexedStack(
+                    index: selectedPageIndex,
+                    children: [
+                      _buildCatalogTab(context),
+                      _buildDownloadsTab(context),
+                      _buildTestTab(context),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -325,6 +419,7 @@ class _StudioShellState extends State<StudioShell> {
         selectedModel?.manifest.tasks.contains(ModelTask.vision) == true &&
         selectedModel?.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
         imageInputMode;
+    final useSpeechOutput = selectedModel?.textToSpeechSupported == true;
     final canSendText =
         selectedModel?.textPromptSupported == true &&
         !useAudioInput &&
@@ -341,6 +436,10 @@ class _StudioShellState extends State<StudioShell> {
     final canSendImage =
         useImageInput &&
         selectedImagePath != null &&
+        chatPromptController.text.trim().isNotEmpty &&
+        !testBusy;
+    final canSendSpeech =
+        useSpeechOutput &&
         chatPromptController.text.trim().isNotEmpty &&
         !testBusy;
 
@@ -379,6 +478,7 @@ class _StudioShellState extends State<StudioShell> {
                           selectedTestModel = value;
                           selectedAudioPath = null;
                           selectedImagePath = null;
+                          generatedAudioPath = null;
                           audioInputMode =
                               value?.speechToTextSupported == true &&
                               value?.textPromptSupported != true;
@@ -459,18 +559,31 @@ class _StudioShellState extends State<StudioShell> {
           const SizedBox(height: 16),
           Expanded(
             child: controller.chatTurns.isEmpty
-                ? const Card(
+                ? Card(
                     child: Center(
                       child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text(
-                          'Select an installed model, send text or audio, and the result will appear here.',
-                          textAlign: TextAlign.center,
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 42,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Choose a model, send text, audio, or image, and watch the local response stream here.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   )
                 : ListView.separated(
+                    controller: chatScrollController,
+                    padding: const EdgeInsets.only(bottom: 8),
                     itemCount: controller.chatTurns.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
@@ -479,22 +592,25 @@ class _StudioShellState extends State<StudioShell> {
                           ? CrossAxisAlignment.end
                           : CrossAxisAlignment.start;
                       final color = turn.isUser
-                          ? Theme.of(context).colorScheme.primaryContainer
-                          : Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest;
+                          ? const Color(0xFF59447D)
+                          : const Color(0xFF30334F);
                       return Column(
                         crossAxisAlignment: alignment,
                         children: [
-                          Text(turn.isUser ? 'You' : 'Model'),
+                          Text(
+                            turn.isUser ? 'You' : 'Model',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
                           const SizedBox(height: 4),
                           Container(
-                            constraints: const BoxConstraints(maxWidth: 760),
+                            constraints: const BoxConstraints(maxWidth: 980),
                             decoration: BoxDecoration(
                               color: color,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(22),
                             ),
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(18),
                             child: SelectableText(turn.message),
                           ),
                         ],
@@ -503,7 +619,41 @@ class _StudioShellState extends State<StudioShell> {
                   ),
           ),
           const SizedBox(height: 16),
-          if (useAudioInput && selectedModel != null)
+          if (useSpeechOutput && selectedModel != null)
+            Column(
+              children: [
+                TextField(
+                  controller: chatPromptController,
+                  minLines: 2,
+                  maxLines: 4,
+                  onChanged: (_) => setState(() {}),
+                  enabled: !testBusy,
+                  decoration: const InputDecoration(
+                    labelText: 'Speech text',
+                    border: OutlineInputBorder(),
+                    hintText: 'Type text to synthesize locally...',
+                  ),
+                ),
+                if (generatedAudioPath != null) ...[
+                  const SizedBox(height: 12),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: ListTile(
+                      leading: const Icon(Icons.graphic_eq),
+                      title: Text(p.basename(generatedAudioPath!)),
+                      subtitle: SelectableText(generatedAudioPath!),
+                      trailing: IconButton(
+                        tooltip: 'Play generated audio',
+                        onPressed: () =>
+                            Process.run('open', [generatedAudioPath!]),
+                        icon: const Icon(Icons.play_arrow),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            )
+          else if (useAudioInput && selectedModel != null)
             Column(
               children: [
                 if (selectedModel.textPromptSupported) ...[
@@ -579,6 +729,20 @@ class _StudioShellState extends State<StudioShell> {
                         )
                       : const Icon(Icons.send),
                   label: Text(testBusy ? 'Running...' : 'Send Audio'),
+                )
+              else if (useSpeechOutput && selectedModel != null)
+                FilledButton.icon(
+                  onPressed: canSendSpeech
+                      ? () => _sendTtsToSelectedModel(selectedModel)
+                      : null,
+                  icon: testBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.record_voice_over),
+                  label: Text(testBusy ? 'Running...' : 'Generate Speech'),
                 )
               else if (useImageInput && selectedModel != null)
                 FilledButton.icon(
@@ -1220,9 +1384,9 @@ class _StudioShellState extends State<StudioShell> {
       audioInputMode =
           model.speechToTextSupported && model.textPromptSupported != true;
       testErrorMessage = null;
+      selectedPageIndex = 2;
     });
     controller.clearChat();
-    DefaultTabController.of(context).animateTo(2);
   }
 
   Future<void> _chooseAudioFile() async {
@@ -1282,18 +1446,21 @@ class _StudioShellState extends State<StudioShell> {
       testBusy = true;
       testErrorMessage = null;
       controller.chatTurns.add(ChatTurn.user(prompt));
+      controller.chatTurns.add(const ChatTurn.assistant(''));
     });
+    _scrollChatToBottom();
 
     try {
-      final response = await controller.chatRunner.generateResponse(
+      await controller.chatRunner.generateResponseStreaming(
         model: model,
         prompt: prompt,
+        onText: _replaceStreamingAssistant,
       );
-      setState(() => controller.chatTurns.add(ChatTurn.assistant(response)));
     } catch (error) {
       setState(() => testErrorMessage = '$error');
     } finally {
       setState(() => testBusy = false);
+      _scrollChatToBottom();
     }
   }
 
@@ -1314,20 +1481,29 @@ class _StudioShellState extends State<StudioShell> {
       testErrorMessage = null;
       controller.chatTurns.add(ChatTurn.user(userMessage));
     });
+    _scrollChatToBottom();
 
     try {
-      final response = model.speechToTextSupported
-          ? await controller.transcribeAudio(model: model, audioPath: audioPath)
-          : await controller.chatRunner.generateResponse(
-              model: model,
-              prompt: prompt,
-              audioPath: audioPath,
-            );
-      setState(() => controller.chatTurns.add(ChatTurn.assistant(response)));
+      if (model.speechToTextSupported) {
+        final response = await controller.transcribeAudio(
+          model: model,
+          audioPath: audioPath,
+        );
+        setState(() => controller.chatTurns.add(ChatTurn.assistant(response)));
+      } else {
+        setState(() => controller.chatTurns.add(const ChatTurn.assistant('')));
+        await controller.chatRunner.generateResponseStreaming(
+          model: model,
+          prompt: prompt,
+          audioPath: audioPath,
+          onText: _replaceStreamingAssistant,
+        );
+      }
     } catch (error) {
       setState(() => testErrorMessage = '$error');
     } finally {
       setState(() => testBusy = false);
+      _scrollChatToBottom();
     }
   }
 
@@ -1347,23 +1523,74 @@ class _StudioShellState extends State<StudioShell> {
       controller.chatTurns.add(
         ChatTurn.user('Image: ${p.basename(imagePath)}\n$prompt'),
       );
+      controller.chatTurns.add(const ChatTurn.assistant(''));
     });
+    _scrollChatToBottom();
 
     try {
-      final response = await controller.chatRunner.generateResponse(
+      await controller.chatRunner.generateResponseStreaming(
         model: model,
         prompt: prompt,
         imagePath: imagePath,
+        onText: _replaceStreamingAssistant,
       );
-      setState(() => controller.chatTurns.add(ChatTurn.assistant(response)));
     } catch (error) {
       setState(() => testErrorMessage = '$error');
     } finally {
       setState(() => testBusy = false);
+      _scrollChatToBottom();
     }
   }
 
+  Future<void> _sendTtsToSelectedModel(InstalledModel model) async {
+    final text = chatPromptController.text.trim();
+    if (text.isEmpty) {
+      return;
+    }
+    setState(() {
+      testBusy = true;
+      testErrorMessage = null;
+      generatedAudioPath = null;
+      controller.chatTurns.add(ChatTurn.user(text));
+      controller.chatTurns.add(
+        const ChatTurn.assistant('Generating local speech...'),
+      );
+    });
+    _scrollChatToBottom();
+
+    try {
+      final file = await controller.synthesizeSpeech(model: model, text: text);
+      setState(() => generatedAudioPath = file.path);
+      _replaceStreamingAssistant('Generated audio: ${file.path}');
+    } catch (error) {
+      setState(() => testErrorMessage = '$error');
+    } finally {
+      setState(() => testBusy = false);
+      _scrollChatToBottom();
+    }
+  }
+
+  void _replaceStreamingAssistant(String message) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      final lastIndex = controller.chatTurns.lastIndexWhere(
+        (turn) => !turn.isUser,
+      );
+      if (lastIndex == -1) {
+        controller.chatTurns.add(ChatTurn.assistant(message));
+      } else {
+        controller.chatTurns[lastIndex] = ChatTurn.assistant(message);
+      }
+    });
+    _scrollChatToBottom();
+  }
+
   String _testModeLabel(InstalledModel model) {
+    if (model.textToSpeechSupported) {
+      return 'tts';
+    }
     if (model.speechToTextSupported) {
       return 'audio';
     }

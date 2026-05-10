@@ -1,0 +1,28 @@
+id: qwen3-tts-12hz-1.7b-voicedesign-4bit
+display_name: Qwen3 TTS 12Hz 1.7B VoiceDesign 4bit
+description: Larger Qwen3 TTS model with voice design support for higher-quality local speech output.
+runtime_adapter: mlx_audio
+tasks:
+  - text_to_speech
+  - audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-qwen3-tts-12hz-1.7b-voicedesign-4bit
+  archive_name: qwen3-tts-12hz-1.7b-voicedesign-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: qwen3-tts-12hz-1.7b-voicedesign-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 16
+  recommended_memory_gb: 32
+  notes:
+    - Qwen3 TTS
+    - Voice design capable
+capabilities:
+  audio_input: false
+  audio_output: true
+  tool_calling: false

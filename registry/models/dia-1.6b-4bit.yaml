@@ -1,0 +1,28 @@
+id: dia-1.6b-4bit
+display_name: Dia 1.6B 4bit
+description: Expressive MLX TTS model for natural local generated speech.
+runtime_adapter: mlx_audio
+tasks:
+  - text_to_speech
+  - audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/Dia-1.6B-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-dia-1.6b-4bit
+  archive_name: dia-1.6b-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: dia-1.6b-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 16
+  recommended_memory_gb: 32
+  notes:
+    - Expressive TTS
+    - Natural speech generation
+capabilities:
+  audio_input: false
+  audio_output: true
+  tool_calling: false

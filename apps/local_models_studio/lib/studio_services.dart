@@ -182,6 +182,10 @@ class InstalledModel {
   bool get speechToTextSupported =>
       manifest.tasks.contains(ModelTask.speechToText) &&
       manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
+
+  bool get textToSpeechSupported =>
+      manifest.tasks.contains(ModelTask.textToSpeech) &&
+      manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
 }
 
 class ChatTurn {
@@ -394,26 +398,14 @@ class LocalChatRunner {
 
   final String pythonExecutable;
 
-  Future<String> generateResponse({
+  List<String> _buildGenerateArgs({
     required InstalledModel model,
     required String prompt,
     String? audioPath,
     String? imagePath,
     int maxTokens = 256,
-  }) async {
-    if (!model.textPromptSupported) {
-      throw StateError(
-        'Chat verification currently supports installed mlx_lm and mlx_vlm chat models.',
-      );
-    }
-    final executableFile = File(pythonExecutable);
-    if (!executableFile.existsSync()) {
-      throw StateError(
-        'MLX Python runtime not found at $pythonExecutable. Set up ~/.venvs/mlx first.',
-      );
-    }
-
-    final args = switch (model.manifest.runtimeAdapter) {
+  }) {
+    return switch (model.manifest.runtimeAdapter) {
       RuntimeAdapter.mlxLm => <String>[
         '-m',
         'mlx_lm',
@@ -442,6 +434,37 @@ class LocalChatRunner {
       ],
       _ => throw StateError('Unsupported text runtime.'),
     };
+  }
+
+  void _checkRuntime(InstalledModel model) {
+    if (!model.textPromptSupported) {
+      throw StateError(
+        'Chat verification currently supports installed mlx_lm and mlx_vlm chat models.',
+      );
+    }
+    final executableFile = File(pythonExecutable);
+    if (!executableFile.existsSync()) {
+      throw StateError(
+        'MLX Python runtime not found at $pythonExecutable. Set up ~/.venvs/mlx first.',
+      );
+    }
+  }
+
+  Future<String> generateResponse({
+    required InstalledModel model,
+    required String prompt,
+    String? audioPath,
+    String? imagePath,
+    int maxTokens = 256,
+  }) async {
+    _checkRuntime(model);
+    final args = _buildGenerateArgs(
+      model: model,
+      prompt: prompt,
+      audioPath: audioPath,
+      imagePath: imagePath,
+      maxTokens: maxTokens,
+    );
 
     final result = await Process.run(pythonExecutable, args);
     if (result.exitCode != 0) {
@@ -453,6 +476,53 @@ class LocalChatRunner {
     if (output.isEmpty) {
       throw StateError('Local generation returned an empty response.');
     }
+    return output;
+  }
+
+  Future<String> generateResponseStreaming({
+    required InstalledModel model,
+    required String prompt,
+    required ValueChanged<String> onText,
+    String? audioPath,
+    String? imagePath,
+    int maxTokens = 256,
+  }) async {
+    _checkRuntime(model);
+    final args = _buildGenerateArgs(
+      model: model,
+      prompt: prompt,
+      audioPath: audioPath,
+      imagePath: imagePath,
+      maxTokens: maxTokens,
+    );
+    final process = await Process.start(pythonExecutable, args);
+    final stdoutBuffer = StringBuffer();
+    final stderrBuffer = StringBuffer();
+    final stdoutDone = process.stdout.transform(utf8.decoder).listen((chunk) {
+      stdoutBuffer.write(chunk);
+      final cleaned = _cleanGeneratedText(stdoutBuffer.toString()).trim();
+      if (cleaned.isNotEmpty) {
+        onText(cleaned);
+      }
+    }).asFuture<void>();
+    final stderrDone = process.stderr
+        .transform(utf8.decoder)
+        .listen(stderrBuffer.write)
+        .asFuture<void>();
+    final exitCode = await process.exitCode;
+    await stdoutDone;
+    await stderrDone;
+    if (exitCode != 0) {
+      final stderr = stderrBuffer.toString().trim();
+      throw StateError(
+        'Local generation failed: ${stderr.isEmpty ? 'exit code $exitCode' : stderr}',
+      );
+    }
+    final output = _cleanGeneratedText(stdoutBuffer.toString()).trim();
+    if (output.isEmpty) {
+      throw StateError('Local generation returned an empty response.');
+    }
+    onText(output);
     return output;
   }
 }
@@ -490,6 +560,15 @@ class LocalAudioRunner {
 
   final String pythonExecutable;
 
+  void _checkRuntime() {
+    final executableFile = File(pythonExecutable);
+    if (!executableFile.existsSync()) {
+      throw StateError(
+        'MLX Python runtime not found at $pythonExecutable. Set up ~/.venvs/mlx first.',
+      );
+    }
+  }
+
   Future<String> transcribeAudio({
     required InstalledModel model,
     required String audioPath,
@@ -501,12 +580,7 @@ class LocalAudioRunner {
       );
     }
 
-    final executableFile = File(pythonExecutable);
-    if (!executableFile.existsSync()) {
-      throw StateError(
-        'MLX Python runtime not found at $pythonExecutable. Set up ~/.venvs/mlx first.',
-      );
-    }
+    _checkRuntime();
 
     final tempDirectory = await Directory.systemTemp.createTemp(
       'flm-stt-${sanitizeId(model.manifest.id)}-',
@@ -552,6 +626,53 @@ class LocalAudioRunner {
         await tempDirectory.delete(recursive: true);
       }
     }
+  }
+
+  Future<File> synthesizeSpeech({
+    required InstalledModel model,
+    required String text,
+  }) async {
+    if (!model.textToSpeechSupported) {
+      throw StateError(
+        'Speech generation currently supports installed mlx_audio text-to-speech models.',
+      );
+    }
+    _checkRuntime();
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'flm-tts-${sanitizeId(model.manifest.id)}-',
+    );
+    final result = await Process.run(pythonExecutable, <String>[
+      '-m',
+      'mlx_audio.tts.generate',
+      '--model',
+      model.directory.path,
+      '--text',
+      text,
+      '--output_path',
+      tempDirectory.path,
+      '--file_prefix',
+      'speech-${DateTime.now().millisecondsSinceEpoch}',
+      '--audio_format',
+      'wav',
+      '--join_audio',
+    ]);
+    if (result.exitCode != 0) {
+      final stderr = (result.stderr as String).trim();
+      throw StateError(
+        'Local speech generation failed: ${stderr.isEmpty ? result.stdout : stderr}',
+      );
+    }
+    final audioFiles =
+        tempDirectory
+            .listSync()
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.wav'))
+            .toList()
+          ..sort((left, right) => left.path.compareTo(right.path));
+    if (audioFiles.isEmpty) {
+      throw StateError('Speech generation finished without producing audio.');
+    }
+    return audioFiles.first;
   }
 }
 
@@ -994,6 +1115,13 @@ class StudioController extends ChangeNotifier {
       audioPath: audioPath,
       language: language,
     );
+  }
+
+  Future<File> synthesizeSpeech({
+    required InstalledModel model,
+    required String text,
+  }) {
+    return audioRunner.synthesizeSpeech(model: model, text: text);
   }
 
   void clearChat() {
