@@ -1,0 +1,88 @@
+id: z-image-turbo-mflux-4bit
+display_name: Z-Image Turbo mflux 4bit
+description: Fast Z-Image Turbo mflux 4bit model for low-latency local text-to-image generation.
+runtime_adapter: mflux
+tasks:
+- image_generation
+source:
+  provider: huggingface
+  repo: filipstrand/Z-Image-Turbo-mflux-4bit
+  revision: main
+  license: other
+packaging:
+  release_tag: model-z-image-turbo-mflux-4bit
+  archive_name: z-image-turbo-mflux-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: z-image-turbo-mflux-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 16
+  recommended_memory_gb: 32
+  notes:
+  - MLX/mflux Z-Image Turbo runtime
+  - Distilled fast image generation
+  - Use fewer steps for low-latency previews
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    width: 1024
+    height: 1024
+    steps: 9
+    guidance: 3.5
+  parameter_schema:
+    type: object
+    properties:
+      width:
+        type: integer
+        minimum: 256
+        maximum: 1536
+      height:
+        type: integer
+        minimum: 256
+        maximum: 1536
+      steps:
+        type: integer
+        minimum: 1
+        maximum: 12
+      guidance:
+        type: number
+        minimum: 0.0
+        maximum: 10.0
+      seed:
+        type: integer
+  output:
+    media_type: image/png
+    extension: png
+    default_size: 1024x1024
+  extra:
+    mlx: true
+    mflux_runner: z-image-turbo
+    mflux_base_model: z-image-turbo
+    speed_tier: turbo
+    recommended_steps: 9
+    few_step: true
+model_card:
+  summary: Fast Z-Image Turbo mflux 4bit model for low-latency local text-to-image generation.
+  use_cases:
+  - Fast local text-to-image generation
+  - Photorealistic prompt previews
+  - Offline creative workflows on Apple Silicon
+  limitations:
+  - License metadata should be reviewed before redistribution/use in products
+  - Very low step counts can trade detail for latency
+  languages:
+  - English prompts
+  tags:
+  - image-generation
+  - text-to-image
+  - mlx
+  - mflux
+  - z-image
+  - turbo
+  - fast
+  links:
+    huggingface: https://huggingface.co/filipstrand/Z-Image-Turbo-mflux-4bit
+    base_model: https://huggingface.co/Tongyi-MAI/Z-Image-Turbo

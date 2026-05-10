@@ -1103,11 +1103,19 @@ class LocalImageRunner {
   }
 
   static String? _mfluxBaseModelFor(InstalledModel model) {
+    final configuredBaseModel =
+        model.manifest.runtimeConfig.extra['mflux_base_model'] as String?;
+    if (configuredBaseModel != null && configuredBaseModel.trim().isNotEmpty) {
+      return configuredBaseModel.trim();
+    }
     final identity = [
       model.manifest.id,
       model.manifest.source.repo,
       model.manifest.displayName,
     ].join(' ').toLowerCase();
+    if (identity.contains('schnell')) {
+      return 'schnell';
+    }
     if (identity.contains('qwen')) {
       return 'qwen';
     }

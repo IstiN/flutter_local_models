@@ -96,6 +96,119 @@
     }
   },
   {
+    "id": "flux1-schnell-mflux-4bit",
+    "displayName": "FLUX.1 Schnell mflux 4bit",
+    "description": "Fast Apache-2.0 FLUX Schnell image model for few-step local generation on Apple Silicon.",
+    "runtimeAdapter": "mflux",
+    "tasks": [
+      "image_generation"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "dhairyashil/FLUX.1-schnell-mflux-4bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-flux1-schnell-mflux-4bit",
+      "archiveName": "flux1-schnell-mflux-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "flux1-schnell-mflux-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 16,
+      "recommendedMemoryGb": 32,
+      "notes": [
+        "MLX/mflux text-to-image runtime",
+        "Few-step Schnell distilled model",
+        "Good default for fast image generation"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Fast Apache-2.0 FLUX Schnell image model for few-step local generation on Apple Silicon.",
+      "useCases": [
+        "Fast local text-to-image generation",
+        "Prompt iteration and UX prototyping",
+        "Offline creative workflows on Apple Silicon"
+      ],
+      "limitations": [
+        "Lower detail ceiling than slower dev/base image models",
+        "Best quality typically comes from 1-4 steps with Schnell-style prompts"
+      ],
+      "languages": [
+        "English prompts"
+      ],
+      "tags": [
+        "image-generation",
+        "text-to-image",
+        "mlx",
+        "mflux",
+        "flux",
+        "schnell",
+        "fast"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/dhairyashil/FLUX.1-schnell-mflux-4bit",
+        "base_model": "https://huggingface.co/black-forest-labs/FLUX.1-schnell"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 4,
+        "guidance": 0.0
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 1536
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 1536
+          },
+          "steps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "guidance": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      },
+      "output": {
+        "media_type": "image/png",
+        "extension": "png",
+        "default_size": "1024x1024"
+      },
+      "extra": {
+        "mlx": true,
+        "mflux_runner": "flux",
+        "mflux_base_model": "schnell",
+        "speed_tier": "fast",
+        "recommended_steps": 4,
+        "few_step": true
+      }
+    }
+  },
+  {
     "id": "gemma4-31b-it-4bit",
     "displayName": "Gemma 4 31B IT 4bit",
     "description": "Largest Gemma 4 instruction bundle in MLX for high-end local multimodal workflows.",
@@ -1905,6 +2018,119 @@
         "media_type": "audio/wav",
         "extension": "wav",
         "supports_inline_playback": true
+      }
+    }
+  },
+  {
+    "id": "z-image-turbo-mflux-4bit",
+    "displayName": "Z-Image Turbo mflux 4bit",
+    "description": "Fast Z-Image Turbo mflux 4bit model for low-latency local text-to-image generation.",
+    "runtimeAdapter": "mflux",
+    "tasks": [
+      "image_generation"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "filipstrand/Z-Image-Turbo-mflux-4bit",
+      "revision": "main",
+      "license": "other"
+    },
+    "packaging": {
+      "releaseTag": "model-z-image-turbo-mflux-4bit",
+      "archiveName": "z-image-turbo-mflux-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "z-image-turbo-mflux-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 16,
+      "recommendedMemoryGb": 32,
+      "notes": [
+        "MLX/mflux Z-Image Turbo runtime",
+        "Distilled fast image generation",
+        "Use fewer steps for low-latency previews"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Fast Z-Image Turbo mflux 4bit model for low-latency local text-to-image generation.",
+      "useCases": [
+        "Fast local text-to-image generation",
+        "Photorealistic prompt previews",
+        "Offline creative workflows on Apple Silicon"
+      ],
+      "limitations": [
+        "License metadata should be reviewed before redistribution/use in products",
+        "Very low step counts can trade detail for latency"
+      ],
+      "languages": [
+        "English prompts"
+      ],
+      "tags": [
+        "image-generation",
+        "text-to-image",
+        "mlx",
+        "mflux",
+        "z-image",
+        "turbo",
+        "fast"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/filipstrand/Z-Image-Turbo-mflux-4bit",
+        "base_model": "https://huggingface.co/Tongyi-MAI/Z-Image-Turbo"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 9,
+        "guidance": 3.5
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 1536
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 1536
+          },
+          "steps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "guidance": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      },
+      "output": {
+        "media_type": "image/png",
+        "extension": "png",
+        "default_size": "1024x1024"
+      },
+      "extra": {
+        "mlx": true,
+        "mflux_runner": "z-image-turbo",
+        "mflux_base_model": "z-image-turbo",
+        "speed_tier": "turbo",
+        "recommended_steps": 9,
+        "few_step": true
       }
     }
   }

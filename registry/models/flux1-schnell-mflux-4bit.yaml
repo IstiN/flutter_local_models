@@ -1,0 +1,88 @@
+id: flux1-schnell-mflux-4bit
+display_name: FLUX.1 Schnell mflux 4bit
+description: Fast Apache-2.0 FLUX Schnell image model for few-step local generation on Apple Silicon.
+runtime_adapter: mflux
+tasks:
+- image_generation
+source:
+  provider: huggingface
+  repo: dhairyashil/FLUX.1-schnell-mflux-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-flux1-schnell-mflux-4bit
+  archive_name: flux1-schnell-mflux-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: flux1-schnell-mflux-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 16
+  recommended_memory_gb: 32
+  notes:
+  - MLX/mflux text-to-image runtime
+  - Few-step Schnell distilled model
+  - Good default for fast image generation
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    width: 1024
+    height: 1024
+    steps: 4
+    guidance: 0.0
+  parameter_schema:
+    type: object
+    properties:
+      width:
+        type: integer
+        minimum: 256
+        maximum: 1536
+      height:
+        type: integer
+        minimum: 256
+        maximum: 1536
+      steps:
+        type: integer
+        minimum: 1
+        maximum: 8
+      guidance:
+        type: number
+        minimum: 0.0
+        maximum: 10.0
+      seed:
+        type: integer
+  output:
+    media_type: image/png
+    extension: png
+    default_size: 1024x1024
+  extra:
+    mlx: true
+    mflux_runner: flux
+    mflux_base_model: schnell
+    speed_tier: fast
+    recommended_steps: 4
+    few_step: true
+model_card:
+  summary: Fast Apache-2.0 FLUX Schnell image model for few-step local generation on Apple Silicon.
+  use_cases:
+  - Fast local text-to-image generation
+  - Prompt iteration and UX prototyping
+  - Offline creative workflows on Apple Silicon
+  limitations:
+  - Lower detail ceiling than slower dev/base image models
+  - Best quality typically comes from 1-4 steps with Schnell-style prompts
+  languages:
+  - English prompts
+  tags:
+  - image-generation
+  - text-to-image
+  - mlx
+  - mflux
+  - flux
+  - schnell
+  - fast
+  links:
+    huggingface: https://huggingface.co/dhairyashil/FLUX.1-schnell-mflux-4bit
+    base_model: https://huggingface.co/black-forest-labs/FLUX.1-schnell
