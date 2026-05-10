@@ -157,12 +157,14 @@ class InstalledModel {
     required this.directory,
     required this.sourceLabel,
     required this.installedAt,
+    required this.sizeBytes,
   });
 
   final LocalModelManifest manifest;
   final Directory directory;
   final String sourceLabel;
   final DateTime installedAt;
+  final int sizeBytes;
 
   bool get chatSupported =>
       manifest.tasks.contains(ModelTask.chat) &&
@@ -361,8 +363,7 @@ class StudioApiClient {
       if (headLength != null && headLength > 0) {
         return headLength;
       }
-    } catch (_) {
-    }
+    } catch (_) {}
 
     final response = await _runCurl(
       uri,
@@ -736,6 +737,7 @@ class StudioController extends ChangeNotifier {
           directory: installDir,
           sourceLabel: 'Hugging Face',
           installedAt: DateTime.now(),
+          sizeBytes: await _directorySizeBytes(installDir),
         );
       },
     );
@@ -785,6 +787,7 @@ class StudioController extends ChangeNotifier {
           directory: installDir,
           sourceLabel: 'Hugging Face',
           installedAt: DateTime.now(),
+          sizeBytes: await _directorySizeBytes(installDir),
         );
       },
     );
@@ -874,6 +877,7 @@ class StudioController extends ChangeNotifier {
           directory: installDir,
           sourceLabel: 'GitHub Release',
           installedAt: DateTime.now(),
+          sizeBytes: await _directorySizeBytes(installDir),
         );
       },
     );
@@ -887,6 +891,7 @@ class StudioController extends ChangeNotifier {
       if (entity is! Directory) {
         continue;
       }
+      final sizeBytes = await _directorySizeBytes(entity);
       final metadataFile = File(p.join(entity.path, _installMetadataFileName));
       if (metadataFile.existsSync()) {
         final decoded =
@@ -903,6 +908,7 @@ class StudioController extends ChangeNotifier {
             installedAt:
                 DateTime.tryParse(decoded['installedAt'] as String? ?? '') ??
                 DateTime.now(),
+            sizeBytes: sizeBytes,
           ),
         );
         continue;
@@ -918,6 +924,7 @@ class StudioController extends ChangeNotifier {
             directory: entity,
             sourceLabel: 'Unknown',
             installedAt: (await entity.stat()).modified,
+            sizeBytes: sizeBytes,
           ),
         );
       }
@@ -1135,16 +1142,14 @@ class StudioController extends ChangeNotifier {
       '--silent',
       '--show-error',
       '--http1.1',
-      ..._curlHeaderArgs(
-        <String, String>{
-          HttpHeaders.userAgentHeader: 'flutter_local_models/0.1',
-          ..._authorizationHeaders(
-            record.sourceKind == DownloadSourceKind.huggingFace
-                ? hfTokenOrNull
-                : null,
-          ),
-        },
-      ),
+      ..._curlHeaderArgs(<String, String>{
+        HttpHeaders.userAgentHeader: 'flutter_local_models/0.1',
+        ..._authorizationHeaders(
+          record.sourceKind == DownloadSourceKind.huggingFace
+              ? hfTokenOrNull
+              : null,
+        ),
+      }),
       if (alreadyWritten > 0) ...<String>['-C', '-'],
       '-o',
       destination.path,
@@ -1218,6 +1223,27 @@ class StudioController extends ChangeNotifier {
       );
       if (target.existsSync()) {
         total += await target.length();
+      }
+    }
+    return total;
+  }
+
+  Future<int> _directorySizeBytes(Directory directory) async {
+    var total = 0;
+    if (!directory.existsSync()) {
+      return total;
+    }
+    await for (final entity in directory.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entity is! File) {
+        continue;
+      }
+      try {
+        total += await entity.length();
+      } on FileSystemException {
+        continue;
       }
     }
     return total;

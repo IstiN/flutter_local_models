@@ -256,6 +256,10 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Widget _buildDownloadsTab(BuildContext context) {
+    final installedBytes = controller.installedModels.fold<int>(
+      0,
+      (sum, model) => sum + model.sizeBytes,
+    );
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -282,6 +286,10 @@ class _StudioShellState extends State<StudioShell> {
           'Installed Models (${controller.installedModels.length})',
           style: Theme.of(context).textTheme.titleLarge,
         ),
+        if (controller.installedModels.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text('Total disk usage: ${formatBytes(installedBytes)}'),
+        ],
         const SizedBox(height: 12),
         if (controller.installedModels.isEmpty)
           const Card(
@@ -327,7 +335,9 @@ class _StudioShellState extends State<StudioShell> {
         useAudioInput &&
         selectedAudioPath != null &&
         !recordingAudio &&
-        !testBusy;
+        !testBusy &&
+        (selectedModel?.speechToTextSupported == true ||
+            chatPromptController.text.trim().isNotEmpty);
     final canSendImage =
         useImageInput &&
         selectedImagePath != null &&
@@ -506,7 +516,8 @@ class _StudioShellState extends State<StudioShell> {
                     decoration: const InputDecoration(
                       labelText: 'Audio prompt',
                       border: OutlineInputBorder(),
-                      hintText: 'Ask what the model should do with the audio...',
+                      hintText:
+                          'Ask what the model should do with the audio...',
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -589,12 +600,12 @@ class _StudioShellState extends State<StudioShell> {
                       ? () => _sendPromptToSelectedModel(selectedModel!)
                       : null,
                   icon: testBusy
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
                   label: Text(testBusy ? 'Running...' : 'Send Message'),
                 ),
               OutlinedButton.icon(
@@ -686,7 +697,9 @@ class _StudioShellState extends State<StudioShell> {
       label: 'images',
       extensions: <String>['png', 'jpg', 'jpeg', 'webp', 'heic'],
     );
-    final file = await openFile(acceptedTypeGroups: <XTypeGroup>[imageTypeGroup]);
+    final file = await openFile(
+      acceptedTypeGroups: <XTypeGroup>[imageTypeGroup],
+    );
     if (file == null) {
       return;
     }
@@ -1149,6 +1162,7 @@ class _StudioShellState extends State<StudioShell> {
             const SizedBox(height: 8),
             Text('Source: ${model.sourceLabel}'),
             Text('Runtime: ${model.manifest.runtimeAdapter.name}'),
+            Text('Size: ${formatBytes(model.sizeBytes)}'),
             Text(
               'Tasks: ${model.manifest.tasks.map(modelTaskToString).join(', ')}',
             ),
@@ -1216,7 +1230,9 @@ class _StudioShellState extends State<StudioShell> {
       label: 'audio',
       extensions: <String>['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg'],
     );
-    final file = await openFile(acceptedTypeGroups: <XTypeGroup>[audioTypeGroup]);
+    final file = await openFile(
+      acceptedTypeGroups: <XTypeGroup>[audioTypeGroup],
+    );
     if (file == null) {
       return;
     }
@@ -1286,15 +1302,17 @@ class _StudioShellState extends State<StudioShell> {
     if (audioPath == null) {
       return;
     }
-    final prompt = chatPromptController.text.trim().isEmpty
-        ? 'What did you hear? Answer briefly.'
-        : chatPromptController.text.trim();
+    final prompt = chatPromptController.text.trim();
+    if (!model.speechToTextSupported && prompt.isEmpty) {
+      return;
+    }
+    final userMessage = prompt.isEmpty
+        ? 'Audio: ${p.basename(audioPath)}'
+        : 'Audio: ${p.basename(audioPath)}\n$prompt';
     setState(() {
       testBusy = true;
       testErrorMessage = null;
-      controller.chatTurns.add(
-        ChatTurn.user('Audio: ${p.basename(audioPath)}\n$prompt'),
-      );
+      controller.chatTurns.add(ChatTurn.user(userMessage));
     });
 
     try {

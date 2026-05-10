@@ -117,6 +117,7 @@ void main() {
         'Qwen3 8B 4bit',
       );
       expect(controller.installedModels.first.chatSupported, isTrue);
+      expect(controller.installedModels.first.sizeBytes, greaterThan(4));
 
       await controller.deleteInstalledModel(controller.installedModels.first);
 
