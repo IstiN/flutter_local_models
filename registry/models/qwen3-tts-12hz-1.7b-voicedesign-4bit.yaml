@@ -1,7 +1,6 @@
 id: qwen3-tts-12hz-1.7b-voicedesign-4bit
 display_name: Qwen3 TTS 12Hz 1.7B VoiceDesign 4bit
-description: Larger Qwen3 TTS model with voice design support for higher-quality local
-  speech output.
+description: Larger Qwen3 TTS model with natural-language voice design support for higher-quality local speech output.
 runtime_adapter: mlx_audio
 tasks:
 - text_to_speech
@@ -21,8 +20,8 @@ requirements:
   min_memory_gb: 16
   recommended_memory_gb: 32
   notes:
-  - Qwen3 TTS
-  - Voice design capable
+  - Qwen3 TTS VoiceDesign
+  - Natural language voice description required
 capabilities:
   audio_input: false
   audio_output: true
@@ -31,76 +30,58 @@ runtime_config:
   default_parameters:
     audio_format: wav
     join_audio: true
-    voice: Ethan
-    lang_code: ru
+    lang_code: auto
     speed: 1.0
-    instruct: A calm, natural assistant voice with stable tone, speaking clearly in Russian.
+    instruct: A calm, natural assistant voice with stable tone, speaking clearly.
   parameter_schema:
     type: object
     properties:
-      voice:
-        type: string
-        description: Optional voice/speaker name passed to --voice.
-        enum:
-        - Ethan
-        - Chelsie
-        - Vivian
       instruct:
         type: string
-        description: Voice design prompt passed to --instruct.
-      voice_prompt:
-        type: string
-        description: Backward-compatible alias for instruct.
+        description: Natural-language voice design prompt passed to --instruct.
       lang_code:
         type: string
-        description: Output language code passed to --lang_code.
+        description: Qwen3-TTS language passed to --lang_code.
+        enum: [auto, chinese, english, japanese, korean, german, french, russian, portuguese, spanish, italian]
       speed:
         type: number
         minimum: 0.5
         maximum: 2.0
-      ref_audio:
-        type: string
-        description: Optional reference audio path passed to --ref_audio.
-      ref_text:
-        type: string
-        description: Optional transcript for reference audio passed to --ref_text.
-      seed:
-        type: integer
-  voices:
-  - id: Ethan
-    display_name: Ethan
-    locale: multilingual
-    description: Default stable assistant voice preset.
-  - id: Chelsie
-    display_name: Chelsie
-    locale: multilingual
-  - id: Vivian
-    display_name: Vivian
-    locale: multilingual
-  - id: designed
-    display_name: Designed voice
-    locale: multilingual
-    description: Voice controlled by an instruct / voice_prompt parameter.
+    required: [instruct]
+  extra:
+    qwen_tts_mode: voice_design
+    supports_instruction_control: true
   output:
     media_type: audio/wav
     extension: wav
     supports_inline_playback: true
 model_card:
-  summary: Larger Qwen3 TTS model with voice design support for higher-quality local
-    speech output.
+  summary: Larger Qwen3 TTS model with voice design support for higher-quality local speech output.
   use_cases:
-  - Spoken assistant responses
+  - Spoken assistant responses with designed voices
   - Local TTS playback in Flutter chat
   - Voice UX prototyping
   limitations:
-  - Voice controls vary by model family
-  - Generated speech quality depends on prompt and runtime support
+  - VoiceDesign requires an instruct prompt describing the target voice
+  - Language should be auto or a full Qwen language name such as russian/english
+  - Generated speech consistency depends on instruction quality
   languages:
-  - multilingual
+  - Chinese
+  - English
+  - Japanese
+  - Korean
+  - German
+  - French
+  - Russian
+  - Portuguese
+  - Spanish
+  - Italian
   tags:
   - tts
   - audio
   - speech
   - mlx-audio
+  - qwen3-tts
+  - voice-design
   links:
     huggingface: https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-4bit

@@ -1,6 +1,6 @@
 id: qwen3-tts-12hz-0.6b-base-4bit
 display_name: Qwen3 TTS 12Hz 0.6B Base 4bit
-description: Compact local text-to-speech model for spoken assistant responses.
+description: Compact local Qwen3 TTS base model for spoken assistant responses.
 runtime_adapter: mlx_audio
 tasks:
 - text_to_speech
@@ -20,8 +20,8 @@ requirements:
   min_memory_gb: 8
   recommended_memory_gb: 16
   notes:
-  - Compact TTS runtime
-  - Assistant voice output
+  - Compact Qwen3 TTS Base
+  - Voice clone capable with 3-10 second reference audio
 capabilities:
   audio_input: false
   audio_output: true
@@ -30,66 +30,60 @@ runtime_config:
   default_parameters:
     audio_format: wav
     join_audio: true
-    voice: Ethan
-    lang_code: ru
+    lang_code: auto
     speed: 1.0
-    instruct: A calm, natural assistant voice with stable tone, speaking clearly in Russian.
   parameter_schema:
     type: object
     properties:
-      voice:
-        type: string
-        description: Voice/speaker name passed to --voice.
-        enum:
-        - Ethan
-        - Chelsie
-        - Vivian
-      instruct:
-        type: string
-        description: Stable voice style instruction passed to --instruct.
       lang_code:
         type: string
-        description: Output language code passed to --lang_code.
+        description: Qwen3-TTS language passed to --lang_code.
+        enum: [auto, chinese, english, japanese, korean, german, french, russian, portuguese, spanish, italian]
       speed:
         type: number
         minimum: 0.5
         maximum: 2.0
       ref_audio:
         type: string
-        description: Optional reference audio path passed to --ref_audio.
+        description: Reference voice audio path passed to --ref_audio.
       ref_text:
         type: string
-        description: Optional transcript for reference audio passed to --ref_text.
-  voices:
-  - id: Ethan
-    display_name: Ethan
-    locale: multilingual
-    description: Default stable assistant voice preset.
-  - id: Chelsie
-    display_name: Chelsie
-    locale: multilingual
-  - id: Vivian
-    display_name: Vivian
-    locale: multilingual
+        description: Transcript for reference audio passed to --ref_text.
+    required_for_best_quality: [ref_audio, ref_text]
+  extra:
+    qwen_tts_mode: base
+    supports_voice_clone: true
+    recommended_ref_audio_seconds: 3-10
   output:
     media_type: audio/wav
     extension: wav
     supports_inline_playback: true
 model_card:
-  summary: Compact local text-to-speech model for spoken assistant responses.
+  summary: Compact local Qwen3 TTS base model for spoken assistant responses.
   use_cases:
-  - Spoken assistant responses
+  - Spoken assistant responses with cloned reference voices
   - Local TTS playback in Flutter chat
   - Voice UX prototyping
   limitations:
-  - Voice controls vary by model family
-  - Generated speech quality depends on prompt and runtime support
+  - Base Qwen3-TTS is intended for voice cloning with reference audio
+  - Use a clean 3-10 second reference clip and transcript for stable voice
+  - Language should be auto or a full Qwen language name such as russian/english
   languages:
-  - multilingual
+  - Chinese
+  - English
+  - Japanese
+  - Korean
+  - German
+  - French
+  - Russian
+  - Portuguese
+  - Spanish
+  - Italian
   tags:
   - tts
   - audio
   - speech
   - mlx-audio
+  - qwen3-tts
   links:
     huggingface: https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit

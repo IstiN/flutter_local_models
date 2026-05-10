@@ -995,10 +995,11 @@ class LocalImageRunner {
         'Image generation currently supports installed mflux text-to-image models.',
       );
     }
-    final executableFile = File(mfluxExecutable);
-    if (mfluxExecutable.contains(p.separator) && !executableFile.existsSync()) {
+    final executable = _mfluxExecutableFor(model);
+    final executableFile = File(executable);
+    if (executable.contains(p.separator) && !executableFile.existsSync()) {
       throw StateError(
-        'mflux-generate not found at $mfluxExecutable. Install mflux first.',
+        'mflux image generator not found at $executable. Install/update mflux first.',
       );
     }
 
@@ -1029,10 +1030,10 @@ class LocalImageRunner {
       if (seed != null) ...<String>['--seed', '$seed'],
     ];
     final baseModel = _mfluxBaseModelFor(model);
-    if (baseModel != null) {
+    if (baseModel != null && executable.endsWith('mflux-generate')) {
       args.insertAll(2, <String>['--base-model', baseModel]);
     }
-    final result = await Process.run(mfluxExecutable, args);
+    final result = await Process.run(executable, args);
     if (result.exitCode != 0) {
       final stderr = (result.stderr as String).trim();
       throw StateError(
@@ -1044,6 +1045,37 @@ class LocalImageRunner {
       throw StateError('Image generation finished without producing output.');
     }
     return outputFile;
+  }
+
+  String _mfluxExecutableFor(InstalledModel model) {
+    final identity = [
+      model.manifest.id,
+      model.manifest.source.repo,
+      model.manifest.displayName,
+    ].join(' ').toLowerCase();
+    final command = identity.contains('qwen')
+        ? 'mflux-generate-qwen'
+        : identity.contains('z-image-turbo')
+        ? 'mflux-generate-z-image-turbo'
+        : identity.contains('z-image')
+        ? 'mflux-generate-z-image'
+        : mfluxExecutable;
+    if (command.contains(p.separator)) {
+      return command;
+    }
+    final home = Platform.environment['HOME'] ?? '';
+    final candidates = <String>[
+      if (home.isNotEmpty) p.join(home, '.local', 'bin', command),
+      '/opt/homebrew/bin/$command',
+      '/usr/local/bin/$command',
+      command,
+    ];
+    for (final candidate in candidates) {
+      if (!candidate.contains(p.separator) || File(candidate).existsSync()) {
+        return candidate;
+      }
+    }
+    return command;
   }
 
   static String? _mfluxBaseModelFor(InstalledModel model) {

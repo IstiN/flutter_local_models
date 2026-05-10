@@ -184,6 +184,7 @@ class _StudioShellState extends State<StudioShell> {
   late final TextEditingController ttsInstructController;
   late final TextEditingController ttsLanguageController;
   late final TextEditingController ttsSpeedController;
+  late final TextEditingController ttsReferenceTextController;
   late final ScrollController chatScrollController;
   late final AudioRecorder audioRecorder;
   late final AudioPlayer audioPlayer;
@@ -231,12 +232,13 @@ class _StudioShellState extends State<StudioShell> {
       text: controller.maxDownloadRetries.toString(),
     );
     chatPromptController = TextEditingController();
-    ttsVoiceController = TextEditingController(text: 'Ethan');
+    ttsVoiceController = TextEditingController();
     ttsInstructController = TextEditingController(
       text: 'A calm, natural assistant voice with stable tone.',
     );
-    ttsLanguageController = TextEditingController(text: 'ru');
+    ttsLanguageController = TextEditingController(text: 'auto');
     ttsSpeedController = TextEditingController(text: '1.0');
+    ttsReferenceTextController = TextEditingController();
     chatScrollController = ScrollController();
     audioRecorder = AudioRecorder();
     audioPlayer = AudioPlayer();
@@ -257,6 +259,7 @@ class _StudioShellState extends State<StudioShell> {
     ttsInstructController.dispose();
     ttsLanguageController.dispose();
     ttsSpeedController.dispose();
+    ttsReferenceTextController.dispose();
     chatScrollController.dispose();
     audioRecorder.dispose();
     audioPlayer.dispose();
@@ -971,12 +974,7 @@ class _StudioShellState extends State<StudioShell> {
                   ],
                   if (testErrorMessage != null) ...[
                     const SizedBox(height: 12),
-                    Text(
-                      testErrorMessage!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
+                    _buildSelectableError(testErrorMessage!),
                   ],
                 ],
               ),
@@ -1538,12 +1536,23 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Widget _buildTtsVoiceControls(InstalledModel? model) {
-    final voiceNames =
-        model?.manifest.runtimeConfig.voices
-            .map((voice) => voice.id)
-            .where((id) => id.trim().isNotEmpty && id != 'default')
-            .toList(growable: false) ??
-        const <String>[];
+    final config = model?.manifest.runtimeConfig;
+    final voiceNames = _ttsVoiceOptions(config);
+    final languageOptions = _ttsLanguageOptions(config);
+    final speedOptions = _withCurrentOption(const <String>[
+      '0.75',
+      '0.9',
+      '1.0',
+      '1.1',
+      '1.25',
+      '1.5',
+    ], ttsSpeedController.text.trim());
+    final mode = config?.extra['qwen_tts_mode'] as String? ?? '';
+    final needsVoice = voiceNames.isNotEmpty && mode != 'base';
+    final needsInstruct =
+        mode == 'voice_design' ||
+        mode == 'custom_voice' ||
+        ttsInstructController.text.trim().isNotEmpty;
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -1558,67 +1567,63 @@ class _StudioShellState extends State<StudioShell> {
             const SizedBox(height: 10),
             Row(
               children: [
+                if (needsVoice) ...[
+                  Expanded(
+                    child: _buildStringComboBox(
+                      label: 'Speaker',
+                      value: ttsVoiceController.text.trim(),
+                      options: voiceNames,
+                      icon: const StudioSvgIcon('mic', size: 20),
+                      onChanged: (value) =>
+                          setState(() => ttsVoiceController.text = value ?? ''),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
                 Expanded(
-                  child: TextField(
-                    controller: ttsVoiceController,
-                    enabled: !testBusy,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      labelText: 'Voice / speaker',
-                      hintText: voiceNames.isEmpty
-                          ? 'Ethan, Chelsie, Vivian...'
-                          : voiceNames.join(', '),
-                      prefixIcon: const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: StudioSvgIcon('mic', size: 20),
-                      ),
+                  child: _buildStringComboBox(
+                    label: 'Language',
+                    value: ttsLanguageController.text.trim(),
+                    options: languageOptions,
+                    icon: const StudioSvgIcon('chat', size: 20),
+                    onChanged: (value) => setState(
+                      () => ttsLanguageController.text = value ?? '',
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 SizedBox(
-                  width: 130,
-                  child: TextField(
-                    controller: ttsLanguageController,
-                    enabled: !testBusy,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Language',
-                      hintText: 'ru',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 120,
-                  child: TextField(
-                    controller: ttsSpeedController,
-                    enabled: !testBusy,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Speed',
-                      hintText: '1.0',
+                  width: 140,
+                  child: _buildStringComboBox(
+                    label: 'Speed',
+                    value: ttsSpeedController.text.trim(),
+                    options: speedOptions,
+                    icon: const StudioSvgIcon('play', size: 20),
+                    onChanged: (value) => setState(
+                      () => ttsSpeedController.text = value ?? '1.0',
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: ttsInstructController,
-              enabled: !testBusy,
-              minLines: 2,
-              maxLines: 3,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: 'Voice design / instruction',
-                hintText:
-                    'A calm middle-aged male voice speaking Russian clearly...',
+            if (needsInstruct) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: ttsInstructController,
+                enabled: !testBusy,
+                minLines: 2,
+                maxLines: 3,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: mode == 'voice_design'
+                      ? 'Voice design prompt'
+                      : 'Instruction / emotion',
+                  hintText: mode == 'voice_design'
+                      ? 'Describe the target voice: calm, deep, Russian, natural...'
+                      : 'Optional style or emotion, e.g. Very happy.',
+                ),
               ),
-            ),
+            ],
             const SizedBox(height: 10),
             Row(
               children: [
@@ -1627,7 +1632,9 @@ class _StudioShellState extends State<StudioShell> {
                 Expanded(
                   child: Text(
                     ttsReferenceAudioPath == null
-                        ? 'No reference voice audio selected'
+                        ? mode == 'base'
+                              ? 'Base Qwen voice clone: choose 3–10 sec reference audio'
+                              : 'No reference voice audio selected'
                         : p.basename(ttsReferenceAudioPath!),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1641,16 +1648,195 @@ class _StudioShellState extends State<StudioShell> {
                 TextButton.icon(
                   onPressed: testBusy || ttsReferenceAudioPath == null
                       ? null
-                      : () => setState(() => ttsReferenceAudioPath = null),
+                      : () => setState(() {
+                          ttsReferenceAudioPath = null;
+                          ttsReferenceTextController.clear();
+                        }),
                   icon: const StudioSvgIcon('trash', size: 18),
                   label: const Text('Clear'),
                 ),
               ],
             ),
+            if (ttsReferenceAudioPath != null) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: ttsReferenceTextController,
+                enabled: !testBusy,
+                minLines: 1,
+                maxLines: 2,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Reference transcript',
+                  hintText:
+                      'Text spoken in the reference audio, improves voice clone quality.',
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildStringComboBox({
+    required String label,
+    required String value,
+    required List<String> options,
+    required Widget icon,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final normalizedOptions = _withCurrentOption(options, value);
+    final selectedValue = normalizedOptions.contains(value) && value.isNotEmpty
+        ? value
+        : normalizedOptions.first;
+    return DropdownButtonFormField<String>(
+      initialValue: selectedValue,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Padding(padding: const EdgeInsets.all(12), child: icon),
+      ),
+      items: normalizedOptions
+          .map(
+            (item) => DropdownMenuItem<String>(
+              value: item,
+              child: Text(
+                _prettyTtsOption(item),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: testBusy ? null : onChanged,
+    );
+  }
+
+  Widget _buildSelectableError(String message) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF2B2337),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF6C4F66)),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Runtime error',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: message));
+                  if (!mounted) {
+                    return;
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Copied error text')),
+                  );
+                },
+                icon: const StudioSvgIcon('copy', size: 18),
+                label: const Text('Copy'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 260),
+            child: SingleChildScrollView(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SelectableText(
+                  message,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<String> _ttsVoiceOptions(ModelRuntimeConfig? config) {
+    if (config == null) {
+      return const <String>[];
+    }
+    final schemaOptions = _schemaEnumValues(config, 'voice');
+    if (schemaOptions.isNotEmpty) {
+      return schemaOptions;
+    }
+    return config.voices
+        .map((voice) => voice.id)
+        .where((id) => id.trim().isNotEmpty && id != 'default')
+        .toList(growable: false);
+  }
+
+  List<String> _ttsLanguageOptions(ModelRuntimeConfig? config) {
+    final options = config == null
+        ? const <String>[]
+        : _schemaEnumValues(config, 'lang_code');
+    return options.isEmpty
+        ? const <String>[
+            'auto',
+            'russian',
+            'english',
+            'chinese',
+            'japanese',
+            'korean',
+            'german',
+            'french',
+            'portuguese',
+            'spanish',
+            'italian',
+          ]
+        : options;
+  }
+
+  List<String> _schemaEnumValues(ModelRuntimeConfig config, String property) {
+    final properties = config.parameterSchema['properties'];
+    if (properties is! Map) {
+      return const <String>[];
+    }
+    final propertySchema = properties[property];
+    if (propertySchema is! Map) {
+      return const <String>[];
+    }
+    final enumValues = propertySchema['enum'];
+    if (enumValues is! List) {
+      return const <String>[];
+    }
+    return enumValues.map((value) => '$value').toList(growable: false);
+  }
+
+  List<String> _withCurrentOption(List<String> options, String current) {
+    final values = <String>[
+      ...options.where((option) => option.trim().isNotEmpty),
+    ];
+    if (current.trim().isNotEmpty && !values.contains(current.trim())) {
+      values.insert(0, current.trim());
+    }
+    return values.isEmpty ? const <String>['auto'] : values;
+  }
+
+  String _prettyTtsOption(String value) {
+    if (value.length <= 1) {
+      return value;
+    }
+    return value
+        .split('_')
+        .map(
+          (part) => part.isEmpty
+              ? part
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
+        .join(' ');
   }
 
   Widget _buildAudioInputBar(InstalledModel? _) {
@@ -2287,11 +2473,9 @@ class _StudioShellState extends State<StudioShell> {
     final language =
         defaults['lang_code'] as String? ?? defaults['language'] as String?;
     final speed = defaults['speed'];
-    if (voice != null && voice.trim().isNotEmpty) {
-      ttsVoiceController.text = voice.trim();
-    } else if (model.manifest.id.contains('qwen3-tts')) {
-      ttsVoiceController.text = 'Ethan';
-    }
+    ttsVoiceController.text = voice?.trim() ?? '';
+    ttsInstructController.clear();
+    ttsReferenceTextController.clear();
     if (voicePrompt != null && voicePrompt.trim().isNotEmpty) {
       ttsInstructController.text = voicePrompt.trim();
     }
@@ -2722,6 +2906,7 @@ class _StudioShellState extends State<StudioShell> {
       instruct: ttsInstructController.text.trim(),
       languageCode: ttsLanguageController.text.trim(),
       referenceAudioPath: ttsReferenceAudioPath,
+      referenceText: ttsReferenceTextController.text.trim(),
       speed: double.tryParse(ttsSpeedController.text.trim()),
     );
   }

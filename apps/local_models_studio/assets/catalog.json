@@ -833,7 +833,7 @@
   {
     "id": "qwen3-tts-12hz-0.6b-base-4bit",
     "displayName": "Qwen3 TTS 12Hz 0.6B Base 4bit",
-    "description": "Compact local text-to-speech model for spoken assistant responses.",
+    "description": "Compact local Qwen3 TTS base model for spoken assistant responses.",
     "runtimeAdapter": "mlx_audio",
     "tasks": [
       "text_to_speech",
@@ -856,8 +856,8 @@
       "minMemoryGb": 8,
       "recommendedMemoryGb": 16,
       "notes": [
-        "Compact TTS runtime",
-        "Assistant voice output"
+        "Compact Qwen3 TTS Base",
+        "Voice clone capable with 3-10 second reference audio"
       ]
     },
     "capabilities": {
@@ -866,24 +866,35 @@
       "toolCalling": false
     },
     "modelCard": {
-      "summary": "Compact local text-to-speech model for spoken assistant responses.",
+      "summary": "Compact local Qwen3 TTS base model for spoken assistant responses.",
       "useCases": [
-        "Spoken assistant responses",
+        "Spoken assistant responses with cloned reference voices",
         "Local TTS playback in Flutter chat",
         "Voice UX prototyping"
       ],
       "limitations": [
-        "Voice controls vary by model family",
-        "Generated speech quality depends on prompt and runtime support"
+        "Base Qwen3-TTS is intended for voice cloning with reference audio",
+        "Use a clean 3-10 second reference clip and transcript for stable voice",
+        "Language should be auto or a full Qwen language name such as russian/english"
       ],
       "languages": [
-        "multilingual"
+        "Chinese",
+        "English",
+        "Japanese",
+        "Korean",
+        "German",
+        "French",
+        "Russian",
+        "Portuguese",
+        "Spanish",
+        "Italian"
       ],
       "tags": [
         "tts",
         "audio",
         "speech",
-        "mlx-audio"
+        "mlx-audio",
+        "qwen3-tts"
       ],
       "links": {
         "huggingface": "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
@@ -893,30 +904,28 @@
       "defaultParameters": {
         "audio_format": "wav",
         "join_audio": true,
-        "voice": "Ethan",
-        "lang_code": "ru",
-        "speed": 1.0,
-        "instruct": "A calm, natural assistant voice with stable tone, speaking clearly in Russian."
+        "lang_code": "auto",
+        "speed": 1.0
       },
       "parameterSchema": {
         "type": "object",
         "properties": {
-          "voice": {
-            "type": "string",
-            "description": "Voice/speaker name passed to --voice.",
-            "enum": [
-              "Ethan",
-              "Chelsie",
-              "Vivian"
-            ]
-          },
-          "instruct": {
-            "type": "string",
-            "description": "Stable voice style instruction passed to --instruct."
-          },
           "lang_code": {
             "type": "string",
-            "description": "Output language code passed to --lang_code."
+            "description": "Qwen3-TTS language passed to --lang_code.",
+            "enum": [
+              "auto",
+              "chinese",
+              "english",
+              "japanese",
+              "korean",
+              "german",
+              "french",
+              "russian",
+              "portuguese",
+              "spanish",
+              "italian"
+            ]
           },
           "speed": {
             "type": "number",
@@ -925,36 +934,27 @@
           },
           "ref_audio": {
             "type": "string",
-            "description": "Optional reference audio path passed to --ref_audio."
+            "description": "Reference voice audio path passed to --ref_audio."
           },
           "ref_text": {
             "type": "string",
-            "description": "Optional transcript for reference audio passed to --ref_text."
+            "description": "Transcript for reference audio passed to --ref_text."
           }
-        }
+        },
+        "required_for_best_quality": [
+          "ref_audio",
+          "ref_text"
+        ]
       },
-      "voices": [
-        {
-          "id": "Ethan",
-          "displayName": "Ethan",
-          "locale": "multilingual",
-          "description": "Default stable assistant voice preset."
-        },
-        {
-          "id": "Chelsie",
-          "displayName": "Chelsie",
-          "locale": "multilingual"
-        },
-        {
-          "id": "Vivian",
-          "displayName": "Vivian",
-          "locale": "multilingual"
-        }
-      ],
       "output": {
         "media_type": "audio/wav",
         "extension": "wav",
         "supports_inline_playback": true
+      },
+      "extra": {
+        "qwen_tts_mode": "base",
+        "supports_voice_clone": true,
+        "recommended_ref_audio_seconds": "3-10"
       }
     }
   },
@@ -984,8 +984,8 @@
       "minMemoryGb": 16,
       "recommendedMemoryGb": 32,
       "notes": [
-        "Qwen3 TTS",
-        "Higher quality base voice output"
+        "Qwen3 TTS Base",
+        "Voice clone capable with 3-10 second reference audio"
       ]
     },
     "capabilities": {
@@ -996,22 +996,33 @@
     "modelCard": {
       "summary": "Higher-capacity Qwen3 TTS base model for local assistant speech generation.",
       "useCases": [
-        "Spoken assistant responses",
+        "Spoken assistant responses with cloned reference voices",
         "Local TTS playback in Flutter chat",
         "Voice UX prototyping"
       ],
       "limitations": [
-        "Voice controls vary by model family",
-        "Generated speech quality depends on prompt and runtime support"
+        "Base Qwen3-TTS is intended for voice cloning with reference audio",
+        "Use a clean 3-10 second reference clip and transcript for stable voice",
+        "Language should be auto or a full Qwen language name such as russian/english"
       ],
       "languages": [
-        "multilingual"
+        "Chinese",
+        "English",
+        "Japanese",
+        "Korean",
+        "German",
+        "French",
+        "Russian",
+        "Portuguese",
+        "Spanish",
+        "Italian"
       ],
       "tags": [
         "tts",
         "audio",
         "speech",
-        "mlx-audio"
+        "mlx-audio",
+        "qwen3-tts"
       ],
       "links": {
         "huggingface": "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit"
@@ -1021,30 +1032,28 @@
       "defaultParameters": {
         "audio_format": "wav",
         "join_audio": true,
-        "voice": "Ethan",
-        "lang_code": "ru",
-        "speed": 1.0,
-        "instruct": "A calm, natural assistant voice with stable tone, speaking clearly in Russian."
+        "lang_code": "auto",
+        "speed": 1.0
       },
       "parameterSchema": {
         "type": "object",
         "properties": {
-          "voice": {
-            "type": "string",
-            "description": "Voice/speaker name passed to --voice.",
-            "enum": [
-              "Ethan",
-              "Chelsie",
-              "Vivian"
-            ]
-          },
-          "instruct": {
-            "type": "string",
-            "description": "Stable voice style instruction passed to --instruct."
-          },
           "lang_code": {
             "type": "string",
-            "description": "Output language code passed to --lang_code."
+            "description": "Qwen3-TTS language passed to --lang_code.",
+            "enum": [
+              "auto",
+              "chinese",
+              "english",
+              "japanese",
+              "korean",
+              "german",
+              "french",
+              "russian",
+              "portuguese",
+              "spanish",
+              "italian"
+            ]
           },
           "speed": {
             "type": "number",
@@ -1053,46 +1062,34 @@
           },
           "ref_audio": {
             "type": "string",
-            "description": "Optional reference audio path passed to --ref_audio."
+            "description": "Reference voice audio path passed to --ref_audio."
           },
           "ref_text": {
             "type": "string",
-            "description": "Optional transcript for reference audio passed to --ref_text."
-          },
-          "seed": {
-            "type": "integer"
+            "description": "Transcript for reference audio passed to --ref_text."
           }
-        }
+        },
+        "required_for_best_quality": [
+          "ref_audio",
+          "ref_text"
+        ]
       },
-      "voices": [
-        {
-          "id": "Ethan",
-          "displayName": "Ethan",
-          "locale": "multilingual",
-          "description": "Default stable assistant voice preset."
-        },
-        {
-          "id": "Chelsie",
-          "displayName": "Chelsie",
-          "locale": "multilingual"
-        },
-        {
-          "id": "Vivian",
-          "displayName": "Vivian",
-          "locale": "multilingual"
-        }
-      ],
       "output": {
         "media_type": "audio/wav",
         "extension": "wav",
         "supports_inline_playback": true
+      },
+      "extra": {
+        "qwen_tts_mode": "base",
+        "supports_voice_clone": true,
+        "recommended_ref_audio_seconds": "3-10"
       }
     }
   },
   {
     "id": "qwen3-tts-12hz-1.7b-voicedesign-4bit",
     "displayName": "Qwen3 TTS 12Hz 1.7B VoiceDesign 4bit",
-    "description": "Larger Qwen3 TTS model with voice design support for higher-quality local speech output.",
+    "description": "Larger Qwen3 TTS model with natural-language voice design support for higher-quality local speech output.",
     "runtimeAdapter": "mlx_audio",
     "tasks": [
       "text_to_speech",
@@ -1115,8 +1112,8 @@
       "minMemoryGb": 16,
       "recommendedMemoryGb": 32,
       "notes": [
-        "Qwen3 TTS",
-        "Voice design capable"
+        "Qwen3 TTS VoiceDesign",
+        "Natural language voice description required"
       ]
     },
     "capabilities": {
@@ -1127,22 +1124,34 @@
     "modelCard": {
       "summary": "Larger Qwen3 TTS model with voice design support for higher-quality local speech output.",
       "useCases": [
-        "Spoken assistant responses",
+        "Spoken assistant responses with designed voices",
         "Local TTS playback in Flutter chat",
         "Voice UX prototyping"
       ],
       "limitations": [
-        "Voice controls vary by model family",
-        "Generated speech quality depends on prompt and runtime support"
+        "VoiceDesign requires an instruct prompt describing the target voice",
+        "Language should be auto or a full Qwen language name such as russian/english",
+        "Generated speech consistency depends on instruction quality"
       ],
       "languages": [
-        "multilingual"
+        "Chinese",
+        "English",
+        "Japanese",
+        "Korean",
+        "German",
+        "French",
+        "Russian",
+        "Portuguese",
+        "Spanish",
+        "Italian"
       ],
       "tags": [
         "tts",
         "audio",
         "speech",
-        "mlx-audio"
+        "mlx-audio",
+        "qwen3-tts",
+        "voice-design"
       ],
       "links": {
         "huggingface": "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-4bit"
@@ -1152,81 +1161,52 @@
       "defaultParameters": {
         "audio_format": "wav",
         "join_audio": true,
-        "voice": "Ethan",
-        "lang_code": "ru",
+        "lang_code": "auto",
         "speed": 1.0,
-        "instruct": "A calm, natural assistant voice with stable tone, speaking clearly in Russian."
+        "instruct": "A calm, natural assistant voice with stable tone, speaking clearly."
       },
       "parameterSchema": {
         "type": "object",
         "properties": {
-          "voice": {
-            "type": "string",
-            "description": "Optional voice/speaker name passed to --voice.",
-            "enum": [
-              "Ethan",
-              "Chelsie",
-              "Vivian"
-            ]
-          },
           "instruct": {
             "type": "string",
-            "description": "Voice design prompt passed to --instruct."
-          },
-          "voice_prompt": {
-            "type": "string",
-            "description": "Backward-compatible alias for instruct."
+            "description": "Natural-language voice design prompt passed to --instruct."
           },
           "lang_code": {
             "type": "string",
-            "description": "Output language code passed to --lang_code."
+            "description": "Qwen3-TTS language passed to --lang_code.",
+            "enum": [
+              "auto",
+              "chinese",
+              "english",
+              "japanese",
+              "korean",
+              "german",
+              "french",
+              "russian",
+              "portuguese",
+              "spanish",
+              "italian"
+            ]
           },
           "speed": {
             "type": "number",
             "minimum": 0.5,
             "maximum": 2.0
-          },
-          "ref_audio": {
-            "type": "string",
-            "description": "Optional reference audio path passed to --ref_audio."
-          },
-          "ref_text": {
-            "type": "string",
-            "description": "Optional transcript for reference audio passed to --ref_text."
-          },
-          "seed": {
-            "type": "integer"
           }
-        }
+        },
+        "required": [
+          "instruct"
+        ]
       },
-      "voices": [
-        {
-          "id": "Ethan",
-          "displayName": "Ethan",
-          "locale": "multilingual",
-          "description": "Default stable assistant voice preset."
-        },
-        {
-          "id": "Chelsie",
-          "displayName": "Chelsie",
-          "locale": "multilingual"
-        },
-        {
-          "id": "Vivian",
-          "displayName": "Vivian",
-          "locale": "multilingual"
-        },
-        {
-          "id": "designed",
-          "displayName": "Designed voice",
-          "locale": "multilingual",
-          "description": "Voice controlled by an instruct / voice_prompt parameter."
-        }
-      ],
       "output": {
         "media_type": "audio/wav",
         "extension": "wav",
         "supports_inline_playback": true
+      },
+      "extra": {
+        "qwen_tts_mode": "voice_design",
+        "supports_instruction_control": true
       }
     }
   },
