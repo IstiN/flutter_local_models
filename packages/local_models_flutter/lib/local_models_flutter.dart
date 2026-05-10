@@ -56,12 +56,20 @@ class LocalModelsFlutter {
   }) async {
     final buffer = StringBuffer();
     final metadata = <String, Object?>{};
+    final toolCalls = <LocalToolCall>[];
     await for (final delta in chatStream(messages: messages, params: params)) {
       buffer.write(delta.content);
+      toolCalls.addAll(delta.toolCalls);
       metadata.addAll(delta.metadata);
+      if (delta.finishReason != null) {
+        metadata['finishReason'] = delta.finishReason;
+      }
     }
     return LocalChatResponse(
-      message: LocalChatMessage.assistant(buffer.toString()),
+      message: LocalChatMessage.assistant(
+        buffer.toString(),
+        toolCalls: toolCalls,
+      ),
       metadata: metadata,
     );
   }

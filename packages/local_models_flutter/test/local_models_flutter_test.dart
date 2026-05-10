@@ -64,8 +64,20 @@ class FakeChatRuntime implements LocalChatRuntime {
     expect(messages.single.role, LocalChatRole.user);
     expect(params.modelId, 'fake-model');
     expect(params.maxTokens, 12);
+    expect(params.tools.single.name, 'get_weather');
     yield const LocalChatDelta(content: 'hel');
-    yield const LocalChatDelta(content: 'lo', done: true);
+    yield const LocalChatDelta(
+      content: 'lo',
+      done: true,
+      toolCalls: [
+        LocalToolCall(
+          id: 'call_1',
+          name: 'get_weather',
+          arguments: {'city': 'Minsk'},
+        ),
+      ],
+      finishReason: 'tool_calls',
+    );
   }
 }
 
@@ -89,11 +101,19 @@ void main() {
     final models = await plugin.getModels();
     final response = await plugin.chat(
       messages: const [LocalChatMessage.user('hi')],
-      params: const LocalChatParams(modelId: 'fake-model', maxTokens: 12),
+      params: const LocalChatParams(
+        modelId: 'fake-model',
+        maxTokens: 12,
+        tools: [
+          LocalTool.function(name: 'get_weather', description: 'Get weather.'),
+        ],
+      ),
     );
 
     expect(models.single.id, 'fake-model');
     expect(response.message.role, LocalChatRole.assistant);
     expect(response.message.content, 'hello');
+    expect(response.message.toolCalls.single.name, 'get_weather');
+    expect(response.metadata['finishReason'], 'tool_calls');
   });
 }

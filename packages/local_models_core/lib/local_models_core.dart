@@ -24,6 +24,8 @@ enum LocalChatRole { system, user, assistant, tool }
 
 enum LocalAttachmentType { image, audio, file }
 
+enum LocalToolChoiceMode { auto, none, required, named }
+
 String localChatRoleToString(LocalChatRole value) {
   switch (value) {
     case LocalChatRole.system:
@@ -73,6 +75,34 @@ LocalAttachmentType localAttachmentTypeFromString(String value) {
       return LocalAttachmentType.file;
     default:
       throw FormatException('Unsupported attachment type: $value');
+  }
+}
+
+String localToolChoiceModeToString(LocalToolChoiceMode value) {
+  switch (value) {
+    case LocalToolChoiceMode.auto:
+      return 'auto';
+    case LocalToolChoiceMode.none:
+      return 'none';
+    case LocalToolChoiceMode.required:
+      return 'required';
+    case LocalToolChoiceMode.named:
+      return 'named';
+  }
+}
+
+LocalToolChoiceMode localToolChoiceModeFromString(String value) {
+  switch (value) {
+    case 'auto':
+      return LocalToolChoiceMode.auto;
+    case 'none':
+      return LocalToolChoiceMode.none;
+    case 'required':
+      return LocalToolChoiceMode.required;
+    case 'named':
+      return LocalToolChoiceMode.named;
+    default:
+      throw FormatException('Unsupported tool choice mode: $value');
   }
 }
 
@@ -454,50 +484,222 @@ class LocalMessageAttachment {
 }
 
 @immutable
+class LocalTool {
+  const LocalTool({
+    required this.name,
+    required this.description,
+    this.parametersJsonSchema = const <String, Object?>{},
+    this.metadata = const <String, Object?>{},
+  });
+
+  final String name;
+  final String description;
+  final Map<String, Object?> parametersJsonSchema;
+  final Map<String, Object?> metadata;
+
+  const factory LocalTool.function({
+    required String name,
+    required String description,
+    Map<String, Object?> parametersJsonSchema,
+    Map<String, Object?> metadata,
+  }) = LocalTool;
+
+  factory LocalTool.fromJsonMap(Map<String, Object?> map) {
+    return LocalTool(
+      name: map['name'] as String,
+      description: map['description'] as String? ?? '',
+      parametersJsonSchema: Map<String, Object?>.from(
+        map['parametersJsonSchema'] as Map? ??
+            map['parameters'] as Map? ??
+            const <String, Object?>{},
+      ),
+      metadata: Map<String, Object?>.from(
+        map['metadata'] as Map? ?? const <String, Object?>{},
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'name': name,
+    'description': description,
+    'parametersJsonSchema': parametersJsonSchema,
+    if (metadata.isNotEmpty) 'metadata': metadata,
+  };
+
+  Map<String, Object?> toOpenAIJson() => <String, Object?>{
+    'type': 'function',
+    'function': <String, Object?>{
+      'name': name,
+      'description': description,
+      'parameters': parametersJsonSchema.isEmpty
+          ? const <String, Object?>{'type': 'object', 'properties': {}}
+          : parametersJsonSchema,
+    },
+  };
+}
+
+@immutable
+class LocalToolChoice {
+  const LocalToolChoice({required this.mode, this.name});
+
+  const LocalToolChoice.auto() : this(mode: LocalToolChoiceMode.auto);
+  const LocalToolChoice.none() : this(mode: LocalToolChoiceMode.none);
+  const LocalToolChoice.required() : this(mode: LocalToolChoiceMode.required);
+  const LocalToolChoice.named(String name)
+    : this(mode: LocalToolChoiceMode.named, name: name);
+
+  final LocalToolChoiceMode mode;
+  final String? name;
+
+  factory LocalToolChoice.fromJsonMap(Map<String, Object?> map) {
+    return LocalToolChoice(
+      mode: localToolChoiceModeFromString(map['mode'] as String),
+      name: map['name'] as String?,
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'mode': localToolChoiceModeToString(mode),
+    if (name != null) 'name': name,
+  };
+
+  Object toOpenAIJson() {
+    switch (mode) {
+      case LocalToolChoiceMode.auto:
+        return 'auto';
+      case LocalToolChoiceMode.none:
+        return 'none';
+      case LocalToolChoiceMode.required:
+        return 'required';
+      case LocalToolChoiceMode.named:
+        return <String, Object?>{
+          'type': 'function',
+          'function': <String, Object?>{'name': name},
+        };
+    }
+  }
+}
+
+@immutable
+class LocalToolCall {
+  const LocalToolCall({
+    required this.id,
+    required this.name,
+    this.arguments = const <String, Object?>{},
+    this.rawArguments,
+    this.metadata = const <String, Object?>{},
+  });
+
+  final String id;
+  final String name;
+  final Map<String, Object?> arguments;
+  final String? rawArguments;
+  final Map<String, Object?> metadata;
+
+  factory LocalToolCall.fromJsonMap(Map<String, Object?> map) {
+    return LocalToolCall(
+      id: map['id'] as String,
+      name: map['name'] as String,
+      arguments: Map<String, Object?>.from(
+        map['arguments'] as Map? ?? const <String, Object?>{},
+      ),
+      rawArguments: map['rawArguments'] as String?,
+      metadata: Map<String, Object?>.from(
+        map['metadata'] as Map? ?? const <String, Object?>{},
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'id': id,
+    'name': name,
+    'arguments': arguments,
+    if (rawArguments != null) 'rawArguments': rawArguments,
+    if (metadata.isNotEmpty) 'metadata': metadata,
+  };
+
+  Map<String, Object?> toOpenAIJson() => <String, Object?>{
+    'id': id,
+    'type': 'function',
+    'function': <String, Object?>{
+      'name': name,
+      'arguments': rawArguments ?? jsonEncode(arguments),
+    },
+  };
+}
+
+@immutable
 class LocalChatMessage {
   const LocalChatMessage({
     required this.role,
     required this.content,
     this.attachments = const <LocalMessageAttachment>[],
+    this.toolCalls = const <LocalToolCall>[],
+    this.toolCallId,
     this.metadata = const <String, Object?>{},
   });
 
   const LocalChatMessage.system(
     String content, {
     List<LocalMessageAttachment> attachments = const <LocalMessageAttachment>[],
+    List<LocalToolCall> toolCalls = const <LocalToolCall>[],
+    String? toolCallId,
     Map<String, Object?> metadata = const <String, Object?>{},
   }) : this(
          role: LocalChatRole.system,
          content: content,
          attachments: attachments,
+         toolCalls: toolCalls,
+         toolCallId: toolCallId,
          metadata: metadata,
        );
 
   const LocalChatMessage.user(
     String content, {
     List<LocalMessageAttachment> attachments = const <LocalMessageAttachment>[],
+    List<LocalToolCall> toolCalls = const <LocalToolCall>[],
+    String? toolCallId,
     Map<String, Object?> metadata = const <String, Object?>{},
   }) : this(
          role: LocalChatRole.user,
          content: content,
          attachments: attachments,
+         toolCalls: toolCalls,
+         toolCallId: toolCallId,
          metadata: metadata,
        );
 
   const LocalChatMessage.assistant(
     String content, {
     List<LocalMessageAttachment> attachments = const <LocalMessageAttachment>[],
+    List<LocalToolCall> toolCalls = const <LocalToolCall>[],
+    String? toolCallId,
     Map<String, Object?> metadata = const <String, Object?>{},
   }) : this(
          role: LocalChatRole.assistant,
          content: content,
          attachments: attachments,
+         toolCalls: toolCalls,
+         toolCallId: toolCallId,
+         metadata: metadata,
+       );
+
+  const LocalChatMessage.toolResult({
+    required String toolCallId,
+    required String content,
+    Map<String, Object?> metadata = const <String, Object?>{},
+  }) : this(
+         role: LocalChatRole.tool,
+         content: content,
+         toolCallId: toolCallId,
          metadata: metadata,
        );
 
   final LocalChatRole role;
   final String content;
   final List<LocalMessageAttachment> attachments;
+  final List<LocalToolCall> toolCalls;
+  final String? toolCallId;
   final Map<String, Object?> metadata;
 
   factory LocalChatMessage.fromJsonMap(Map<String, Object?> map) {
@@ -507,6 +709,10 @@ class LocalChatMessage {
       attachments: List<Map<String, Object?>>.from(
         map['attachments'] as List? ?? const <Map<String, Object?>>[],
       ).map(LocalMessageAttachment.fromJsonMap).toList(growable: false),
+      toolCalls: List<Map<String, Object?>>.from(
+        map['toolCalls'] as List? ?? const <Map<String, Object?>>[],
+      ).map(LocalToolCall.fromJsonMap).toList(growable: false),
+      toolCallId: map['toolCallId'] as String?,
       metadata: Map<String, Object?>.from(
         map['metadata'] as Map? ?? const <String, Object?>{},
       ),
@@ -517,6 +723,9 @@ class LocalChatMessage {
     'role': localChatRoleToString(role),
     'content': content,
     'attachments': attachments.map((item) => item.toJson()).toList(),
+    if (toolCalls.isNotEmpty)
+      'toolCalls': toolCalls.map((item) => item.toJson()).toList(),
+    if (toolCallId != null) 'toolCallId': toolCallId,
     if (metadata.isNotEmpty) 'metadata': metadata,
   };
 }
@@ -529,6 +738,8 @@ class LocalChatParams {
     this.temperature,
     this.topP,
     this.stop = const <String>[],
+    this.tools = const <LocalTool>[],
+    this.toolChoice,
     this.extra = const <String, Object?>{},
   });
 
@@ -537,6 +748,8 @@ class LocalChatParams {
   final double? temperature;
   final double? topP;
   final List<String> stop;
+  final List<LocalTool> tools;
+  final LocalToolChoice? toolChoice;
   final Map<String, Object?> extra;
 
   factory LocalChatParams.fromJsonMap(Map<String, Object?> map) {
@@ -546,6 +759,14 @@ class LocalChatParams {
       temperature: (map['temperature'] as num?)?.toDouble(),
       topP: (map['topP'] as num?)?.toDouble(),
       stop: List<String>.from(map['stop'] as List? ?? const <String>[]),
+      tools: List<Map<String, Object?>>.from(
+        map['tools'] as List? ?? const <Map<String, Object?>>[],
+      ).map(LocalTool.fromJsonMap).toList(growable: false),
+      toolChoice: map['toolChoice'] == null
+          ? null
+          : LocalToolChoice.fromJsonMap(
+              Map<String, Object?>.from(map['toolChoice'] as Map),
+            ),
       extra: Map<String, Object?>.from(
         map['extra'] as Map? ?? const <String, Object?>{},
       ),
@@ -558,6 +779,8 @@ class LocalChatParams {
     if (temperature != null) 'temperature': temperature,
     if (topP != null) 'topP': topP,
     if (stop.isNotEmpty) 'stop': stop,
+    if (tools.isNotEmpty) 'tools': tools.map((item) => item.toJson()).toList(),
+    if (toolChoice != null) 'toolChoice': toolChoice!.toJson(),
     if (extra.isNotEmpty) 'extra': extra,
   };
 }
@@ -567,16 +790,23 @@ class LocalChatDelta {
   const LocalChatDelta({
     required this.content,
     this.done = false,
+    this.toolCalls = const <LocalToolCall>[],
+    this.finishReason,
     this.metadata = const <String, Object?>{},
   });
 
   final String content;
   final bool done;
+  final List<LocalToolCall> toolCalls;
+  final String? finishReason;
   final Map<String, Object?> metadata;
 
   Map<String, Object?> toJson() => <String, Object?>{
     'content': content,
     'done': done,
+    if (toolCalls.isNotEmpty)
+      'toolCalls': toolCalls.map((item) => item.toJson()).toList(),
+    if (finishReason != null) 'finishReason': finishReason,
     if (metadata.isNotEmpty) 'metadata': metadata,
   };
 }

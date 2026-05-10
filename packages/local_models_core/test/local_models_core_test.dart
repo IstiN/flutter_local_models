@@ -110,4 +110,45 @@ void main() {
     );
     expect(LocalChatParams.fromJsonMap(params.toJson()).maxTokens, 128);
   });
+
+  test('serializes tools, tool choices, and tool call messages', () {
+    const tool = LocalTool.function(
+      name: 'get_weather',
+      description: 'Get weather for a city.',
+      parametersJsonSchema: {
+        'type': 'object',
+        'properties': {
+          'city': {'type': 'string'},
+        },
+        'required': ['city'],
+      },
+    );
+    const toolCall = LocalToolCall(
+      id: 'call_1',
+      name: 'get_weather',
+      arguments: {'city': 'Minsk'},
+    );
+    const params = LocalChatParams(
+      tools: [tool],
+      toolChoice: LocalToolChoice.named('get_weather'),
+    );
+    const assistant = LocalChatMessage.assistant('', toolCalls: [toolCall]);
+    const result = LocalChatMessage.toolResult(
+      toolCallId: 'call_1',
+      content: '{"temperature": 21}',
+    );
+
+    final decodedParams = LocalChatParams.fromJsonMap(params.toJson());
+    final decodedAssistant = LocalChatMessage.fromJsonMap(assistant.toJson());
+    final decodedResult = LocalChatMessage.fromJsonMap(result.toJson());
+
+    expect(decodedParams.tools.single.name, 'get_weather');
+    expect(decodedParams.toolChoice!.mode, LocalToolChoiceMode.named);
+    expect(decodedParams.toolChoice!.name, 'get_weather');
+    expect(decodedAssistant.toolCalls.single.arguments['city'], 'Minsk');
+    expect(decodedResult.role, LocalChatRole.tool);
+    expect(decodedResult.toolCallId, 'call_1');
+    expect(tool.toOpenAIJson()['type'], 'function');
+    expect(toolCall.toOpenAIJson()['type'], 'function');
+  });
 }
