@@ -1,24 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="bg" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F4C7FF"/>
-      <stop offset="0.48" stop-color="#9B6BFF"/>
-      <stop offset="1" stop-color="#46E6D6"/>
+    <linearGradient id="accent" x1="14" y1="10" x2="50" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E9D7FF"/>
+      <stop offset="0.55" stop-color="#A77BFF"/>
+      <stop offset="1" stop-color="#68F3E8"/>
     </linearGradient>
-    <linearGradient id="line" x1="17" y1="18" x2="48" y2="47" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#60F5E6"/>
-      <stop offset="1" stop-color="#DCC8FF"/>
+    <linearGradient id="soft" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2A2F55"/>
+      <stop offset="1" stop-color="#171B34"/>
     </linearGradient>
-    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="2.6" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#000000" flood-opacity="0.22"/>
     </filter>
   </defs>
-  <rect x="9" y="9" width="46" height="46" rx="15" fill="#151936"/>
-  <rect x="9" y="9" width="46" height="46" rx="15" fill="url(#bg)" opacity="0.22"/>
-  <path d="M21 37V24h22v13" stroke="url(#line)" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
-  <path d="M21 37l11 9 11-9" stroke="url(#line)" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="32" cy="31" r="8" fill="#0D1020" stroke="#F4E9FF" stroke-width="3"/>
-  <circle cx="32" cy="31" r="3" fill="#60F5E6"/>
-  <path d="M17 17l7 4M47 17l-7 4M17 47l7-4M47 47l-7-4" stroke="#DCC8FF" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+  <rect x="10" y="10" width="44" height="44" rx="16" fill="url(#soft)" filter="url(#shadow)"/>
+  <path d="M20 24l12-7 12 7v16l-12 7-12-7V24Z" stroke="url(#accent)" stroke-width="4" fill="none" stroke-linejoin="round"/>
+  <circle cx="32" cy="32" r="7" fill="#11162B" stroke="#F4EEFF" stroke-width="3.5"/>
+  <path d="M32 25v-7M32 46v-7M25 32h-7M46 32h-7" stroke="#68F3E8" stroke-width="3.2" stroke-linecap="round"/>
 </svg>

@@ -310,7 +310,7 @@ class _StudioShellState extends State<StudioShell> {
             labelType: NavigationRailLabelType.all,
             leading: const Padding(
               padding: EdgeInsets.only(top: 20, bottom: 24),
-              child: StudioSvgIcon('logo_mark', size: 42),
+              child: StudioSvgIcon('logo_mark', size: 36),
             ),
             destinations: const [
               NavigationRailDestination(

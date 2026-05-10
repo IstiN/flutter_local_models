@@ -1,1 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse"><stop stop-color="#F4C7FF"/><stop offset=".45" stop-color="#9B6BFF"/><stop offset="1" stop-color="#46E6D6"/></linearGradient><linearGradient id="s" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse"><stop stop-color="#DCC8FF"/><stop offset="1" stop-color="#60F5E6"/></linearGradient></defs><path d="M32 6l6 18 18 8-18 7-6 19-7-19-17-7 17-8 7-18Z" fill="url(#g)"/><path d="M49 7l2 7 7 2-7 3-2 7-3-7-7-3 7-2 3-7Z" fill="#DCC8FF"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="accent" x1="14" y1="10" x2="50" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E9D7FF"/>
+      <stop offset="0.55" stop-color="#A77BFF"/>
+      <stop offset="1" stop-color="#68F3E8"/>
+    </linearGradient>
+    <linearGradient id="soft" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2A2F55"/>
+      <stop offset="1" stop-color="#171B34"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#000000" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <path d="M32 9l6 17 17 6-17 6-6 17-6-17-17-6 17-6 6-17Z" stroke="url(#accent)" stroke-width="4.5" fill="none" stroke-linejoin="round"/>
+  <path d="M49 9l2 7 6 2-6 2-2 7-2-7-6-2 6-2 2-7Z" fill="#F4EEFF"/>
+</svg>
