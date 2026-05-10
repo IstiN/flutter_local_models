@@ -532,6 +532,12 @@ class LocalChatRunner {
     required ValueChanged<String> onText,
     LocalChatParams params = const LocalChatParams(),
   }) {
+    final requestedModelId = params.modelId;
+    if (requestedModelId != null && requestedModelId != model.manifest.id) {
+      throw StateError(
+        'Selected runtime model ${model.manifest.id} does not match requested model $requestedModelId.',
+      );
+    }
     final prompt = _promptFromMessages(messages);
     final attachments = messages
         .expand((message) => message.attachments)

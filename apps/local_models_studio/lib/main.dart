@@ -1455,6 +1455,7 @@ class _StudioShellState extends State<StudioShell> {
       await controller.chatRunner.chatStream(
         model: model,
         messages: messages,
+        params: LocalChatParams(modelId: model.manifest.id),
         onText: _replaceStreamingAssistant,
       );
     } catch (error) {
@@ -1507,6 +1508,7 @@ class _StudioShellState extends State<StudioShell> {
         await controller.chatRunner.chatStream(
           model: model,
           messages: messages,
+          params: LocalChatParams(modelId: model.manifest.id),
           onText: _replaceStreamingAssistant,
         );
       }
@@ -1553,6 +1555,7 @@ class _StudioShellState extends State<StudioShell> {
       await controller.chatRunner.chatStream(
         model: model,
         messages: messages,
+        params: LocalChatParams(modelId: model.manifest.id),
         onText: _replaceStreamingAssistant,
       );
     } catch (error) {
