@@ -173,6 +173,10 @@ class InstalledModel {
       (manifest.runtimeAdapter == RuntimeAdapter.mlxLm ||
           manifest.runtimeAdapter == RuntimeAdapter.mlxVlm);
 
+  bool get audioPromptSupported =>
+      manifest.tasks.contains(ModelTask.audioInput) &&
+      manifest.runtimeAdapter == RuntimeAdapter.mlxVlm;
+
   bool get speechToTextSupported =>
       manifest.tasks.contains(ModelTask.speechToText) &&
       manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
@@ -392,6 +396,7 @@ class LocalChatRunner {
   Future<String> generateResponse({
     required InstalledModel model,
     required String prompt,
+    String? audioPath,
     int maxTokens = 256,
   }) async {
     if (!model.textPromptSupported) {
@@ -426,6 +431,7 @@ class LocalChatRunner {
         'generate',
         '--model',
         model.directory.path,
+        if (audioPath != null) ...<String>['--audio', audioPath],
         '--prompt',
         prompt,
         '--max-tokens',

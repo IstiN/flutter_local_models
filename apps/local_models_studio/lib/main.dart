@@ -127,6 +127,7 @@ class _StudioShellState extends State<StudioShell> {
   late final AudioRecorder audioRecorder;
   InstalledModel? selectedTestModel;
   String? selectedAudioPath;
+  bool audioInputMode = false;
   bool recordingAudio = false;
   bool testBusy = false;
   String? testErrorMessage;
@@ -305,12 +306,16 @@ class _StudioShellState extends State<StudioShell> {
         : installedModels.isEmpty
         ? null
         : installedModels.first;
+    final useAudioInput =
+        selectedModel?.speechToTextSupported == true ||
+        (selectedModel?.audioPromptSupported == true && audioInputMode);
     final canSendText =
         selectedModel?.textPromptSupported == true &&
+        !useAudioInput &&
         chatPromptController.text.trim().isNotEmpty &&
         !testBusy;
     final canSendAudio =
-        selectedModel?.speechToTextSupported == true &&
+        useAudioInput &&
         selectedAudioPath != null &&
         !recordingAudio &&
         !testBusy;
@@ -349,11 +354,42 @@ class _StudioShellState extends State<StudioShell> {
                         setState(() {
                           selectedTestModel = value;
                           selectedAudioPath = null;
+                          audioInputMode =
+                              value?.speechToTextSupported == true &&
+                              value?.textPromptSupported != true;
                           testErrorMessage = null;
                         });
                         controller.clearChat();
                       },
                     ),
+                  if (selectedModel?.audioPromptSupported == true &&
+                      selectedModel?.textPromptSupported == true) ...[
+                    const SizedBox(height: 12),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment<bool>(
+                          value: false,
+                          icon: Icon(Icons.chat_bubble_outline),
+                          label: Text('Text'),
+                        ),
+                        ButtonSegment<bool>(
+                          value: true,
+                          icon: Icon(Icons.graphic_eq),
+                          label: Text('Audio'),
+                        ),
+                      ],
+                      selected: <bool>{audioInputMode},
+                      onSelectionChanged: testBusy || recordingAudio
+                          ? null
+                          : (selection) {
+                              setState(() {
+                                audioInputMode = selection.first;
+                                selectedAudioPath = null;
+                                testErrorMessage = null;
+                              });
+                            },
+                    ),
+                  ],
                   if (selectedModel != null) ...[
                     const SizedBox(height: 12),
                     SelectableText(
@@ -421,8 +457,27 @@ class _StudioShellState extends State<StudioShell> {
                   ),
           ),
           const SizedBox(height: 16),
-          if (selectedModel?.speechToTextSupported == true)
-            _buildAudioInputBar(selectedModel!)
+          if (useAudioInput && selectedModel != null)
+            Column(
+              children: [
+                if (selectedModel.textPromptSupported) ...[
+                  TextField(
+                    controller: chatPromptController,
+                    minLines: 2,
+                    maxLines: 4,
+                    onChanged: (_) => setState(() {}),
+                    enabled: !testBusy,
+                    decoration: const InputDecoration(
+                      labelText: 'Audio prompt',
+                      border: OutlineInputBorder(),
+                      hintText: 'Ask what the model should do with the audio...',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _buildAudioInputBar(selectedModel),
+              ],
+            )
           else
             TextField(
               controller: chatPromptController,
@@ -445,10 +500,10 @@ class _StudioShellState extends State<StudioShell> {
             spacing: 12,
             runSpacing: 12,
             children: [
-              if (selectedModel?.speechToTextSupported == true)
+              if (useAudioInput && selectedModel != null)
                 FilledButton.icon(
                   onPressed: canSendAudio
-                      ? () => _sendAudioToSelectedModel(selectedModel!)
+                      ? () => _sendAudioToSelectedModel(selectedModel)
                       : null,
                   icon: testBusy
                       ? const SizedBox(
@@ -1117,18 +1172,26 @@ class _StudioShellState extends State<StudioShell> {
     if (audioPath == null) {
       return;
     }
+    final prompt = chatPromptController.text.trim().isEmpty
+        ? 'What did you hear? Answer briefly.'
+        : chatPromptController.text.trim();
     setState(() {
       testBusy = true;
       testErrorMessage = null;
-      controller.chatTurns.add(ChatTurn.user('Audio: ${p.basename(audioPath)}'));
+      controller.chatTurns.add(
+        ChatTurn.user('Audio: ${p.basename(audioPath)}\n$prompt'),
+      );
     });
 
     try {
-      final transcript = await controller.transcribeAudio(
-        model: model,
-        audioPath: audioPath,
-      );
-      setState(() => controller.chatTurns.add(ChatTurn.assistant(transcript)));
+      final response = model.speechToTextSupported
+          ? await controller.transcribeAudio(model: model, audioPath: audioPath)
+          : await controller.chatRunner.generateResponse(
+              model: model,
+              prompt: prompt,
+              audioPath: audioPath,
+            );
+      setState(() => controller.chatTurns.add(ChatTurn.assistant(response)));
     } catch (error) {
       setState(() => testErrorMessage = '$error');
     } finally {
@@ -1139,6 +1202,12 @@ class _StudioShellState extends State<StudioShell> {
   String _testModeLabel(InstalledModel model) {
     if (model.speechToTextSupported) {
       return 'audio';
+    }
+    if (model.audioPromptSupported && model.textPromptSupported) {
+      return 'chat/audio';
+    }
+    if (model.audioPromptSupported) {
+      return 'audio chat';
     }
     if (model.textPromptSupported) {
       return 'chat';
