@@ -557,6 +557,9 @@
         "media_type": "image/png",
         "extension": "png",
         "default_size": "1024x1024"
+      },
+      "extra": {
+        "mflux_runner": "qwen"
       }
     }
   },
@@ -648,6 +651,9 @@
         "media_type": "image/png",
         "extension": "png",
         "default_size": "1024x1024"
+      },
+      "extra": {
+        "mflux_runner": "qwen"
       }
     }
   },

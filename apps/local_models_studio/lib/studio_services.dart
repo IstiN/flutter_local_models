@@ -1030,14 +1030,16 @@ class LocalImageRunner {
       if (seed != null) ...<String>['--seed', '$seed'],
     ];
     final baseModel = _mfluxBaseModelFor(model);
-    if (baseModel != null && executable.endsWith('mflux-generate')) {
+    if (baseModel != null &&
+        (executable.endsWith('mflux-generate') ||
+            executable.endsWith('mflux-generate-qwen'))) {
       args.insertAll(2, <String>['--base-model', baseModel]);
     }
     final result = await Process.run(executable, args);
     if (result.exitCode != 0) {
       final stderr = (result.stderr as String).trim();
       throw StateError(
-        'Local image generation failed: ${stderr.isEmpty ? result.stdout : stderr}',
+        'Local image generation failed using $executable: ${stderr.isEmpty ? result.stdout : stderr}',
       );
     }
     final outputFile = File(outputPath);
@@ -1048,10 +1050,14 @@ class LocalImageRunner {
   }
 
   String _mfluxExecutableFor(InstalledModel model) {
+    final configuredRunner =
+        model.manifest.runtimeConfig.extra['mflux_runner'] as String?;
     final identity = [
+      configuredRunner ?? '',
       model.manifest.id,
       model.manifest.source.repo,
       model.manifest.displayName,
+      p.basename(model.directory.path),
     ].join(' ').toLowerCase();
     final command = identity.contains('qwen')
         ? 'mflux-generate-qwen'

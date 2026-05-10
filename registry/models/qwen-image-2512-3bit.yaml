@@ -49,6 +49,8 @@ runtime_config:
     media_type: image/png
     extension: png
     default_size: 1024x1024
+  extra:
+    mflux_runner: qwen
 model_card:
   summary: Smaller mflux Qwen Image bundle for local text-to-image generation on Apple
     Silicon.

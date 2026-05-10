@@ -1606,6 +1606,8 @@ class _StudioShellState extends State<StudioShell> {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            _buildLanguageQuickChoices(languageOptions),
             if (needsInstruct) ...[
               const SizedBox(height: 10),
               TextField(
@@ -1707,6 +1709,44 @@ class _StudioShellState extends State<StudioShell> {
           )
           .toList(growable: false),
       onChanged: testBusy ? null : onChanged,
+    );
+  }
+
+  Widget _buildLanguageQuickChoices(List<String> languageOptions) {
+    final current = _normalizeTtsLanguageCode(ttsLanguageController.text);
+    final quickOptions = <String>[
+      'auto',
+      'russian',
+      'english',
+      'chinese',
+      'japanese',
+      'korean',
+      ...languageOptions,
+    ];
+    final uniqueOptions = <String>[];
+    for (final option in quickOptions) {
+      final normalized = _normalizeTtsLanguageCode(option);
+      if (normalized.isNotEmpty && !uniqueOptions.contains(normalized)) {
+        uniqueOptions.add(normalized);
+      }
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: uniqueOptions
+          .take(10)
+          .map(
+            (option) => ChoiceChip(
+              label: Text(_prettyTtsOption(option)),
+              selected: current == option,
+              onSelected: testBusy
+                  ? null
+                  : (_) => setState(() {
+                      ttsLanguageController.text = option;
+                    }),
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
@@ -1826,10 +1866,11 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   String _prettyTtsOption(String value) {
-    if (value.length <= 1) {
-      return value;
+    final normalized = _normalizeTtsLanguageCode(value);
+    if (normalized.length <= 1) {
+      return normalized;
     }
-    return value
+    return normalized
         .split('_')
         .map(
           (part) => part.isEmpty
@@ -2904,11 +2945,40 @@ class _StudioShellState extends State<StudioShell> {
     return SpeechSynthesisOptions(
       voice: ttsVoiceController.text.trim(),
       instruct: ttsInstructController.text.trim(),
-      languageCode: ttsLanguageController.text.trim(),
+      languageCode: _normalizeTtsLanguageCode(ttsLanguageController.text),
       referenceAudioPath: ttsReferenceAudioPath,
       referenceText: ttsReferenceTextController.text.trim(),
       speed: double.tryParse(ttsSpeedController.text.trim()),
     );
+  }
+
+  String _normalizeTtsLanguageCode(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'ru':
+      case 'русский':
+        return 'russian';
+      case 'en':
+        return 'english';
+      case 'zh':
+      case 'cn':
+        return 'chinese';
+      case 'ja':
+        return 'japanese';
+      case 'ko':
+        return 'korean';
+      case 'de':
+        return 'german';
+      case 'fr':
+        return 'french';
+      case 'pt':
+        return 'portuguese';
+      case 'es':
+        return 'spanish';
+      case 'it':
+        return 'italian';
+      default:
+        return value.trim().toLowerCase();
+    }
   }
 
   void _replaceStreamingAssistant(String message) {
