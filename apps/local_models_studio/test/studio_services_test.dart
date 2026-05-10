@@ -279,6 +279,7 @@ void main() {
       ).existsSync(),
       isTrue,
     );
+    expect(secondController.downloads, isEmpty);
     expect(paths.downloadQueueFile.existsSync(), isFalse);
   });
 }

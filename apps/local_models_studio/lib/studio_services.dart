@@ -932,6 +932,7 @@ class StudioController extends ChangeNotifier {
     await _loadSettings();
     await reloadInstalledModels();
     await _restoreDownloadQueue();
+    await _cleanupOrphanDownloadDirectories();
     initialized = true;
     if (refreshRemoteSourcesOnInitialize) {
       await refreshSources();
@@ -1533,6 +1534,7 @@ class StudioController extends ChangeNotifier {
         await record.stageDirectory.delete(recursive: true);
       }
       await reloadInstalledModels();
+      downloads.remove(record);
       await _persistDownloadQueue();
     } on _PausedDownload {
       record.status = DownloadTaskStatus.paused;
@@ -1556,6 +1558,31 @@ class StudioController extends ChangeNotifier {
       await record.stageDirectory.delete(recursive: true);
     }
     await _persistDownloadQueue();
+  }
+
+  Future<void> _cleanupOrphanDownloadDirectories() async {
+    if (!paths.downloadsDirectory.existsSync()) {
+      return;
+    }
+    final activeStagePaths = downloads
+        .map((record) => p.normalize(record.stageDirectory.path))
+        .toSet();
+    await for (final entity in paths.downloadsDirectory.list(
+      recursive: false,
+      followLinks: false,
+    )) {
+      if (entity is! Directory) {
+        continue;
+      }
+      if (activeStagePaths.contains(p.normalize(entity.path))) {
+        continue;
+      }
+      try {
+        await entity.delete(recursive: true);
+      } on FileSystemException {
+        continue;
+      }
+    }
   }
 
   Future<void> _downloadFile(
