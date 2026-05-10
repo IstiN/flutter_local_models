@@ -207,6 +207,7 @@ class _StudioShellState extends State<StudioShell> {
   bool recordingAudio = false;
   bool recordingReferenceVoice = false;
   bool showVoicePipelineSettings = false;
+  bool showTtsVoiceSettings = false;
   bool testBusy = false;
   String? testErrorMessage;
   bool obscureHfToken = true;
@@ -1881,6 +1882,18 @@ class _StudioShellState extends State<StudioShell> {
         mode == 'voice_design' ||
         mode == 'custom_voice' ||
         ttsInstructController.text.trim().isNotEmpty;
+    final activeVoiceLabel = ttsReferenceAudioPath != null
+        ? p.basename(ttsReferenceAudioPath!)
+        : ttsVoiceController.text.trim().isNotEmpty
+        ? ttsVoiceController.text.trim()
+        : mode == 'base'
+        ? 'No reference voice'
+        : 'Default voice';
+    final compactSummary = [
+      activeVoiceLabel,
+      'Language ${ttsLanguageController.text.trim().isEmpty ? 'auto' : ttsLanguageController.text.trim()}',
+      'Speed ${ttsSpeedController.text.trim().isEmpty ? '1.0' : ttsSpeedController.text.trim()}',
+    ].join(' • ');
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -1888,136 +1901,180 @@ class _StudioShellState extends State<StudioShell> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'TTS voice lock',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            if (mode == 'base') ...[
-              const SizedBox(height: 8),
-              _buildTtsModeHint(
-                title: 'Speaker source: reference audio',
-                message:
-                    'Qwen3-TTS Base has no built-in speaker list. Choose a clean 3–10 sec Ref Audio and paste its transcript below to clone that speaker.',
-              ),
-            ] else if (mode == 'custom_voice') ...[
-              const SizedBox(height: 8),
-              _buildTtsModeHint(
-                title: 'Speaker presets',
-                message:
-                    'CustomVoice exposes built-in speakers. Pick one in Speaker, then optionally add emotion/style in Instruction.',
-              ),
-            ],
-            const SizedBox(height: 10),
             Row(
               children: [
-                if (needsVoice) ...[
+                const StudioSvgIcon('mic', size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'TTS voice',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        compactSummary,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: testBusy
+                      ? null
+                      : () => setState(
+                          () => showTtsVoiceSettings = !showTtsVoiceSettings,
+                        ),
+                  icon: StudioSvgIcon(
+                    showTtsVoiceSettings ? 'stop' : 'settings',
+                    size: 20,
+                  ),
+                  label: Text(showTtsVoiceSettings ? 'Hide' : 'Settings'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: testBusy
+                      ? null
+                      : () => setState(() => selectedPageIndex = 3),
+                  icon: const StudioSvgIcon('mic', size: 20),
+                  label: const Text('My Voices'),
+                ),
+              ],
+            ),
+            if (showTtsVoiceSettings) ...[
+              if (mode == 'base') ...[
+                const SizedBox(height: 8),
+                _buildTtsModeHint(
+                  title: 'Speaker source: reference audio',
+                  message:
+                      'Qwen3-TTS Base has no built-in speaker list. Choose a clean 3–10 sec Ref Audio and paste its transcript below to clone that speaker.',
+                ),
+              ] else if (mode == 'custom_voice') ...[
+                const SizedBox(height: 8),
+                _buildTtsModeHint(
+                  title: 'Speaker presets',
+                  message:
+                      'CustomVoice exposes built-in speakers. Pick one in Speaker, then optionally add emotion/style in Instruction.',
+                ),
+              ],
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  if (needsVoice) ...[
+                    Expanded(
+                      child: _buildStringComboBox(
+                        label: 'Speaker',
+                        value: ttsVoiceController.text.trim(),
+                        options: voiceNames,
+                        icon: const StudioSvgIcon('mic', size: 20),
+                        onChanged: (value) => setState(
+                          () => ttsVoiceController.text = value ?? '',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   Expanded(
                     child: _buildStringComboBox(
-                      label: 'Speaker',
-                      value: ttsVoiceController.text.trim(),
-                      options: voiceNames,
-                      icon: const StudioSvgIcon('mic', size: 20),
-                      onChanged: (value) =>
-                          setState(() => ttsVoiceController.text = value ?? ''),
+                      label: 'Language',
+                      value: ttsLanguageController.text.trim(),
+                      options: languageOptions,
+                      icon: const StudioSvgIcon('chat', size: 20),
+                      onChanged: (value) => setState(
+                        () => ttsLanguageController.text = value ?? '',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
+                  SizedBox(
+                    width: 140,
+                    child: _buildStringComboBox(
+                      label: 'Speed',
+                      value: ttsSpeedController.text.trim(),
+                      options: speedOptions,
+                      icon: const StudioSvgIcon('play', size: 20),
+                      onChanged: (value) => setState(
+                        () => ttsSpeedController.text = value ?? '1.0',
+                      ),
+                    ),
+                  ),
                 ],
-                Expanded(
-                  child: _buildStringComboBox(
-                    label: 'Language',
-                    value: ttsLanguageController.text.trim(),
-                    options: languageOptions,
-                    icon: const StudioSvgIcon('chat', size: 20),
-                    onChanged: (value) => setState(
-                      () => ttsLanguageController.text = value ?? '',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 140,
-                  child: _buildStringComboBox(
-                    label: 'Speed',
-                    value: ttsSpeedController.text.trim(),
-                    options: speedOptions,
-                    icon: const StudioSvgIcon('play', size: 20),
-                    onChanged: (value) => setState(
-                      () => ttsSpeedController.text = value ?? '1.0',
-                    ),
+              ),
+              const SizedBox(height: 10),
+              _buildLanguageQuickChoices(languageOptions),
+              if (needsInstruct) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: ttsInstructController,
+                  enabled: !testBusy,
+                  minLines: 2,
+                  maxLines: 3,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: mode == 'voice_design'
+                        ? 'Voice design prompt'
+                        : 'Instruction / emotion',
+                    hintText: mode == 'voice_design'
+                        ? 'Describe the target voice: calm, deep, Russian, natural...'
+                        : 'Optional style or emotion, e.g. Very happy.',
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 10),
-            _buildLanguageQuickChoices(languageOptions),
-            if (needsInstruct) ...[
               const SizedBox(height: 10),
-              TextField(
-                controller: ttsInstructController,
-                enabled: !testBusy,
-                minLines: 2,
-                maxLines: 3,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: mode == 'voice_design'
-                      ? 'Voice design prompt'
-                      : 'Instruction / emotion',
-                  hintText: mode == 'voice_design'
-                      ? 'Describe the target voice: calm, deep, Russian, natural...'
-                      : 'Optional style or emotion, e.g. Very happy.',
-                ),
+              _buildMyVoiceReferenceMenu(mode),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const StudioSvgIcon('audio', size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      ttsReferenceAudioPath == null
+                          ? mode == 'base'
+                                ? 'Base Qwen voice clone: choose 3–10 sec reference audio'
+                                : 'No reference voice audio selected'
+                          : p.basename(ttsReferenceAudioPath!),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: testBusy ? null : _chooseTtsReferenceAudioFile,
+                    icon: const StudioSvgIcon('folder', size: 20),
+                    label: const Text('Ref Audio'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: testBusy || ttsReferenceAudioPath == null
+                        ? null
+                        : () => setState(() {
+                            ttsReferenceAudioPath = null;
+                            ttsReferenceTextController.clear();
+                          }),
+                    icon: const StudioSvgIcon('trash', size: 18),
+                    label: const Text('Clear'),
+                  ),
+                ],
               ),
-            ],
-            const SizedBox(height: 10),
-            _buildMyVoiceReferenceMenu(mode),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const StudioSvgIcon('audio', size: 22),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    ttsReferenceAudioPath == null
-                        ? mode == 'base'
-                              ? 'Base Qwen voice clone: choose 3–10 sec reference audio'
-                              : 'No reference voice audio selected'
-                        : p.basename(ttsReferenceAudioPath!),
-                    overflow: TextOverflow.ellipsis,
+              if (ttsReferenceAudioPath != null) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: ttsReferenceTextController,
+                  enabled: !testBusy,
+                  minLines: 1,
+                  maxLines: 2,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Reference transcript',
+                    hintText:
+                        'Text spoken in the reference audio, improves voice clone quality.',
                   ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: testBusy ? null : _chooseTtsReferenceAudioFile,
-                  icon: const StudioSvgIcon('folder', size: 20),
-                  label: const Text('Ref Audio'),
-                ),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: testBusy || ttsReferenceAudioPath == null
-                      ? null
-                      : () => setState(() {
-                          ttsReferenceAudioPath = null;
-                          ttsReferenceTextController.clear();
-                        }),
-                  icon: const StudioSvgIcon('trash', size: 18),
-                  label: const Text('Clear'),
-                ),
               ],
-            ),
-            if (ttsReferenceAudioPath != null) ...[
-              const SizedBox(height: 10),
-              TextField(
-                controller: ttsReferenceTextController,
-                enabled: !testBusy,
-                minLines: 1,
-                maxLines: 2,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'Reference transcript',
-                  hintText:
-                      'Text spoken in the reference audio, improves voice clone quality.',
-                ),
-              ),
             ],
           ],
         ),
@@ -3489,6 +3546,14 @@ class _StudioShellState extends State<StudioShell> {
     if (text.isEmpty) {
       return;
     }
+    final validationError = _speechOptionsValidationError(model);
+    if (validationError != null) {
+      setState(() {
+        testErrorMessage = validationError;
+        showTtsVoiceSettings = true;
+      });
+      return;
+    }
     setState(() {
       testBusy = true;
       testErrorMessage = null;
@@ -3538,6 +3603,15 @@ class _StudioShellState extends State<StudioShell> {
   }) async {
     final audioPath = selectedAudioPath;
     if (audioPath == null) {
+      return;
+    }
+    final validationError = _speechOptionsValidationError(ttsModel);
+    if (validationError != null) {
+      setState(() {
+        testErrorMessage = validationError;
+        showVoicePipelineSettings = true;
+        showTtsVoiceSettings = true;
+      });
       return;
     }
     setState(() {
@@ -3616,6 +3690,21 @@ class _StudioShellState extends State<StudioShell> {
       referenceText: ttsReferenceTextController.text.trim(),
       speed: double.tryParse(ttsSpeedController.text.trim()),
     );
+  }
+
+  String? _speechOptionsValidationError(InstalledModel model) {
+    final mode = model.manifest.runtimeConfig.extra['qwen_tts_mode'] as String?;
+    if (mode != 'base') {
+      return null;
+    }
+    if (ttsReferenceAudioPath == null ||
+        ttsReferenceAudioPath!.trim().isEmpty) {
+      return 'Qwen3-TTS Base needs a reference voice audio sample. Open Voices, record/import your voice, then use it as Ref Audio.';
+    }
+    if (ttsReferenceTextController.text.trim().isEmpty) {
+      return 'Qwen3-TTS Base needs Reference transcript for your voice sample. Without it mlx_audio tries to download an STT model automatically and can hang/fail. Paste exactly what you said in the 3–10 sec sample.';
+    }
+    return null;
   }
 
   LocalChatParams _chatParamsForModel(InstalledModel model) {
