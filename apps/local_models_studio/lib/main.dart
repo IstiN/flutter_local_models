@@ -300,24 +300,32 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Future<void> _loadLatestVoiceReference() async {
-    final directory = controller.paths.voiceReferencesDirectory;
-    if (!directory.existsSync()) {
-      return;
-    }
-    final files =
-        directory
-            .listSync()
-            .whereType<File>()
-            .where((file) => file.path.endsWith('.m4a'))
-            .toList()
-          ..sort(
-            (left, right) =>
-                right.lastModifiedSync().compareTo(left.lastModifiedSync()),
-          );
+    final files = _voiceReferenceFiles();
     if (files.isEmpty || !mounted) {
       return;
     }
     setState(() => myVoiceReferencePath = files.first.path);
+  }
+
+  List<File> _voiceReferenceFiles() {
+    final directory = controller.paths.voiceReferencesDirectory;
+    if (!directory.existsSync()) {
+      return const <File>[];
+    }
+    return directory.listSync().whereType<File>().where((file) {
+      final extension = p.extension(file.path).toLowerCase();
+      return <String>{
+        '.wav',
+        '.mp3',
+        '.m4a',
+        '.aac',
+        '.flac',
+        '.ogg',
+      }.contains(extension);
+    }).toList()..sort(
+      (left, right) =>
+          right.lastModifiedSync().compareTo(left.lastModifiedSync()),
+    );
   }
 
   void _scrollChatToBottom() {
@@ -364,6 +372,11 @@ class _StudioShellState extends State<StudioShell> {
                 icon: StudioSvgIcon('test', opacity: 0.6),
                 selectedIcon: StudioSvgIcon('test'),
                 label: Text('Test'),
+              ),
+              NavigationRailDestination(
+                icon: StudioSvgIcon('mic', opacity: 0.6),
+                selectedIcon: StudioSvgIcon('mic'),
+                label: Text('Voices'),
               ),
               NavigationRailDestination(
                 icon: StudioSvgIcon('settings', opacity: 0.6),
@@ -419,6 +432,7 @@ class _StudioShellState extends State<StudioShell> {
                       _buildCatalogTab(context),
                       _buildDownloadsTab(context),
                       _buildTestTab(context),
+                      _buildVoicesTab(context),
                       _buildSettingsTab(context),
                     ],
                   ),
@@ -836,6 +850,197 @@ class _StudioShellState extends State<StudioShell> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildVoicesTab(BuildContext context) {
+    final files = _voiceReferenceFiles();
+    final selectedPath = myVoiceReferencePath;
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'My Voices',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Record a clean 3–10 sec sample once, then reuse it as Ref Audio for Qwen3 TTS Base voice cloning.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: testBusy || recordingAudio
+                  ? null
+                  : recordingReferenceVoice
+                  ? _stopReferenceVoiceRecording
+                  : _startReferenceVoiceRecording,
+              icon: StudioSvgIcon(
+                recordingReferenceVoice ? 'stop' : 'mic',
+                size: 20,
+              ),
+              label: Text(
+                recordingReferenceVoice ? 'Stop Recording' : 'Record My Voice',
+              ),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: testBusy || recordingReferenceVoice
+                  ? null
+                  : _importVoiceReferenceAudioFile,
+              icon: const StudioSvgIcon('folder', size: 20),
+              label: const Text('Import Audio'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  selectedPath == null
+                      ? 'No active voice selected'
+                      : 'Active voice: ${p.basename(selectedPath)}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  selectedPath ?? 'Record or import a sample below.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ttsReferenceTextController,
+                  enabled: !testBusy,
+                  minLines: 1,
+                  maxLines: 2,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Reference transcript',
+                    hintText:
+                        'Optional but recommended: text spoken in your voice sample.',
+                    prefixIcon: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: StudioSvgIcon('chat', size: 20),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: selectedPath == null
+                          ? null
+                          : () => _toggleAudioPlayback(selectedPath),
+                      icon: StudioSvgIcon(
+                        playingAudioPath == selectedPath ? 'stop' : 'play',
+                        size: 20,
+                      ),
+                      label: Text(
+                        playingAudioPath == selectedPath ? 'Stop' : 'Play',
+                      ),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: selectedPath == null
+                          ? null
+                          : () {
+                              setState(() {
+                                ttsReferenceAudioPath = selectedPath;
+                                selectedPageIndex = 2;
+                              });
+                            },
+                      icon: const StudioSvgIcon('mic', size: 20),
+                      label: const Text('Use in Test'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Text('Saved Samples', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        if (files.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No saved voice samples yet.'),
+            ),
+          )
+        else
+          ...files.map(
+            (file) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildVoiceReferenceCard(file),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildVoiceReferenceCard(File file) {
+    final selected = myVoiceReferencePath == file.path;
+    final isPlaying = playingAudioPath == file.path;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            StudioSvgIcon(selected ? 'mic' : 'audio', size: 26),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${p.basename(file.path)}${selected ? ' • active' : ''}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${formatBytes(file.lengthSync())} • ${file.lastModifiedSync()}',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => _toggleAudioPlayback(file.path),
+              icon: StudioSvgIcon(isPlaying ? 'stop' : 'play', size: 20),
+              label: Text(isPlaying ? 'Stop' : 'Play'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonalIcon(
+              onPressed: () => setState(() {
+                myVoiceReferencePath = file.path;
+                ttsReferenceAudioPath = file.path;
+              }),
+              icon: const StudioSvgIcon('mic', size: 20),
+              label: const Text('Use Voice'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1429,11 +1634,24 @@ class _StudioShellState extends State<StudioShell> {
                   ),
                   if (!showVoicePipelineSettings) ...[
                     const SizedBox(height: 10),
-                    Text(
-                      'Settings hidden. Use the gear to choose generation params, TTS voice, language, or your own voice reference.',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Settings hidden. Use the gear for params, or open My Voices to record/select your voice reference.',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: testBusy || recordingAudio
+                              ? null
+                              : () => setState(() => selectedPageIndex = 3),
+                          icon: const StudioSvgIcon('mic', size: 20),
+                          label: const Text('My Voices'),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -2337,7 +2555,7 @@ class _StudioShellState extends State<StudioShell> {
                   ),
                 ),
                 FilledButton.tonalIcon(
-                  onPressed: () => setState(() => selectedPageIndex = 3),
+                  onPressed: () => setState(() => selectedPageIndex = 4),
                   icon: const StudioSvgIcon('settings', size: 20),
                   label: const Text('Source Settings'),
                 ),
@@ -2871,6 +3089,30 @@ class _StudioShellState extends State<StudioShell> {
       return;
     }
     setState(() => ttsReferenceAudioPath = file.path);
+  }
+
+  Future<void> _importVoiceReferenceAudioFile() async {
+    final file = await _openAudioFile();
+    if (file == null) {
+      return;
+    }
+    final directory = controller.paths.voiceReferencesDirectory;
+    await directory.create(recursive: true);
+    final extension = p.extension(file.path).isEmpty
+        ? '.m4a'
+        : p.extension(file.path);
+    final destination = File(
+      p.join(
+        directory.path,
+        'my-voice-${DateTime.now().millisecondsSinceEpoch}$extension',
+      ),
+    );
+    await File(file.path).copy(destination.path);
+    setState(() {
+      myVoiceReferencePath = destination.path;
+      ttsReferenceAudioPath = destination.path;
+      testErrorMessage = null;
+    });
   }
 
   Future<void> _startReferenceVoiceRecording() async {
