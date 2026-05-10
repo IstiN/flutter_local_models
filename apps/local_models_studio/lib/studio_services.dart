@@ -150,6 +150,10 @@ class InstalledModel {
   bool get chatSupported =>
       manifest.tasks.contains(ModelTask.chat) &&
       manifest.runtimeAdapter == RuntimeAdapter.mlxLm;
+
+  bool get speechToTextSupported =>
+      manifest.tasks.contains(ModelTask.speechToText) &&
+      manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
 }
 
 class ChatTurn {
@@ -413,6 +417,85 @@ class LocalChatRunner {
   }
 }
 
+class LocalAudioRunner {
+  LocalAudioRunner({String? pythonExecutable})
+    : pythonExecutable =
+          pythonExecutable ??
+          p.join(
+            Platform.environment['HOME'] ?? '',
+            '.venvs',
+            'mlx',
+            'bin',
+            'python',
+          );
+
+  final String pythonExecutable;
+
+  Future<String> transcribeAudio({
+    required InstalledModel model,
+    required String audioPath,
+    String? language,
+  }) async {
+    if (!model.speechToTextSupported) {
+      throw StateError(
+        'Audio verification currently supports only installed mlx_audio speech-to-text models.',
+      );
+    }
+
+    final executableFile = File(pythonExecutable);
+    if (!executableFile.existsSync()) {
+      throw StateError(
+        'MLX Python runtime not found at $pythonExecutable. Set up ~/.venvs/mlx first.',
+      );
+    }
+
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'flm-stt-${sanitizeId(model.manifest.id)}-',
+    );
+    final outputStem = p.join(tempDirectory.path, 'transcript');
+
+    try {
+      final result = await Process.run(pythonExecutable, <String>[
+        '-m',
+        'mlx_audio.stt.generate',
+        '--model',
+        model.directory.path,
+        '--audio',
+        audioPath,
+        '--output-path',
+        outputStem,
+        '--format',
+        'txt',
+        if (language != null && language.trim().isNotEmpty) ...<String>[
+          '--language',
+          language.trim(),
+        ],
+      ]);
+      if (result.exitCode != 0) {
+        final stderr = (result.stderr as String).trim();
+        throw StateError(
+          'Local transcription failed: ${stderr.isEmpty ? result.stdout : stderr}',
+        );
+      }
+
+      final outputFile = File('$outputStem.txt');
+      if (!outputFile.existsSync()) {
+        throw StateError('Transcription finished without producing output.');
+      }
+
+      final transcript = (await outputFile.readAsString()).trim();
+      if (transcript.isEmpty) {
+        throw StateError('Transcription returned an empty result.');
+      }
+      return transcript;
+    } finally {
+      if (tempDirectory.existsSync()) {
+        await tempDirectory.delete(recursive: true);
+      }
+    }
+  }
+}
+
 class StudioController extends ChangeNotifier {
   StudioController({
     required this.registry,
@@ -420,10 +503,12 @@ class StudioController extends ChangeNotifier {
     StudioApiClient? apiClient,
     StudioPaths? paths,
     LocalChatRunner? chatRunner,
+    LocalAudioRunner? audioRunner,
     this.refreshRemoteSourcesOnInitialize = true,
   }) : apiClient = apiClient ?? StudioApiClient(),
        paths = paths ?? StudioPaths.forCurrentUser(),
-       chatRunner = chatRunner ?? LocalChatRunner() {
+       chatRunner = chatRunner ?? LocalChatRunner(),
+       audioRunner = audioRunner ?? LocalAudioRunner() {
     hfToken = Platform.environment['HF_TOKEN'] ?? '';
   }
 
@@ -432,6 +517,7 @@ class StudioController extends ChangeNotifier {
   final StudioApiClient apiClient;
   final StudioPaths paths;
   final LocalChatRunner chatRunner;
+  final LocalAudioRunner audioRunner;
   final bool refreshRemoteSourcesOnInitialize;
 
   bool initialized = false;
@@ -831,6 +917,18 @@ class StudioController extends ChangeNotifier {
       chatBusy = false;
       notifyListeners();
     }
+  }
+
+  Future<String> transcribeAudio({
+    required InstalledModel model,
+    required String audioPath,
+    String? language,
+  }) {
+    return audioRunner.transcribeAudio(
+      model: model,
+      audioPath: audioPath,
+      language: language,
+    );
   }
 
   void clearChat() {

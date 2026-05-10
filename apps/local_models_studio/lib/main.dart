@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_models_core/local_models_core.dart';
 import 'package:local_models_flutter/local_models_flutter.dart';
+import 'package:path/path.dart' as p;
 
 import 'studio_services.dart';
 
@@ -893,6 +895,7 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Widget _buildInstalledModelCard(BuildContext context, InstalledModel model) {
+    final primaryActionLabel = _primaryActionLabelForModel(model);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -917,11 +920,11 @@ class _StudioShellState extends State<StudioShell> {
               runSpacing: 12,
               children: [
                 FilledButton.tonalIcon(
-                  onPressed: model.chatSupported
-                      ? () => _openModelInChat(model, context)
-                      : null,
-                  icon: const Icon(Icons.chat),
-                  label: const Text('Use in Chat'),
+                  onPressed: _primaryActionForModel(model, context),
+                  icon: Icon(
+                    model.speechToTextSupported ? Icons.graphic_eq : Icons.chat,
+                  ),
+                  label: Text(primaryActionLabel),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => controller.deleteInstalledModel(model),
@@ -955,6 +958,113 @@ class _StudioShellState extends State<StudioShell> {
   void _openModelInChat(InstalledModel model, BuildContext context) {
     controller.selectChatModel(model);
     DefaultTabController.of(context).animateTo(2);
+  }
+
+  Future<void> _transcribeWithModel(InstalledModel model) async {
+    const audioTypeGroup = XTypeGroup(
+      label: 'audio',
+      extensions: <String>['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg'],
+    );
+    final file = await openFile(acceptedTypeGroups: <XTypeGroup>[audioTypeGroup]);
+    if (file == null || !mounted) {
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const AlertDialog(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            SizedBox(width: 16),
+            Expanded(child: Text('Transcribing audio...')),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final transcript = await controller.transcribeAudio(
+        model: model,
+        audioPath: file.path,
+      );
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context, rootNavigator: true).pop();
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(model.manifest.displayName),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('File: ${p.basename(file.path)}'),
+                const SizedBox(height: 12),
+                const Text(
+                  'Transcript',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(transcript),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
+  VoidCallback? _primaryActionForModel(
+    InstalledModel model,
+    BuildContext context,
+  ) {
+    if (model.chatSupported) {
+      return () => _openModelInChat(model, context);
+    }
+    if (model.speechToTextSupported) {
+      return () => _runAction(() => _transcribeWithModel(model));
+    }
+    return null;
+  }
+
+  String _primaryActionLabelForModel(InstalledModel model) {
+    if (model.chatSupported) {
+      return 'Use in Chat';
+    }
+    if (model.speechToTextSupported) {
+      return 'Transcribe Audio';
+    }
+    if (model.manifest.tasks.contains(ModelTask.chat) &&
+        model.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm) {
+      return 'VLM Chat Soon';
+    }
+    if (model.manifest.tasks.contains(ModelTask.audioInput)) {
+      return 'Audio Chat Soon';
+    }
+    return 'No App Action';
   }
 
   Future<void> _runAction(Future<void> Function() action) async {
