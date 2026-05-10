@@ -368,15 +368,7 @@ class StudioApiClient {
 
 class LocalChatRunner {
   LocalChatRunner({String? pythonExecutable})
-    : pythonExecutable =
-          pythonExecutable ??
-          p.join(
-            Platform.environment['HOME'] ?? '',
-            '.venvs',
-            'mlx',
-            'bin',
-            'python',
-          );
+    : pythonExecutable = pythonExecutable ?? _resolveMlxPythonExecutable();
 
   final String pythonExecutable;
 
@@ -468,15 +460,7 @@ String _cleanGeneratedText(String rawOutput) {
 
 class LocalAudioRunner {
   LocalAudioRunner({String? pythonExecutable})
-    : pythonExecutable =
-          pythonExecutable ??
-          p.join(
-            Platform.environment['HOME'] ?? '',
-            '.venvs',
-            'mlx',
-            'bin',
-            'python',
-          );
+    : pythonExecutable = pythonExecutable ?? _resolveMlxPythonExecutable();
 
   final String pythonExecutable;
 
@@ -1410,6 +1394,53 @@ Map<String, String> _authorizationHeaders(String? token) {
     return const <String, String>{};
   }
   return <String, String>{HttpHeaders.authorizationHeader: 'Bearer $token'};
+}
+
+String _resolveMlxPythonExecutable() {
+  final configured = Platform.environment['FLM_MLX_PYTHON'];
+  if (configured != null && configured.isNotEmpty) {
+    return configured;
+  }
+
+  for (final home in _candidateHomeDirectories()) {
+    final candidate = p.join(home, '.venvs', 'mlx', 'bin', 'python');
+    if (File(candidate).existsSync()) {
+      return candidate;
+    }
+  }
+
+  final fallbackHome = _candidateHomeDirectories().isEmpty
+      ? '~'
+      : _candidateHomeDirectories().first;
+  return p.join(fallbackHome, '.venvs', 'mlx', 'bin', 'python');
+}
+
+List<String> _candidateHomeDirectories() {
+  final homes = <String>[
+    Platform.environment['HOME'] ?? '',
+    ..._homeDirectoriesFromProcess(),
+  ];
+  final seen = <String>{};
+  return homes
+      .where((home) => home.isNotEmpty)
+      .where((home) => seen.add(home))
+      .toList(growable: false);
+}
+
+List<String> _homeDirectoriesFromProcess() {
+  try {
+    final result = Process.runSync('/usr/bin/id', const <String>['-un']);
+    if (result.exitCode != 0) {
+      return const <String>[];
+    }
+    final username = (result.stdout as String).trim();
+    if (username.isEmpty) {
+      return const <String>[];
+    }
+    return <String>['/Users/$username'];
+  } catch (_) {
+    return const <String>[];
+  }
 }
 
 List<String> _curlHeaderArgs(Map<String, String> headers) {
