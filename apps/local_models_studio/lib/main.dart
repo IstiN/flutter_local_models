@@ -799,11 +799,13 @@ class _StudioShellState extends State<StudioShell> {
         selectedModel?.manifest.tasks.contains(ModelTask.vision) == true &&
         selectedModel?.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
         imageInputMode;
+    final useImageGeneration = selectedModel?.imageGenerationSupported == true;
     final useSpeechOutput = selectedModel?.textToSpeechSupported == true;
     final canSendText =
         selectedModel?.textPromptSupported == true &&
         !useAudioInput &&
         !useImageInput &&
+        !useImageGeneration &&
         chatPromptController.text.trim().isNotEmpty &&
         !testBusy;
     final canSendAudio =
@@ -816,6 +818,10 @@ class _StudioShellState extends State<StudioShell> {
     final canSendImage =
         useImageInput &&
         selectedImagePath != null &&
+        chatPromptController.text.trim().isNotEmpty &&
+        !testBusy;
+    final canGenerateImage =
+        useImageGeneration &&
         chatPromptController.text.trim().isNotEmpty &&
         !testBusy;
     final canSendSpeech =
@@ -1022,6 +1028,19 @@ class _StudioShellState extends State<StudioShell> {
                 _buildImageInputBar(),
               ],
             )
+          else if (useImageGeneration && selectedModel != null)
+            TextField(
+              controller: chatPromptController,
+              minLines: 3,
+              maxLines: 6,
+              onChanged: (_) => setState(() {}),
+              enabled: !testBusy,
+              decoration: const InputDecoration(
+                labelText: 'Image prompt',
+                border: OutlineInputBorder(),
+                hintText: 'Describe the image you want to generate...',
+              ),
+            )
           else
             TextField(
               controller: chatPromptController,
@@ -1036,6 +1055,8 @@ class _StudioShellState extends State<StudioShell> {
                     ? 'Install a model first'
                     : selectedModel.textPromptSupported
                     ? 'Type a message for the selected model...'
+                    : selectedModel.imageGenerationSupported
+                    ? 'Describe the image you want to generate...'
                     : 'This installed model is not testable yet',
               ),
             ),
@@ -1086,6 +1107,20 @@ class _StudioShellState extends State<StudioShell> {
                       : const StudioSvgIcon('send', size: 22),
                   label: Text(testBusy ? 'Running...' : 'Send Image'),
                 )
+              else if (useImageGeneration && selectedModel != null)
+                FilledButton.icon(
+                  onPressed: canGenerateImage
+                      ? () => _generateImageWithSelectedModel(selectedModel)
+                      : null,
+                  icon: testBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const StudioSvgIcon('image', size: 22),
+                  label: Text(testBusy ? 'Generating...' : 'Generate Image'),
+                )
               else
                 FilledButton.icon(
                   onPressed: canSendText
@@ -1115,7 +1150,41 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Widget _buildChatTurnBody(ChatTurn turn) {
+    final imagePath = turn.imagePath;
     final audioPath = turn.audioPath;
+    if (imagePath == null && audioPath == null) {
+      return SelectableText(turn.message);
+    }
+    if (imagePath != null) {
+      final imageFile = File(imagePath);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (turn.message.trim().isNotEmpty) ...[
+            SelectableText(turn.message),
+            const SizedBox(height: 12),
+          ],
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 720, maxHeight: 720),
+              color: const Color(0xFF1C2038),
+              child: imageFile.existsSync()
+                  ? Image.file(imageFile, fit: BoxFit.contain)
+                  : Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text('Generated image not found: $imagePath'),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            p.basename(imagePath),
+            style: TextStyle(color: Theme.of(context).colorScheme.outline),
+          ),
+        ],
+      );
+    }
     if (audioPath == null) {
       return SelectableText(turn.message);
     }
@@ -2157,6 +2226,7 @@ class _StudioShellState extends State<StudioShell> {
         model.audioPromptSupported ||
         model.speechToTextSupported ||
         model.textToSpeechSupported ||
+        model.imageGenerationSupported ||
         model.manifest.tasks.contains(ModelTask.vision);
   }
 
@@ -2459,6 +2529,47 @@ class _StudioShellState extends State<StudioShell> {
     }
   }
 
+  Future<void> _generateImageWithSelectedModel(InstalledModel model) async {
+    final prompt = chatPromptController.text.trim();
+    if (prompt.isEmpty) {
+      return;
+    }
+    chatPromptController.clear();
+    setState(() {
+      testBusy = true;
+      testErrorMessage = null;
+      controller.chatTurns.add(ChatTurn.user(prompt));
+      controller.chatTurns.add(const ChatTurn.assistant('Generating image...'));
+    });
+    _scrollChatToBottom();
+
+    try {
+      final imageFile = await controller.generateImage(
+        model: model,
+        prompt: prompt,
+      );
+      setState(() {
+        final lastIndex = controller.chatTurns.lastIndexWhere(
+          (turn) => !turn.isUser,
+        );
+        final generatedTurn = ChatTurn.assistant(
+          'Generated image',
+          imagePath: imageFile.path,
+        );
+        if (lastIndex == -1) {
+          controller.chatTurns.add(generatedTurn);
+        } else {
+          controller.chatTurns[lastIndex] = generatedTurn;
+        }
+      });
+    } catch (error) {
+      setState(() => testErrorMessage = '$error');
+    } finally {
+      setState(() => testBusy = false);
+      _scrollChatToBottom();
+    }
+  }
+
   Future<void> _sendTtsToSelectedModel(InstalledModel model) async {
     final text = chatPromptController.text.trim();
     if (text.isEmpty) {
@@ -2723,6 +2834,9 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   String _testModeLabel(InstalledModel model) {
+    if (model.imageGenerationSupported) {
+      return 'image generation';
+    }
     if (model.textToSpeechSupported) {
       return 'tts';
     }

@@ -280,19 +280,28 @@ class InstalledModel {
   bool get textToSpeechSupported =>
       manifest.tasks.contains(ModelTask.textToSpeech) &&
       manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
+
+  bool get imageGenerationSupported =>
+      manifest.tasks.contains(ModelTask.imageGeneration) &&
+      manifest.runtimeAdapter == RuntimeAdapter.mflux;
 }
 
 class ChatTurn {
-  const ChatTurn.user(this.message)
+  const ChatTurn.user(this.message, {this.imagePath})
     : isUser = true,
       audioPath = null,
       duration = null;
-  const ChatTurn.assistant(this.message, {this.audioPath, this.duration})
-    : isUser = false;
+  const ChatTurn.assistant(
+    this.message, {
+    this.audioPath,
+    this.imagePath,
+    this.duration,
+  }) : isUser = false;
 
   final bool isUser;
   final String message;
   final String? audioPath;
+  final String? imagePath;
   final Duration? duration;
 }
 
@@ -933,6 +942,138 @@ class LocalAudioRunner {
   }
 }
 
+class LocalImageRunner {
+  LocalImageRunner({String? mfluxExecutable})
+    : mfluxExecutable = mfluxExecutable ?? _resolveMfluxExecutable();
+
+  final String mfluxExecutable;
+
+  Future<File> generateImage({
+    required InstalledModel model,
+    required String prompt,
+  }) async {
+    if (!model.imageGenerationSupported) {
+      throw StateError(
+        'Image generation currently supports installed mflux text-to-image models.',
+      );
+    }
+    final executableFile = File(mfluxExecutable);
+    if (mfluxExecutable.contains(p.separator) && !executableFile.existsSync()) {
+      throw StateError(
+        'mflux-generate not found at $mfluxExecutable. Install mflux first.',
+      );
+    }
+
+    final defaults = model.manifest.runtimeConfig.defaultParameters;
+    final width = _intParameter(defaults['width']);
+    final height = _intParameter(defaults['height']);
+    final steps = _intParameter(defaults['steps']);
+    final guidance = _numberParameter(defaults['guidance']);
+    final seed = _intParameter(defaults['seed']);
+    final outputDir = await Directory.systemTemp.createTemp(
+      'flm-image-${sanitizeId(model.manifest.id)}-',
+    );
+    final outputPath = p.join(
+      outputDir.path,
+      'image-${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+    final args = <String>[
+      '--model',
+      model.directory.path,
+      '--prompt',
+      prompt,
+      '--output',
+      outputPath,
+      if (width != null) ...<String>['--width', '$width'],
+      if (height != null) ...<String>['--height', '$height'],
+      if (steps != null) ...<String>['--steps', '$steps'],
+      if (guidance != null) ...<String>['--guidance', '$guidance'],
+      if (seed != null) ...<String>['--seed', '$seed'],
+    ];
+    final baseModel = _mfluxBaseModelFor(model);
+    if (baseModel != null) {
+      args.insertAll(2, <String>['--base-model', baseModel]);
+    }
+    final result = await Process.run(mfluxExecutable, args);
+    if (result.exitCode != 0) {
+      final stderr = (result.stderr as String).trim();
+      throw StateError(
+        'Local image generation failed: ${stderr.isEmpty ? result.stdout : stderr}',
+      );
+    }
+    final outputFile = File(outputPath);
+    if (!outputFile.existsSync()) {
+      throw StateError('Image generation finished without producing output.');
+    }
+    return outputFile;
+  }
+
+  static String? _mfluxBaseModelFor(InstalledModel model) {
+    final identity = [
+      model.manifest.id,
+      model.manifest.source.repo,
+      model.manifest.displayName,
+    ].join(' ').toLowerCase();
+    if (identity.contains('qwen')) {
+      return 'qwen';
+    }
+    if (identity.contains('flux2-klein-9b')) {
+      return 'flux2-klein-9b';
+    }
+    if (identity.contains('flux2-klein-4b')) {
+      return 'flux2-klein-4b';
+    }
+    if (identity.contains('z-image-turbo')) {
+      return 'z-image-turbo';
+    }
+    if (identity.contains('z-image')) {
+      return 'z-image';
+    }
+    return null;
+  }
+}
+
+String _resolveMfluxExecutable() {
+  final home = Platform.environment['HOME'] ?? '';
+  final candidates = <String>[
+    if ((Platform.environment['MFLUX_GENERATE'] ?? '').isNotEmpty)
+      Platform.environment['MFLUX_GENERATE']!,
+    if (home.isNotEmpty) p.join(home, '.local', 'bin', 'mflux-generate'),
+    '/opt/homebrew/bin/mflux-generate',
+    '/usr/local/bin/mflux-generate',
+    'mflux-generate',
+  ];
+  for (final candidate in candidates) {
+    if (!candidate.contains(p.separator) || File(candidate).existsSync()) {
+      return candidate;
+    }
+  }
+  return candidates.last;
+}
+
+int? _intParameter(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.round();
+  }
+  if (value is String) {
+    return int.tryParse(value);
+  }
+  return null;
+}
+
+double? _numberParameter(Object? value) {
+  if (value is num) {
+    return value.toDouble();
+  }
+  if (value is String) {
+    return double.tryParse(value);
+  }
+  return null;
+}
+
 class SpeechSynthesisOptions {
   const SpeechSynthesisOptions({
     this.voice = '',
@@ -959,11 +1100,13 @@ class StudioController extends ChangeNotifier {
     StudioPaths? paths,
     LocalChatRunner? chatRunner,
     LocalAudioRunner? audioRunner,
+    LocalImageRunner? imageRunner,
     this.refreshRemoteSourcesOnInitialize = true,
   }) : apiClient = apiClient ?? StudioApiClient(),
        paths = paths ?? StudioPaths.forCurrentUser(),
        chatRunner = chatRunner ?? LocalChatRunner(),
-       audioRunner = audioRunner ?? LocalAudioRunner() {
+       audioRunner = audioRunner ?? LocalAudioRunner(),
+       imageRunner = imageRunner ?? LocalImageRunner() {
     hfToken = Platform.environment['HF_TOKEN'] ?? '';
   }
 
@@ -973,6 +1116,7 @@ class StudioController extends ChangeNotifier {
   final StudioPaths paths;
   final LocalChatRunner chatRunner;
   final LocalAudioRunner audioRunner;
+  final LocalImageRunner imageRunner;
   final bool refreshRemoteSourcesOnInitialize;
 
   bool initialized = false;
@@ -1335,6 +1479,13 @@ class StudioController extends ChangeNotifier {
       text: speechText,
       options: options,
     );
+  }
+
+  Future<File> generateImage({
+    required InstalledModel model,
+    required String prompt,
+  }) {
+    return imageRunner.generateImage(model: model, prompt: prompt);
   }
 
   void clearChat() {
