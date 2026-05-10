@@ -28,6 +28,8 @@ class StudioSnapshot {
   final NativeRuntimeSummary runtimeSummary;
 }
 
+enum _TestInputMode { text, audio, image }
+
 class StudioApp extends StatelessWidget {
   const StudioApp({
     super.key,
@@ -127,7 +129,9 @@ class _StudioShellState extends State<StudioShell> {
   late final AudioRecorder audioRecorder;
   InstalledModel? selectedTestModel;
   String? selectedAudioPath;
+  String? selectedImagePath;
   bool audioInputMode = false;
+  bool imageInputMode = false;
   bool recordingAudio = false;
   bool testBusy = false;
   String? testErrorMessage;
@@ -309,15 +313,25 @@ class _StudioShellState extends State<StudioShell> {
     final useAudioInput =
         selectedModel?.speechToTextSupported == true ||
         (selectedModel?.audioPromptSupported == true && audioInputMode);
+    final useImageInput =
+        selectedModel?.manifest.tasks.contains(ModelTask.vision) == true &&
+        selectedModel?.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
+        imageInputMode;
     final canSendText =
         selectedModel?.textPromptSupported == true &&
         !useAudioInput &&
+        !useImageInput &&
         chatPromptController.text.trim().isNotEmpty &&
         !testBusy;
     final canSendAudio =
         useAudioInput &&
         selectedAudioPath != null &&
         !recordingAudio &&
+        !testBusy;
+    final canSendImage =
+        useImageInput &&
+        selectedImagePath != null &&
+        chatPromptController.text.trim().isNotEmpty &&
         !testBusy;
 
     return Padding(
@@ -354,37 +368,59 @@ class _StudioShellState extends State<StudioShell> {
                         setState(() {
                           selectedTestModel = value;
                           selectedAudioPath = null;
+                          selectedImagePath = null;
                           audioInputMode =
                               value?.speechToTextSupported == true &&
                               value?.textPromptSupported != true;
+                          imageInputMode = false;
                           testErrorMessage = null;
                         });
                         controller.clearChat();
                       },
                     ),
-                  if (selectedModel?.audioPromptSupported == true &&
+                  if (selectedModel?.manifest.runtimeAdapter ==
+                          RuntimeAdapter.mlxVlm &&
                       selectedModel?.textPromptSupported == true) ...[
                     const SizedBox(height: 12),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment<bool>(
-                          value: false,
+                    SegmentedButton<_TestInputMode>(
+                      segments: [
+                        const ButtonSegment<_TestInputMode>(
+                          value: _TestInputMode.text,
                           icon: Icon(Icons.chat_bubble_outline),
                           label: Text('Text'),
                         ),
-                        ButtonSegment<bool>(
-                          value: true,
-                          icon: Icon(Icons.graphic_eq),
-                          label: Text('Audio'),
-                        ),
+                        if (selectedModel?.audioPromptSupported == true)
+                          const ButtonSegment<_TestInputMode>(
+                            value: _TestInputMode.audio,
+                            icon: Icon(Icons.graphic_eq),
+                            label: Text('Audio'),
+                          ),
+                        if (selectedModel?.manifest.tasks.contains(
+                              ModelTask.vision,
+                            ) ==
+                            true)
+                          const ButtonSegment<_TestInputMode>(
+                            value: _TestInputMode.image,
+                            icon: Icon(Icons.image_outlined),
+                            label: Text('Image'),
+                          ),
                       ],
-                      selected: <bool>{audioInputMode},
+                      selected: <_TestInputMode>{
+                        imageInputMode
+                            ? _TestInputMode.image
+                            : audioInputMode
+                            ? _TestInputMode.audio
+                            : _TestInputMode.text,
+                      },
                       onSelectionChanged: testBusy || recordingAudio
                           ? null
                           : (selection) {
+                              final mode = selection.first;
                               setState(() {
-                                audioInputMode = selection.first;
+                                audioInputMode = mode == _TestInputMode.audio;
+                                imageInputMode = mode == _TestInputMode.image;
                                 selectedAudioPath = null;
+                                selectedImagePath = null;
                                 testErrorMessage = null;
                               });
                             },
@@ -478,6 +514,25 @@ class _StudioShellState extends State<StudioShell> {
                 _buildAudioInputBar(selectedModel),
               ],
             )
+          else if (useImageInput && selectedModel != null)
+            Column(
+              children: [
+                TextField(
+                  controller: chatPromptController,
+                  minLines: 2,
+                  maxLines: 4,
+                  onChanged: (_) => setState(() {}),
+                  enabled: !testBusy,
+                  decoration: const InputDecoration(
+                    labelText: 'Image prompt',
+                    border: OutlineInputBorder(),
+                    hintText: 'Ask what the model should do with the image...',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildImageInputBar(),
+              ],
+            )
           else
             TextField(
               controller: chatPromptController,
@@ -513,6 +568,20 @@ class _StudioShellState extends State<StudioShell> {
                         )
                       : const Icon(Icons.send),
                   label: Text(testBusy ? 'Running...' : 'Send Audio'),
+                )
+              else if (useImageInput && selectedModel != null)
+                FilledButton.icon(
+                  onPressed: canSendImage
+                      ? () => _sendImageToSelectedModel(selectedModel)
+                      : null,
+                  icon: testBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                  label: Text(testBusy ? 'Running...' : 'Send Image'),
                 )
               else
                 FilledButton.icon(
@@ -581,6 +650,47 @@ class _StudioShellState extends State<StudioShell> {
         ),
       ),
     );
+  }
+
+  Widget _buildImageInputBar() {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            const Icon(Icons.image_outlined),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                selectedImagePath == null
+                    ? 'No image selected'
+                    : p.basename(selectedImagePath!),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: testBusy ? null : _chooseImageFile,
+              icon: const Icon(Icons.folder_open),
+              label: const Text('Choose'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _chooseImageFile() async {
+    const imageTypeGroup = XTypeGroup(
+      label: 'images',
+      extensions: <String>['png', 'jpg', 'jpeg', 'webp', 'heic'],
+    );
+    final file = await openFile(acceptedTypeGroups: <XTypeGroup>[imageTypeGroup]);
+    if (file == null) {
+      return;
+    }
+    setState(() => selectedImagePath = file.path);
   }
 
   Widget _buildRuntimeCard(BuildContext context) {
@@ -1091,6 +1201,10 @@ class _StudioShellState extends State<StudioShell> {
     setState(() {
       selectedTestModel = model;
       selectedAudioPath = null;
+      selectedImagePath = null;
+      imageInputMode = false;
+      audioInputMode =
+          model.speechToTextSupported && model.textPromptSupported != true;
       testErrorMessage = null;
     });
     controller.clearChat();
@@ -1199,12 +1313,52 @@ class _StudioShellState extends State<StudioShell> {
     }
   }
 
+  Future<void> _sendImageToSelectedModel(InstalledModel model) async {
+    final imagePath = selectedImagePath;
+    if (imagePath == null) {
+      return;
+    }
+    final prompt = chatPromptController.text.trim();
+    if (prompt.isEmpty) {
+      return;
+    }
+    chatPromptController.clear();
+    setState(() {
+      testBusy = true;
+      testErrorMessage = null;
+      controller.chatTurns.add(
+        ChatTurn.user('Image: ${p.basename(imagePath)}\n$prompt'),
+      );
+    });
+
+    try {
+      final response = await controller.chatRunner.generateResponse(
+        model: model,
+        prompt: prompt,
+        imagePath: imagePath,
+      );
+      setState(() => controller.chatTurns.add(ChatTurn.assistant(response)));
+    } catch (error) {
+      setState(() => testErrorMessage = '$error');
+    } finally {
+      setState(() => testBusy = false);
+    }
+  }
+
   String _testModeLabel(InstalledModel model) {
     if (model.speechToTextSupported) {
       return 'audio';
     }
-    if (model.audioPromptSupported && model.textPromptSupported) {
-      return 'chat/audio';
+    if (model.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
+        model.textPromptSupported) {
+      final modes = <String>['chat'];
+      if (model.audioPromptSupported) {
+        modes.add('audio');
+      }
+      if (model.manifest.tasks.contains(ModelTask.vision)) {
+        modes.add('image');
+      }
+      return modes.join('/');
     }
     if (model.audioPromptSupported) {
       return 'audio chat';

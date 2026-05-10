@@ -397,6 +397,7 @@ class LocalChatRunner {
     required InstalledModel model,
     required String prompt,
     String? audioPath,
+    String? imagePath,
     int maxTokens = 256,
   }) async {
     if (!model.textPromptSupported) {
@@ -432,6 +433,7 @@ class LocalChatRunner {
         '--model',
         model.directory.path,
         if (audioPath != null) ...<String>['--audio', audioPath],
+        if (imagePath != null) ...<String>['--image', imagePath],
         '--prompt',
         prompt,
         '--max-tokens',
