@@ -141,6 +141,7 @@ class StudioShell extends StatefulWidget {
 
 class _StudioShellState extends State<StudioShell> {
   late final StudioController controller;
+  late final TextEditingController catalogSearchController;
   late final TextEditingController hfTokenController;
   late final TextEditingController customRepoController;
   late final TextEditingController chatPromptController;
@@ -157,6 +158,7 @@ class _StudioShellState extends State<StudioShell> {
   String? testErrorMessage;
   bool obscureHfToken = true;
   int selectedPageIndex = 0;
+  String catalogFilter = 'all';
 
   @override
   void initState() {
@@ -171,6 +173,7 @@ class _StudioShellState extends State<StudioShell> {
           runtimeSummary: widget.snapshot.runtimeSummary,
         );
     hfTokenController = TextEditingController(text: controller.hfToken);
+    catalogSearchController = TextEditingController();
     customRepoController = TextEditingController(
       text: controller.customHfRepoId,
     );
@@ -184,6 +187,7 @@ class _StudioShellState extends State<StudioShell> {
   @override
   void dispose() {
     controller.removeListener(_handleControllerUpdate);
+    catalogSearchController.dispose();
     hfTokenController.dispose();
     customRepoController.dispose();
     chatPromptController.dispose();
@@ -306,14 +310,18 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Widget _buildCatalogTab(BuildContext context) {
+    final visibleManifests = controller.registry.manifests
+        .where(_catalogManifestVisible)
+        .toList(growable: false);
+    final visibleReleases = controller.githubReleases
+        .where(_catalogReleaseVisible)
+        .toList(growable: false);
     return RefreshIndicator(
       onRefresh: controller.refreshSources,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         children: [
-          _buildRuntimeCard(context),
-          const SizedBox(height: 16),
-          _buildSourceControlCard(context),
+          _buildCatalogHero(context),
           if (controller.sourceErrorMessage != null) ...[
             const SizedBox(height: 16),
             _buildErrorCard(
@@ -321,32 +329,202 @@ class _StudioShellState extends State<StudioShell> {
               message: controller.sourceErrorMessage!,
             ),
           ],
-          const SizedBox(height: 16),
-          _buildGitHubReleaseSection(context),
-          const SizedBox(height: 16),
-          Text(
-            'Manifest Catalog (${controller.registry.manifests.length})',
-            style: Theme.of(context).textTheme.titleLarge,
+          const SizedBox(height: 20),
+          _buildGitHubReleaseSection(context, visibleReleases),
+          const SizedBox(height: 20),
+          _buildSectionHeader(
+            context,
+            title: 'Manifest Catalog',
+            count: visibleManifests.length,
+            total: controller.registry.manifests.length,
           ),
           const SizedBox(height: 12),
-          ...controller.registry.manifests.map(
-            (manifest) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildManifestCard(context, manifest),
+          if (visibleManifests.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No models match this search/filter.'),
+              ),
+            )
+          else
+            _buildResponsiveGrid(
+              context,
+              visibleManifests
+                  .map((manifest) => _buildManifestCard(context, manifest))
+                  .toList(growable: false),
+              minCardWidth: 420,
             ),
-          ),
           if (controller.customHfRepoId.trim().isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Custom Hugging Face Repo',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, title: 'Custom Hugging Face Repo'),
             const SizedBox(height: 12),
             _buildCustomRepoCard(context),
           ],
         ],
       ),
     );
+  }
+
+  Widget _buildCatalogHero(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _buildRuntimeCard(context)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildSourceControlCard(context)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: catalogSearchController,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                labelText: 'Search models',
+                hintText: 'gemma, qwen, tts, audio, vision, 4bit...',
+                suffixIcon: catalogSearchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          catalogSearchController.clear();
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildCatalogFilterChip('all', 'All'),
+                _buildCatalogFilterChip('chat', 'Chat'),
+                _buildCatalogFilterChip('vision', 'Vision'),
+                _buildCatalogFilterChip('audio', 'Audio input'),
+                _buildCatalogFilterChip('asr', 'ASR'),
+                _buildCatalogFilterChip('tts', 'TTS'),
+                _buildCatalogFilterChip('installed', 'Installed'),
+                _buildCatalogFilterChip('released', 'GitHub release'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCatalogFilterChip(String value, String label) {
+    return FilterChip(
+      selected: catalogFilter == value,
+      label: Text(label),
+      onSelected: (_) => setState(() => catalogFilter = value),
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required String title,
+    int? count,
+    int? total,
+  }) {
+    final countLabel = count == null
+        ? ''
+        : total == null || total == count
+        ? ' ($count)'
+        : ' ($count / $total)';
+    return Text(
+      '$title$countLabel',
+      style: Theme.of(context).textTheme.titleLarge,
+    );
+  }
+
+  Widget _buildResponsiveGrid(
+    BuildContext context,
+    List<Widget> children, {
+    double minCardWidth = 360,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = (constraints.maxWidth / minCardWidth).floor().clamp(
+          1,
+          4,
+        );
+        final gap = 14.0;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: children
+              .map((child) => SizedBox(width: width, child: child))
+              .toList(growable: false),
+        );
+      },
+    );
+  }
+
+  bool _catalogManifestVisible(LocalModelManifest manifest) {
+    return _matchesCatalogFilter(manifest) && _matchesCatalogQuery(manifest);
+  }
+
+  bool _catalogReleaseVisible(GitHubReleaseRecord release) {
+    final manifest = release.manifest;
+    final query = catalogSearchController.text.trim().toLowerCase();
+    final filterMatches = manifest == null
+        ? catalogFilter == 'all' || catalogFilter == 'released'
+        : _matchesCatalogFilter(manifest);
+    if (!filterMatches) {
+      return false;
+    }
+    if (query.isEmpty) {
+      return true;
+    }
+    return [
+      release.title,
+      release.tagName,
+      manifest?.displayName,
+      manifest?.description,
+      manifest?.source.repo,
+      if (manifest != null) ...manifest.tasks.map(modelTaskToString),
+    ].whereType<String>().any((value) => value.toLowerCase().contains(query));
+  }
+
+  bool _matchesCatalogQuery(LocalModelManifest manifest) {
+    final query = catalogSearchController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      return true;
+    }
+    return [
+      manifest.id,
+      manifest.displayName,
+      manifest.description,
+      manifest.source.repo,
+      manifest.runtimeAdapter.name,
+      ...manifest.tasks.map(modelTaskToString),
+      ...manifest.requirements.notes,
+    ].any((value) => value.toLowerCase().contains(query));
+  }
+
+  bool _matchesCatalogFilter(LocalModelManifest manifest) {
+    return switch (catalogFilter) {
+      'chat' => manifest.tasks.contains(ModelTask.chat),
+      'vision' => manifest.tasks.contains(ModelTask.vision),
+      'audio' => manifest.tasks.contains(ModelTask.audioInput),
+      'asr' => manifest.tasks.contains(ModelTask.speechToText),
+      'tts' =>
+        manifest.tasks.contains(ModelTask.textToSpeech) ||
+            manifest.tasks.contains(ModelTask.audioOutput),
+      'installed' => controller.installedModelForManifest(manifest) != null,
+      'released' => controller.releaseForManifest(manifest) != null,
+      _ => true,
+    };
   }
 
   Widget _buildDownloadsTab(BuildContext context) {
@@ -998,16 +1176,21 @@ class _StudioShellState extends State<StudioShell> {
     );
   }
 
-  Widget _buildGitHubReleaseSection(BuildContext context) {
+  Widget _buildGitHubReleaseSection(
+    BuildContext context,
+    List<GitHubReleaseRecord> releases,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'GitHub Releases (${controller.githubReleases.length})',
-          style: Theme.of(context).textTheme.titleLarge,
+        _buildSectionHeader(
+          context,
+          title: 'GitHub Releases',
+          count: releases.length,
+          total: controller.githubReleases.length,
         ),
         const SizedBox(height: 12),
-        if (controller.githubReleases.isEmpty)
+        if (releases.isEmpty)
           const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -1017,72 +1200,66 @@ class _StudioShellState extends State<StudioShell> {
             ),
           )
         else
-          ...controller.githubReleases.map(
-            (release) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        release.title,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text('Tag: ${release.tagName}'),
-                      Text('Assets: ${release.assets.length}'),
-                      Text(
-                        'Total asset size: ${formatBytes(release.assets.fold<int>(0, (sum, asset) => sum + asset.sizeBytes))}',
-                      ),
-                      if (release.manifest != null)
-                        Text(
-                          'Matches manifest: ${release.manifest!.displayName}',
-                        ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          FilledButton.icon(
-                            onPressed: release.hasBundleAssets
-                                ? () => _runAction(
-                                    () => controller.startGitHubReleaseDownload(
-                                      release,
-                                    ),
-                                  )
-                                : null,
-                            icon: const Icon(Icons.download),
-                            label: const Text('Download Release'),
-                          ),
-                          if (release.manifest != null &&
-                              controller.installedModelForManifest(
-                                    release.manifest!,
-                                  ) !=
-                                  null)
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                final installed = controller
-                                    .installedModelForManifest(
-                                      release.manifest!,
-                                    );
-                                if (installed != null) {
-                                  _openModelInChat(installed, context);
-                                }
-                              },
-                              icon: const Icon(Icons.chat),
-                              label: const Text('Open in Chat'),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          _buildResponsiveGrid(
+            context,
+            releases
+                .map((release) => _buildReleaseCard(context, release))
+                .toList(growable: false),
           ),
       ],
+    );
+  }
+
+  Widget _buildReleaseCard(BuildContext context, GitHubReleaseRecord release) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(release.title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text('Tag: ${release.tagName}'),
+            Text('Assets: ${release.assets.length}'),
+            Text(
+              'Total asset size: ${formatBytes(release.assets.fold<int>(0, (sum, asset) => sum + asset.sizeBytes))}',
+            ),
+            if (release.manifest != null)
+              Text('Matches manifest: ${release.manifest!.displayName}'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.icon(
+                  onPressed: release.hasBundleAssets
+                      ? () => _runAction(
+                          () => controller.startGitHubReleaseDownload(release),
+                        )
+                      : null,
+                  icon: const Icon(Icons.download),
+                  label: const Text('Download Release'),
+                ),
+                if (release.manifest != null &&
+                    controller.installedModelForManifest(release.manifest!) !=
+                        null)
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final installed = controller.installedModelForManifest(
+                        release.manifest!,
+                      );
+                      if (installed != null) {
+                        _openModelInChat(installed, context);
+                      }
+                    },
+                    icon: const Icon(Icons.chat),
+                    label: const Text('Open in Chat'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
