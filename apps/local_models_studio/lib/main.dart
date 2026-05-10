@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:local_models_core/local_models_core.dart';
 import 'package:local_models_flutter/local_models_flutter.dart';
 import 'package:path/path.dart' as p;
@@ -30,6 +31,28 @@ class StudioSnapshot {
 }
 
 enum _TestInputMode { text, audio, image }
+
+enum _TestWorkspaceMode { single, voicePipeline }
+
+class StudioSvgIcon extends StatelessWidget {
+  const StudioSvgIcon(this.name, {super.key, this.size = 24, this.opacity = 1});
+
+  final String name;
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: opacity,
+      child: SvgPicture.asset(
+        'assets/icons/$name.svg',
+        width: size,
+        height: size,
+      ),
+    );
+  }
+}
 
 class StudioApp extends StatelessWidget {
   const StudioApp({
@@ -152,12 +175,16 @@ class _StudioShellState extends State<StudioShell> {
   late final AudioRecorder audioRecorder;
   late final AudioPlayer audioPlayer;
   InstalledModel? selectedTestModel;
+  InstalledModel? selectedAsrModel;
+  InstalledModel? selectedVoiceChatModel;
+  InstalledModel? selectedTtsModel;
   String? selectedAudioPath;
   String? selectedImagePath;
   String? generatedAudioPath;
   String? playingAudioPath;
   bool audioInputMode = false;
   bool imageInputMode = false;
+  _TestWorkspaceMode testWorkspaceMode = _TestWorkspaceMode.single;
   bool recordingAudio = false;
   bool testBusy = false;
   String? testErrorMessage;
@@ -259,27 +286,27 @@ class _StudioShellState extends State<StudioShell> {
             labelType: NavigationRailLabelType.all,
             leading: const Padding(
               padding: EdgeInsets.only(top: 20, bottom: 24),
-              child: Icon(Icons.hub_outlined, size: 34),
+              child: StudioSvgIcon('logo_mark', size: 42),
             ),
             destinations: const [
               NavigationRailDestination(
-                icon: Icon(Icons.inventory_2_outlined),
-                selectedIcon: Icon(Icons.inventory_2),
+                icon: StudioSvgIcon('catalog', opacity: 0.6),
+                selectedIcon: StudioSvgIcon('catalog'),
                 label: Text('Catalog'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.download_outlined),
-                selectedIcon: Icon(Icons.download),
+                icon: StudioSvgIcon('downloads', opacity: 0.6),
+                selectedIcon: StudioSvgIcon('downloads'),
                 label: Text('Downloads'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.play_circle_outline),
-                selectedIcon: Icon(Icons.play_circle),
+                icon: StudioSvgIcon('test', opacity: 0.6),
+                selectedIcon: StudioSvgIcon('test'),
                 label: Text('Test'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
+                icon: StudioSvgIcon('settings', opacity: 0.6),
+                selectedIcon: StudioSvgIcon('settings'),
                 label: Text('Settings'),
               ),
             ],
@@ -319,7 +346,7 @@ class _StudioShellState extends State<StudioShell> {
                         onPressed: controller.loadingSources
                             ? null
                             : () => _runAction(controller.refreshSources),
-                        icon: const Icon(Icons.refresh),
+                        icon: const StudioSvgIcon('refresh'),
                       ),
                     ],
                   ),
@@ -419,7 +446,7 @@ class _StudioShellState extends State<StudioShell> {
               controller: catalogSearchController,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: StudioSvgIcon('search', size: 22),
                 labelText: 'Search models',
                 hintText: 'gemma, qwen, tts, audio, vision, 4bit...',
                 suffixIcon: catalogSearchController.text.isEmpty
@@ -640,7 +667,7 @@ class _StudioShellState extends State<StudioShell> {
                 TextField(
                   controller: githubRepoController,
                   decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.code),
+                    prefixIcon: StudioSvgIcon('github', size: 22),
                     labelText: 'GitHub releases repository',
                     hintText: 'IstiN/flutter_local_models',
                     helperText:
@@ -652,7 +679,7 @@ class _StudioShellState extends State<StudioShell> {
                   controller: hfTokenController,
                   obscureText: obscureHfToken,
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.key),
+                    prefixIcon: StudioSvgIcon('key', size: 22),
                     labelText: 'Hugging Face token',
                     hintText: 'hf_...',
                     helperText:
@@ -673,7 +700,7 @@ class _StudioShellState extends State<StudioShell> {
                 TextField(
                   controller: customRepoController,
                   decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.travel_explore),
+                    prefixIcon: StudioSvgIcon('search', size: 22),
                     labelText: 'Default custom Hugging Face repo',
                     hintText: 'mlx-community/Qwen3-8B-4bit',
                   ),
@@ -684,7 +711,7 @@ class _StudioShellState extends State<StudioShell> {
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.replay),
+                    prefixIcon: StudioSvgIcon('refresh', size: 22),
                     labelText: 'Download auto retries',
                     helperText:
                         'Retries transient curl/network/file-size failures before stopping.',
@@ -709,7 +736,7 @@ class _StudioShellState extends State<StudioShell> {
                         );
                         await controller.refreshSources();
                       }),
-                      icon: const Icon(Icons.save),
+                      icon: const StudioSvgIcon('downloads', size: 20),
                       label: const Text('Save & Refresh'),
                     ),
                     OutlinedButton.icon(
@@ -717,7 +744,7 @@ class _StudioShellState extends State<StudioShell> {
                         _syncSettingsControllers();
                         setState(() {});
                       },
-                      icon: const Icon(Icons.restore),
+                      icon: const StudioSvgIcon('refresh', size: 20),
                       label: const Text('Reset Form'),
                     ),
                   ],
@@ -771,12 +798,32 @@ class _StudioShellState extends State<StudioShell> {
         useSpeechOutput &&
         chatPromptController.text.trim().isNotEmpty &&
         !testBusy;
+    final asrModels = installedModels
+        .where((model) => model.speechToTextSupported)
+        .toList(growable: false);
+    final voiceChatModels = installedModels
+        .where((model) => model.textPromptSupported)
+        .toList(growable: false);
+    final ttsModels = installedModels
+        .where((model) => model.textToSpeechSupported)
+        .toList(growable: false);
+
+    if (testWorkspaceMode == _TestWorkspaceMode.voicePipeline) {
+      return _buildVoicePipelineTab(
+        context,
+        asrModels: asrModels,
+        chatModels: voiceChatModels,
+        ttsModels: ttsModels,
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildTestModeSwitch(),
+          const SizedBox(height: 12),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -825,13 +872,13 @@ class _StudioShellState extends State<StudioShell> {
                       segments: [
                         const ButtonSegment<_TestInputMode>(
                           value: _TestInputMode.text,
-                          icon: Icon(Icons.chat_bubble_outline),
+                          icon: StudioSvgIcon('chat', size: 20),
                           label: Text('Text'),
                         ),
                         if (selectedModel?.audioPromptSupported == true)
                           const ButtonSegment<_TestInputMode>(
                             value: _TestInputMode.audio,
-                            icon: Icon(Icons.graphic_eq),
+                            icon: StudioSvgIcon('audio', size: 20),
                             label: Text('Audio'),
                           ),
                         if (selectedModel?.manifest.tasks.contains(
@@ -840,7 +887,7 @@ class _StudioShellState extends State<StudioShell> {
                             true)
                           const ButtonSegment<_TestInputMode>(
                             value: _TestInputMode.image,
-                            icon: Icon(Icons.image_outlined),
+                            icon: StudioSvgIcon('image', size: 20),
                             label: Text('Image'),
                           ),
                       ],
@@ -886,67 +933,7 @@ class _StudioShellState extends State<StudioShell> {
             ),
           ),
           const SizedBox(height: 16),
-          Expanded(
-            child: controller.chatTurns.isEmpty
-                ? Card(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.auto_awesome,
-                              size: 42,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Choose a model, send text, audio, or image, and watch the local response stream here.',
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    controller: chatScrollController,
-                    padding: const EdgeInsets.only(bottom: 8),
-                    itemCount: controller.chatTurns.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final turn = controller.chatTurns[index];
-                      final alignment = turn.isUser
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start;
-                      final color = turn.isUser
-                          ? const Color(0xFF59447D)
-                          : const Color(0xFF30334F);
-                      return Column(
-                        crossAxisAlignment: alignment,
-                        children: [
-                          Text(
-                            turn.isUser ? 'You' : 'Model',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            constraints: const BoxConstraints(maxWidth: 980),
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(22),
-                            ),
-                            padding: const EdgeInsets.all(18),
-                            child: _buildChatTurnBody(turn),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-          ),
+          Expanded(child: _buildConversationPane(context)),
           const SizedBox(height: 16),
           if (useSpeechOutput && selectedModel != null)
             Column(
@@ -1039,7 +1026,7 @@ class _StudioShellState extends State<StudioShell> {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.send),
+                      : const StudioSvgIcon('send', size: 22),
                   label: Text(testBusy ? 'Running...' : 'Send Audio'),
                 )
               else if (useSpeechOutput && selectedModel != null)
@@ -1053,7 +1040,7 @@ class _StudioShellState extends State<StudioShell> {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.record_voice_over),
+                      : const StudioSvgIcon('mic', size: 22),
                   label: Text(testBusy ? 'Running...' : 'Generate Speech'),
                 )
               else if (useImageInput && selectedModel != null)
@@ -1067,7 +1054,7 @@ class _StudioShellState extends State<StudioShell> {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.send),
+                      : const StudioSvgIcon('send', size: 22),
                   label: Text(testBusy ? 'Running...' : 'Send Image'),
                 )
               else
@@ -1081,14 +1068,14 @@ class _StudioShellState extends State<StudioShell> {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.send),
+                      : const StudioSvgIcon('send', size: 22),
                   label: Text(testBusy ? 'Running...' : 'Send Message'),
                 ),
               OutlinedButton.icon(
                 onPressed: testBusy || controller.chatTurns.isEmpty
                     ? null
                     : controller.clearChat,
-                icon: const Icon(Icons.clear_all),
+                icon: const StudioSvgIcon('trash', size: 20),
                 label: const Text('Clear'),
               ),
             ],
@@ -1124,7 +1111,7 @@ class _StudioShellState extends State<StudioShell> {
               IconButton.filledTonal(
                 tooltip: isPlaying ? 'Stop audio' : 'Play audio',
                 onPressed: () => _toggleAudioPlayback(audioPath),
-                icon: Icon(isPlaying ? Icons.stop : Icons.play_arrow),
+                icon: StudioSvgIcon(isPlaying ? 'stop' : 'play', size: 20),
               ),
               const SizedBox(width: 10),
               Column(
@@ -1150,14 +1137,280 @@ class _StudioShellState extends State<StudioShell> {
     );
   }
 
-  Widget _buildAudioInputBar(InstalledModel model) {
+  Widget _buildTestModeSwitch() {
+    return SegmentedButton<_TestWorkspaceMode>(
+      segments: const [
+        ButtonSegment<_TestWorkspaceMode>(
+          value: _TestWorkspaceMode.single,
+          icon: StudioSvgIcon('test', size: 20),
+          label: Text('Single model'),
+        ),
+        ButtonSegment<_TestWorkspaceMode>(
+          value: _TestWorkspaceMode.voicePipeline,
+          icon: StudioSvgIcon('mic', size: 20),
+          label: Text('Voice → Voice'),
+        ),
+      ],
+      selected: <_TestWorkspaceMode>{testWorkspaceMode},
+      onSelectionChanged: testBusy || recordingAudio
+          ? null
+          : (selection) {
+              setState(() {
+                testWorkspaceMode = selection.first;
+                testErrorMessage = null;
+              });
+            },
+    );
+  }
+
+  Widget _buildVoicePipelineTab(
+    BuildContext context, {
+    required List<InstalledModel> asrModels,
+    required List<InstalledModel> chatModels,
+    required List<InstalledModel> ttsModels,
+  }) {
+    final asrModel = asrModels.contains(selectedAsrModel)
+        ? selectedAsrModel
+        : asrModels.isEmpty
+        ? null
+        : asrModels.first;
+    final chatModel = chatModels.contains(selectedVoiceChatModel)
+        ? selectedVoiceChatModel
+        : chatModels.isEmpty
+        ? null
+        : chatModels.first;
+    final ttsModel = ttsModels.contains(selectedTtsModel)
+        ? selectedTtsModel
+        : ttsModels.isEmpty
+        ? null
+        : ttsModels.first;
+    final canRun =
+        asrModel != null &&
+        chatModel != null &&
+        ttsModel != null &&
+        selectedAudioPath != null &&
+        !recordingAudio &&
+        !testBusy;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTestModeSwitch(),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Voice pipeline',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Record once, then run ASR → LLM response → TTS playback locally.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildModelDropdown(
+                          label: 'ASR model',
+                          icon: const StudioSvgIcon('audio', size: 22),
+                          models: asrModels,
+                          value: asrModel,
+                          emptyText: 'Install a speech-to-text model',
+                          onChanged: (value) =>
+                              setState(() => selectedAsrModel = value),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildModelDropdown(
+                          label: 'Response model',
+                          icon: const StudioSvgIcon('chat', size: 22),
+                          models: chatModels,
+                          value: chatModel,
+                          emptyText: 'Install a chat model',
+                          onChanged: (value) =>
+                              setState(() => selectedVoiceChatModel = value),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildModelDropdown(
+                          label: 'TTS model',
+                          icon: const StudioSvgIcon('mic', size: 22),
+                          models: ttsModels,
+                          value: ttsModel,
+                          emptyText: 'Install a text-to-speech model',
+                          onChanged: (value) =>
+                              setState(() => selectedTtsModel = value),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _buildAudioInputBar(asrModel),
+                  if (testErrorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      testErrorMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(child: _buildConversationPane(context)),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              FilledButton.icon(
+                onPressed: canRun
+                    ? () => _runVoicePipeline(
+                        asrModel: asrModel,
+                        chatModel: chatModel,
+                        ttsModel: ttsModel,
+                      )
+                    : null,
+                icon: testBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const StudioSvgIcon('send', size: 22),
+                label: Text(testBusy ? 'Running pipeline...' : 'Run Voice UX'),
+              ),
+              OutlinedButton.icon(
+                onPressed: testBusy || controller.chatTurns.isEmpty
+                    ? null
+                    : () {
+                        controller.clearChat();
+                        setState(() {
+                          generatedAudioPath = null;
+                        });
+                      },
+                icon: const StudioSvgIcon('trash', size: 20),
+                label: const Text('Clear'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConversationPane(BuildContext context) {
+    if (controller.chatTurns.isEmpty) {
+      return Card(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const StudioSvgIcon('sparkle', size: 48),
+                const SizedBox(height: 12),
+                Text(
+                  testWorkspaceMode == _TestWorkspaceMode.voicePipeline
+                      ? 'Record voice and the full local assistant loop will appear here.'
+                      : 'Choose a model, send text, audio, or image, and watch the local response stream here.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return ListView.separated(
+      controller: chatScrollController,
+      padding: const EdgeInsets.only(bottom: 8),
+      itemCount: controller.chatTurns.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final turn = controller.chatTurns[index];
+        final alignment = turn.isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start;
+        final color = turn.isUser
+            ? const Color(0xFF59447D)
+            : const Color(0xFF30334F);
+        return Column(
+          crossAxisAlignment: alignment,
+          children: [
+            Text(
+              turn.isUser ? 'You' : 'Model',
+              style: TextStyle(color: Theme.of(context).colorScheme.outline),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              constraints: const BoxConstraints(maxWidth: 980),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              padding: const EdgeInsets.all(18),
+              child: _buildChatTurnBody(turn),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildModelDropdown({
+    required String label,
+    required Widget icon,
+    required List<InstalledModel> models,
+    required InstalledModel? value,
+    required String emptyText,
+    required ValueChanged<InstalledModel?> onChanged,
+  }) {
+    return DropdownButtonFormField<InstalledModel>(
+      initialValue: value,
+      decoration: InputDecoration(
+        prefixIcon: Padding(padding: const EdgeInsets.all(12), child: icon),
+        labelText: label,
+      ),
+      items: models
+          .map(
+            (model) => DropdownMenuItem<InstalledModel>(
+              value: model,
+              child: Text(
+                model.manifest.displayName,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          )
+          .toList(growable: false),
+      hint: Text(emptyText),
+      onChanged: testBusy ? null : onChanged,
+    );
+  }
+
+  Widget _buildAudioInputBar(InstalledModel? _) {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Icon(recordingAudio ? Icons.mic : Icons.audio_file),
+            StudioSvgIcon(recordingAudio ? 'mic' : 'audio', size: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -1176,13 +1429,13 @@ class _StudioShellState extends State<StudioShell> {
                   : recordingAudio
                   ? _stopAudioRecording
                   : _startAudioRecording,
-              icon: Icon(recordingAudio ? Icons.stop : Icons.mic),
+              icon: StudioSvgIcon(recordingAudio ? 'stop' : 'mic', size: 20),
               label: Text(recordingAudio ? 'Stop' : 'Record'),
             ),
             const SizedBox(width: 8),
             OutlinedButton.icon(
               onPressed: recordingAudio || testBusy ? null : _chooseAudioFile,
-              icon: const Icon(Icons.folder_open),
+              icon: const StudioSvgIcon('folder', size: 20),
               label: const Text('Choose'),
             ),
           ],
@@ -1198,7 +1451,7 @@ class _StudioShellState extends State<StudioShell> {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            const Icon(Icons.image_outlined),
+            const StudioSvgIcon('image', size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -1211,7 +1464,7 @@ class _StudioShellState extends State<StudioShell> {
             const SizedBox(width: 12),
             OutlinedButton.icon(
               onPressed: testBusy ? null : _chooseImageFile,
-              icon: const Icon(Icons.folder_open),
+              icon: const StudioSvgIcon('folder', size: 20),
               label: const Text('Choose'),
             ),
           ],
@@ -1288,14 +1541,14 @@ class _StudioShellState extends State<StudioShell> {
                   onPressed: controller.loadingSources
                       ? null
                       : () => _runAction(controller.refreshSources),
-                  icon: const Icon(Icons.refresh),
+                  icon: const StudioSvgIcon('refresh', size: 20),
                   label: Text(
                     controller.loadingSources ? 'Refreshing...' : 'Refresh All',
                   ),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: () => setState(() => selectedPageIndex = 3),
-                  icon: const Icon(Icons.settings),
+                  icon: const StudioSvgIcon('settings', size: 20),
                   label: const Text('Source Settings'),
                 ),
               ],
@@ -1322,14 +1575,14 @@ class _StudioShellState extends State<StudioShell> {
                       ),
                     );
                   },
-                  icon: const Icon(Icons.travel_explore),
+                  icon: const StudioSvgIcon('search', size: 22),
                   label: const Text('Load HF Repo'),
                 ),
                 if (controller.customHfRepoDetails != null)
                   FilledButton.icon(
                     onPressed: () =>
                         _runAction(controller.startCustomHuggingFaceDownload),
-                    icon: const Icon(Icons.download),
+                    icon: const StudioSvgIcon('downloads', size: 20),
                     label: const Text('Download Custom Repo'),
                   ),
               ],
@@ -1401,7 +1654,7 @@ class _StudioShellState extends State<StudioShell> {
                           () => controller.startGitHubReleaseDownload(release),
                         )
                       : null,
-                  icon: const Icon(Icons.download),
+                  icon: const StudioSvgIcon('downloads', size: 20),
                   label: const Text('Download Release'),
                 ),
                 if (release.manifest != null &&
@@ -1416,7 +1669,7 @@ class _StudioShellState extends State<StudioShell> {
                         _openModelInChat(installed, context);
                       }
                     },
-                    icon: const Icon(Icons.chat),
+                    icon: StudioSvgIcon('chat', size: 20),
                     label: const Text('Open in Chat'),
                   ),
               ],
@@ -1498,7 +1751,7 @@ class _StudioShellState extends State<StudioShell> {
                   onPressed: () => _runAction(
                     () => controller.startManifestHuggingFaceDownload(manifest),
                   ),
-                  icon: const Icon(Icons.download_outlined),
+                  icon: const StudioSvgIcon('downloads', size: 20),
                   label: const Text('Download from HF'),
                 ),
                 OutlinedButton.icon(
@@ -1507,7 +1760,7 @@ class _StudioShellState extends State<StudioShell> {
                       : () => _runAction(
                           () => controller.startGitHubReleaseDownload(release),
                         ),
-                  icon: const Icon(Icons.archive_outlined),
+                  icon: const StudioSvgIcon('catalog', size: 20),
                   label: const Text('Download Release'),
                 ),
                 if (installed != null)
@@ -1515,7 +1768,7 @@ class _StudioShellState extends State<StudioShell> {
                     onPressed: _isModelOpenableInTest(installed)
                         ? () => _openModelInChat(installed, context)
                         : null,
-                    icon: const Icon(Icons.chat_bubble_outline),
+                    icon: StudioSvgIcon('chat', size: 20),
                     label: const Text('Open in Chat'),
                   ),
               ],
@@ -1568,7 +1821,7 @@ class _StudioShellState extends State<StudioShell> {
                 FilledButton.icon(
                   onPressed: () =>
                       _runAction(controller.startCustomHuggingFaceDownload),
-                  icon: const Icon(Icons.download),
+                  icon: const StudioSvgIcon('downloads', size: 20),
                   label: const Text('Download from HF'),
                 ),
               ],
@@ -1607,7 +1860,11 @@ class _StudioShellState extends State<StudioShell> {
               ),
             if (task.totalBytes > 0)
               Text(
-                '${formatBytes(task.downloadedBytes)} / ${formatBytes(task.totalBytes)}',
+                [
+                  '${formatBytes(task.downloadedBytes)} / ${formatBytes(task.totalBytes)}',
+                  if (task.downloadSpeedBytesPerSecond > 0)
+                    '${formatBytes(task.downloadSpeedBytesPerSecond)}/s',
+                ].join(' • '),
               )
             else
               Text('${formatBytes(task.downloadedBytes)} downloaded'),
@@ -1633,28 +1890,28 @@ class _StudioShellState extends State<StudioShell> {
                   onPressed: task.canPause
                       ? () => controller.pauseDownload(task)
                       : null,
-                  icon: const Icon(Icons.pause),
+                  icon: const StudioSvgIcon('pause', size: 20),
                   label: const Text('Pause'),
                 ),
                 OutlinedButton.icon(
                   onPressed: task.canResume
                       ? () => controller.resumeDownload(task)
                       : null,
-                  icon: const Icon(Icons.play_arrow),
+                  icon: const StudioSvgIcon('play', size: 20),
                   label: const Text('Resume'),
                 ),
                 OutlinedButton.icon(
                   onPressed: task.canCancel
                       ? () => controller.cancelDownload(task)
                       : null,
-                  icon: const Icon(Icons.stop),
+                  icon: const StudioSvgIcon('stop', size: 20),
                   label: const Text('Cancel'),
                 ),
                 TextButton.icon(
                   onPressed: task.canClear
                       ? () => controller.clearDownload(task)
                       : null,
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const StudioSvgIcon('trash', size: 20),
                   label: const Text('Clear'),
                 ),
               ],
@@ -1692,12 +1949,12 @@ class _StudioShellState extends State<StudioShell> {
               children: [
                 FilledButton.tonalIcon(
                   onPressed: () => _openModelInTest(model, context),
-                  icon: const Icon(Icons.play_circle_outline),
+                  icon: const StudioSvgIcon('play', size: 20),
                   label: const Text('Open in Test'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => controller.deleteInstalledModel(model),
-                  icon: const Icon(Icons.delete_forever),
+                  icon: const StudioSvgIcon('trash', size: 20),
                   label: const Text('Delete Model'),
                 ),
               ],
@@ -1958,6 +2215,76 @@ class _StudioShellState extends State<StudioShell> {
           );
         }
       });
+      await _playAudioPath(file.path);
+    } catch (error) {
+      setState(() => testErrorMessage = '$error');
+    } finally {
+      setState(() => testBusy = false);
+      _scrollChatToBottom();
+    }
+  }
+
+  Future<void> _runVoicePipeline({
+    required InstalledModel asrModel,
+    required InstalledModel chatModel,
+    required InstalledModel ttsModel,
+  }) async {
+    final audioPath = selectedAudioPath;
+    if (audioPath == null) {
+      return;
+    }
+    setState(() {
+      testBusy = true;
+      testErrorMessage = null;
+      generatedAudioPath = null;
+      controller.chatTurns.add(
+        ChatTurn.user('Audio: ${p.basename(audioPath)}'),
+      );
+      controller.chatTurns.add(const ChatTurn.assistant('Transcribing...'));
+    });
+    _scrollChatToBottom();
+
+    try {
+      final transcript = await controller.transcribeAudio(
+        model: asrModel,
+        audioPath: audioPath,
+      );
+      setState(() {
+        if (controller.chatTurns.isNotEmpty &&
+            !controller.chatTurns.last.isUser) {
+          controller.chatTurns[controller.chatTurns.length - 1] =
+              ChatTurn.assistant('Transcript: $transcript');
+        }
+        controller.chatTurns.add(ChatTurn.user(transcript));
+        controller.chatTurns.add(const ChatTurn.assistant(''));
+      });
+      _scrollChatToBottom();
+
+      final response = await controller.chatRunner.chatStream(
+        model: chatModel,
+        messages: [LocalChatMessage.user(transcript)],
+        params: LocalChatParams(modelId: chatModel.manifest.id),
+        onText: _replaceStreamingAssistant,
+      );
+      final speechFile = await controller.synthesizeSpeech(
+        model: ttsModel,
+        text: response,
+      );
+      final duration = await _probeAudioDuration(speechFile.path);
+      setState(() {
+        generatedAudioPath = speechFile.path;
+        final lastIndex = controller.chatTurns.lastIndexWhere(
+          (turn) => !turn.isUser,
+        );
+        if (lastIndex != -1) {
+          controller.chatTurns[lastIndex] = ChatTurn.assistant(
+            response,
+            audioPath: speechFile.path,
+            duration: duration,
+          );
+        }
+      });
+      await _playAudioPath(speechFile.path);
     } catch (error) {
       setState(() => testErrorMessage = '$error');
     } finally {
@@ -1991,6 +2318,10 @@ class _StudioShellState extends State<StudioShell> {
       }
       return;
     }
+    await _playAudioPath(path);
+  }
+
+  Future<void> _playAudioPath(String path) async {
     await audioPlayer.stop();
     await audioPlayer.play(DeviceFileSource(path));
     if (!mounted) {

@@ -12,6 +12,7 @@ dependencies:
   crypto: ^3.0.7
   cupertino_icons: ^1.0.8
   file_selector: ^1.0.3
+  flutter_svg: ^2.2.3
   local_models_core:
     path: ../../packages/local_models_core
   local_models_flutter:
@@ -29,3 +30,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/catalog.json
+    - assets/icons/

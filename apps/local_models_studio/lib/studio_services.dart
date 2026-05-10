@@ -322,6 +322,7 @@ class DownloadTaskRecord {
   DownloadTaskStatus status = DownloadTaskStatus.queued;
   int downloadedBytes = 0;
   int totalBytes = 0;
+  int downloadSpeedBytesPerSecond = 0;
   String? errorMessage;
   String? installedPath;
   int retryAttempt = 0;
@@ -1521,6 +1522,7 @@ class StudioController extends ChangeNotifier {
   Future<void> _runDownload(DownloadTaskRecord record) async {
     await _ensureDirectories();
     record.status = DownloadTaskStatus.running;
+    record.downloadSpeedBytesPerSecond = 0;
     record.pauseRequested = false;
     record.cancelRequested = false;
     record.errorMessage = null;
@@ -1543,6 +1545,7 @@ class StudioController extends ChangeNotifier {
         throw _PausedDownload();
       }
       record.status = DownloadTaskStatus.installing;
+      record.downloadSpeedBytesPerSecond = 0;
       notifyListeners();
       final installedModel = await record.installer(record);
       record.status = DownloadTaskStatus.completed;
@@ -1555,6 +1558,7 @@ class StudioController extends ChangeNotifier {
       await _persistDownloadQueue();
     } on _PausedDownload {
       record.status = DownloadTaskStatus.paused;
+      record.downloadSpeedBytesPerSecond = 0;
       await _persistDownloadQueue();
     } on _CanceledDownload {
       await _cleanupCanceledTask(record);
@@ -1566,6 +1570,7 @@ class StudioController extends ChangeNotifier {
           !record.pauseRequested) {
         record.retryAttempt += 1;
         record.status = DownloadTaskStatus.running;
+        record.downloadSpeedBytesPerSecond = 0;
         record.errorMessage =
             'Retry ${record.retryAttempt}/$maxDownloadRetries after: $error';
         await _persistDownloadQueue();
@@ -1585,6 +1590,7 @@ class StudioController extends ChangeNotifier {
         return;
       }
       record.status = DownloadTaskStatus.failed;
+      record.downloadSpeedBytesPerSecond = 0;
       final retrySuffix = record.retryAttempt > 0
           ? ' after ${record.retryAttempt}/$maxDownloadRetries retries'
           : '';
@@ -1700,6 +1706,8 @@ class StudioController extends ChangeNotifier {
       }
 
       final baselineDownloaded = record.downloadedBytes - alreadyWritten;
+      var lastSpeedSampleBytes = record.downloadedBytes;
+      var lastSpeedSampleTime = DateTime.now();
       final stderrBuffer = StringBuffer();
       final args = <String>[
         '-L',
@@ -1737,6 +1745,15 @@ class StudioController extends ChangeNotifier {
         }
         destination.length().then((currentLength) {
           record.downloadedBytes = baselineDownloaded + currentLength;
+          final now = DateTime.now();
+          final elapsed = now.difference(lastSpeedSampleTime);
+          if (elapsed.inMilliseconds >= 750) {
+            final byteDelta = record.downloadedBytes - lastSpeedSampleBytes;
+            record.downloadSpeedBytesPerSecond =
+                (byteDelta * 1000 / elapsed.inMilliseconds).round();
+            lastSpeedSampleBytes = record.downloadedBytes;
+            lastSpeedSampleTime = now;
+          }
           unawaited(_persistDownloadQueue());
           notifyListeners();
         });
@@ -1766,6 +1783,7 @@ class StudioController extends ChangeNotifier {
             ? await destination.length()
             : 0;
         record.downloadedBytes = baselineDownloaded + finalLength;
+        record.downloadSpeedBytesPerSecond = 0;
         await _persistDownloadQueue();
         notifyListeners();
 
