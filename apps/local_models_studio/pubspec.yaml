@@ -17,6 +17,7 @@ dependencies:
   local_models_flutter:
     path: ../../packages/local_models_flutter
   path: ^1.9.1
+  record: ^6.1.2
 
 dev_dependencies:
   flutter_test:

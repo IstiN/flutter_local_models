@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:local_models_core/local_models_core.dart';
 import 'package:local_models_flutter/local_models_flutter.dart';
 import 'package:path/path.dart' as p;
+import 'package:record/record.dart';
 
 import 'studio_services.dart';
 
@@ -123,6 +124,12 @@ class _StudioShellState extends State<StudioShell> {
   late final TextEditingController hfTokenController;
   late final TextEditingController customRepoController;
   late final TextEditingController chatPromptController;
+  late final AudioRecorder audioRecorder;
+  InstalledModel? selectedTestModel;
+  String? selectedAudioPath;
+  bool recordingAudio = false;
+  bool testBusy = false;
+  String? testErrorMessage;
   bool obscureHfToken = true;
 
   @override
@@ -142,6 +149,7 @@ class _StudioShellState extends State<StudioShell> {
       text: controller.customHfRepoId,
     );
     chatPromptController = TextEditingController();
+    audioRecorder = AudioRecorder();
     controller.addListener(_handleControllerUpdate);
     unawaited(controller.initialize());
   }
@@ -152,6 +160,7 @@ class _StudioShellState extends State<StudioShell> {
     hfTokenController.dispose();
     customRepoController.dispose();
     chatPromptController.dispose();
+    audioRecorder.dispose();
     super.dispose();
   }
 
@@ -182,7 +191,7 @@ class _StudioShellState extends State<StudioShell> {
             tabs: [
               Tab(text: 'Catalog', icon: Icon(Icons.inventory_2_outlined)),
               Tab(text: 'Downloads', icon: Icon(Icons.download_outlined)),
-              Tab(text: 'Chat', icon: Icon(Icons.chat_bubble_outline)),
+              Tab(text: 'Test', icon: Icon(Icons.play_circle_outline)),
             ],
           ),
         ),
@@ -190,7 +199,7 @@ class _StudioShellState extends State<StudioShell> {
           children: [
             _buildCatalogTab(context),
             _buildDownloadsTab(context),
-            _buildChatTab(context),
+            _buildTestTab(context),
           ],
         ),
       ),
@@ -289,13 +298,22 @@ class _StudioShellState extends State<StudioShell> {
     );
   }
 
-  Widget _buildChatTab(BuildContext context) {
-    final chatModels = controller.installedModels
-        .where((model) => model.chatSupported)
-        .toList(growable: false);
-    final selectedModel = chatModels.contains(controller.selectedChatModel)
-        ? controller.selectedChatModel
-        : null;
+  Widget _buildTestTab(BuildContext context) {
+    final installedModels = controller.installedModels;
+    final selectedModel = installedModels.contains(selectedTestModel)
+        ? selectedTestModel
+        : installedModels.isEmpty
+        ? null
+        : installedModels.first;
+    final canSendText =
+        selectedModel?.textPromptSupported == true &&
+        chatPromptController.text.trim().isNotEmpty &&
+        !testBusy;
+    final canSendAudio =
+        selectedModel?.speechToTextSupported == true &&
+        selectedAudioPath != null &&
+        !recordingAudio &&
+        !testBusy;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -308,19 +326,8 @@ class _StudioShellState extends State<StudioShell> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Local Chat Verification',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'This tab runs a simple single-turn local prompt using mlx_lm for installed text chat models.',
-                  ),
-                  const SizedBox(height: 16),
-                  if (chatModels.isEmpty)
-                    const Text(
-                      'Install a chat-capable mlx_lm model first, such as Qwen3 8B 4bit from Hugging Face.',
-                    )
+                  if (installedModels.isEmpty)
+                    const Text('No installed models yet.')
                   else
                     DropdownButtonFormField<InstalledModel>(
                       initialValue: selectedModel,
@@ -328,15 +335,24 @@ class _StudioShellState extends State<StudioShell> {
                         labelText: 'Model',
                         border: OutlineInputBorder(),
                       ),
-                      items: chatModels
+                      items: installedModels
                           .map(
                             (model) => DropdownMenuItem<InstalledModel>(
                               value: model,
-                              child: Text(model.manifest.displayName),
+                              child: Text(
+                                '${model.manifest.displayName} (${_testModeLabel(model)})',
+                              ),
                             ),
                           )
                           .toList(growable: false),
-                      onChanged: (value) => controller.selectChatModel(value),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedTestModel = value;
+                          selectedAudioPath = null;
+                          testErrorMessage = null;
+                        });
+                        controller.clearChat();
+                      },
                     ),
                   if (selectedModel != null) ...[
                     const SizedBox(height: 12),
@@ -345,10 +361,10 @@ class _StudioShellState extends State<StudioShell> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
-                  if (controller.chatErrorMessage != null) ...[
+                  if (testErrorMessage != null) ...[
                     const SizedBox(height: 12),
                     Text(
-                      controller.chatErrorMessage!,
+                      testErrorMessage!,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -366,7 +382,7 @@ class _StudioShellState extends State<StudioShell> {
                       child: Padding(
                         padding: EdgeInsets.all(24),
                         child: Text(
-                          'No chat history yet. Pick an installed text model, type a prompt, and generate a response.',
+                          'Select an installed model, send text or audio, and the result will appear here.',
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -405,49 +421,109 @@ class _StudioShellState extends State<StudioShell> {
                   ),
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: chatPromptController,
-            minLines: 3,
-            maxLines: 6,
-            decoration: const InputDecoration(
-              labelText: 'Prompt',
-              border: OutlineInputBorder(),
-              hintText: 'Ask the installed local model something...',
+          if (selectedModel?.speechToTextSupported == true)
+            _buildAudioInputBar(selectedModel!)
+          else
+            TextField(
+              controller: chatPromptController,
+              minLines: 3,
+              maxLines: 6,
+              onChanged: (_) => setState(() {}),
+              enabled: selectedModel?.textPromptSupported == true && !testBusy,
+              decoration: InputDecoration(
+                labelText: 'Message',
+                border: const OutlineInputBorder(),
+                hintText: selectedModel == null
+                    ? 'Install a model first'
+                    : selectedModel.textPromptSupported
+                    ? 'Type a message for the selected model...'
+                    : 'This installed model is not testable yet',
+              ),
             ),
-          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
-              FilledButton.icon(
-                onPressed:
-                    controller.chatBusy || controller.selectedChatModel == null
-                    ? null
-                    : () async {
-                        final prompt = chatPromptController.text;
-                        chatPromptController.clear();
-                        await controller.sendChatPrompt(prompt);
-                      },
-                icon: controller.chatBusy
+              if (selectedModel?.speechToTextSupported == true)
+                FilledButton.icon(
+                  onPressed: canSendAudio
+                      ? () => _sendAudioToSelectedModel(selectedModel!)
+                      : null,
+                  icon: testBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                  label: Text(testBusy ? 'Running...' : 'Send Audio'),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: canSendText
+                      ? () => _sendPromptToSelectedModel(selectedModel!)
+                      : null,
+                  icon: testBusy
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.send),
-                label: Text(controller.chatBusy ? 'Generating...' : 'Generate'),
-              ),
+                  label: Text(testBusy ? 'Running...' : 'Send Message'),
+                ),
               OutlinedButton.icon(
-                onPressed: controller.chatBusy || controller.chatTurns.isEmpty
+                onPressed: testBusy || controller.chatTurns.isEmpty
                     ? null
                     : controller.clearChat,
                 icon: const Icon(Icons.clear_all),
-                label: const Text('Clear Chat'),
+                label: const Text('Clear'),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAudioInputBar(InstalledModel model) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(recordingAudio ? Icons.mic : Icons.audio_file),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                recordingAudio
+                    ? 'Recording...'
+                    : selectedAudioPath == null
+                    ? 'No audio selected'
+                    : p.basename(selectedAudioPath!),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: testBusy
+                  ? null
+                  : recordingAudio
+                  ? _stopAudioRecording
+                  : _startAudioRecording,
+              icon: Icon(recordingAudio ? Icons.stop : Icons.mic),
+              label: Text(recordingAudio ? 'Stop' : 'Record'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: recordingAudio || testBusy ? null : _chooseAudioFile,
+              icon: const Icon(Icons.folder_open),
+              label: const Text('Choose'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -895,7 +971,6 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Widget _buildInstalledModelCard(BuildContext context, InstalledModel model) {
-    final primaryActionLabel = _primaryActionLabelForModel(model);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -920,11 +995,9 @@ class _StudioShellState extends State<StudioShell> {
               runSpacing: 12,
               children: [
                 FilledButton.tonalIcon(
-                  onPressed: _primaryActionForModel(model, context),
-                  icon: Icon(
-                    model.speechToTextSupported ? Icons.graphic_eq : Icons.chat,
-                  ),
-                  label: Text(primaryActionLabel),
+                  onPressed: () => _openModelInTest(model, context),
+                  icon: const Icon(Icons.play_circle_outline),
+                  label: const Text('Open in Test'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => controller.deleteInstalledModel(model),
@@ -956,115 +1029,121 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   void _openModelInChat(InstalledModel model, BuildContext context) {
-    controller.selectChatModel(model);
+    _openModelInTest(model, context);
+  }
+
+  void _openModelInTest(InstalledModel model, BuildContext context) {
+    setState(() {
+      selectedTestModel = model;
+      selectedAudioPath = null;
+      testErrorMessage = null;
+    });
+    controller.clearChat();
     DefaultTabController.of(context).animateTo(2);
   }
 
-  Future<void> _transcribeWithModel(InstalledModel model) async {
+  Future<void> _chooseAudioFile() async {
     const audioTypeGroup = XTypeGroup(
       label: 'audio',
       extensions: <String>['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg'],
     );
     final file = await openFile(acceptedTypeGroups: <XTypeGroup>[audioTypeGroup]);
-    if (file == null || !mounted) {
+    if (file == null) {
+      return;
+    }
+    setState(() => selectedAudioPath = file.path);
+  }
+
+  Future<void> _startAudioRecording() async {
+    final hasPermission = await audioRecorder.hasPermission();
+    if (!hasPermission) {
+      setState(() => testErrorMessage = 'Microphone permission was denied.');
       return;
     }
 
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => const AlertDialog(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-            SizedBox(width: 16),
-            Expanded(child: Text('Transcribing audio...')),
-          ],
-        ),
-      ),
+    final directory = await Directory.systemTemp.createTemp('flm-recording-');
+    final path = p.join(
+      directory.path,
+      'recording-${DateTime.now().millisecondsSinceEpoch}.m4a',
     );
+    await audioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc),
+      path: path,
+    );
+    setState(() {
+      selectedAudioPath = path;
+      recordingAudio = true;
+      testErrorMessage = null;
+    });
+  }
+
+  Future<void> _stopAudioRecording() async {
+    final path = await audioRecorder.stop();
+    setState(() {
+      recordingAudio = false;
+      if (path != null) {
+        selectedAudioPath = path;
+      }
+    });
+  }
+
+  Future<void> _sendPromptToSelectedModel(InstalledModel model) async {
+    final prompt = chatPromptController.text.trim();
+    if (prompt.isEmpty) {
+      return;
+    }
+    chatPromptController.clear();
+    setState(() {
+      testBusy = true;
+      testErrorMessage = null;
+      controller.chatTurns.add(ChatTurn.user(prompt));
+    });
+
+    try {
+      final response = await controller.chatRunner.generateResponse(
+        model: model,
+        prompt: prompt,
+      );
+      setState(() => controller.chatTurns.add(ChatTurn.assistant(response)));
+    } catch (error) {
+      setState(() => testErrorMessage = '$error');
+    } finally {
+      setState(() => testBusy = false);
+    }
+  }
+
+  Future<void> _sendAudioToSelectedModel(InstalledModel model) async {
+    final audioPath = selectedAudioPath;
+    if (audioPath == null) {
+      return;
+    }
+    setState(() {
+      testBusy = true;
+      testErrorMessage = null;
+      controller.chatTurns.add(ChatTurn.user('Audio: ${p.basename(audioPath)}'));
+    });
 
     try {
       final transcript = await controller.transcribeAudio(
         model: model,
-        audioPath: file.path,
+        audioPath: audioPath,
       );
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context, rootNavigator: true).pop();
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(model.manifest.displayName),
-          content: SizedBox(
-            width: 520,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('File: ${p.basename(file.path)}'),
-                const SizedBox(height: 12),
-                const Text(
-                  'Transcript',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                SelectableText(transcript),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      );
+      setState(() => controller.chatTurns.add(ChatTurn.assistant(transcript)));
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context, rootNavigator: true).pop();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('$error')));
+      setState(() => testErrorMessage = '$error');
+    } finally {
+      setState(() => testBusy = false);
     }
   }
 
-  VoidCallback? _primaryActionForModel(
-    InstalledModel model,
-    BuildContext context,
-  ) {
-    if (model.chatSupported) {
-      return () => _openModelInChat(model, context);
-    }
+  String _testModeLabel(InstalledModel model) {
     if (model.speechToTextSupported) {
-      return () => _runAction(() => _transcribeWithModel(model));
+      return 'audio';
     }
-    return null;
-  }
-
-  String _primaryActionLabelForModel(InstalledModel model) {
-    if (model.chatSupported) {
-      return 'Use in Chat';
+    if (model.textPromptSupported) {
+      return 'chat';
     }
-    if (model.speechToTextSupported) {
-      return 'Transcribe Audio';
-    }
-    if (model.manifest.tasks.contains(ModelTask.chat) &&
-        model.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm) {
-      return 'VLM Chat Soon';
-    }
-    if (model.manifest.tasks.contains(ModelTask.audioInput)) {
-      return 'Audio Chat Soon';
-    }
-    return 'No App Action';
+    return 'installed';
   }
 
   Future<void> _runAction(Future<void> Function() action) async {

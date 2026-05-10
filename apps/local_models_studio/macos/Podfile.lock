@@ -4,11 +4,14 @@ PODS:
   - FlutterMacOS (1.0.0)
   - local_models_flutter (0.1.0):
     - FlutterMacOS
+  - record_macos (1.2.0):
+    - FlutterMacOS
 
 DEPENDENCIES:
   - file_selector_macos (from `Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - local_models_flutter (from `Flutter/ephemeral/.symlinks/plugins/local_models_flutter/macos`)
+  - record_macos (from `Flutter/ephemeral/.symlinks/plugins/record_macos/macos`)
 
 EXTERNAL SOURCES:
   file_selector_macos:
@@ -17,11 +20,14 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral
   local_models_flutter:
     :path: Flutter/ephemeral/.symlinks/plugins/local_models_flutter/macos
+  record_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/record_macos/macos
 
 SPEC CHECKSUMS:
   file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   local_models_flutter: dfc9ccfb65e02fec958d81190086a6508ced197a
+  record_macos: 7f227161b93c49e7e34fe681c5891c8622c8cc8b
 
 PODFILE CHECKSUM: 89c84cf5c2351c1e554c6dea18d31a879fc3a19e
 

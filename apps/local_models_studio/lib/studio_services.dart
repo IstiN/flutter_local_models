@@ -151,6 +151,11 @@ class InstalledModel {
       manifest.tasks.contains(ModelTask.chat) &&
       manifest.runtimeAdapter == RuntimeAdapter.mlxLm;
 
+  bool get textPromptSupported =>
+      manifest.tasks.contains(ModelTask.chat) &&
+      (manifest.runtimeAdapter == RuntimeAdapter.mlxLm ||
+          manifest.runtimeAdapter == RuntimeAdapter.mlxVlm);
+
   bool get speechToTextSupported =>
       manifest.tasks.contains(ModelTask.speechToText) &&
       manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
@@ -380,9 +385,9 @@ class LocalChatRunner {
     required String prompt,
     int maxTokens = 256,
   }) async {
-    if (!model.chatSupported) {
+    if (!model.textPromptSupported) {
       throw StateError(
-        'Chat verification currently supports only installed mlx_lm chat models.',
+        'Chat verification currently supports installed mlx_lm and mlx_vlm chat models.',
       );
     }
     final executableFile = File(pythonExecutable);
@@ -391,30 +396,74 @@ class LocalChatRunner {
         'MLX Python runtime not found at $pythonExecutable. Set up ~/.venvs/mlx first.',
       );
     }
-    final result = await Process.run(pythonExecutable, <String>[
-      '-m',
-      'mlx_lm',
-      'generate',
-      '--model',
-      model.directory.path,
-      '--prompt',
-      prompt,
-      '--max-tokens',
-      '$maxTokens',
-      '--verbose',
-      'false',
-    ]);
+
+    final args = switch (model.manifest.runtimeAdapter) {
+      RuntimeAdapter.mlxLm => <String>[
+        '-m',
+        'mlx_lm',
+        'generate',
+        '--model',
+        model.directory.path,
+        '--prompt',
+        prompt,
+        '--max-tokens',
+        '$maxTokens',
+        '--verbose',
+        'false',
+      ],
+      RuntimeAdapter.mlxVlm => <String>[
+        '-m',
+        'mlx_vlm',
+        'generate',
+        '--model',
+        model.directory.path,
+        '--prompt',
+        prompt,
+        '--max-tokens',
+        '$maxTokens',
+      ],
+      _ => throw StateError('Unsupported text runtime.'),
+    };
+
+    final result = await Process.run(pythonExecutable, args);
     if (result.exitCode != 0) {
       throw StateError(
         'Local generation failed: ${(result.stderr as String).trim()}',
       );
     }
-    final output = (result.stdout as String).trim();
+    final output = _cleanGeneratedText(result.stdout as String).trim();
     if (output.isEmpty) {
       throw StateError('Local generation returned an empty response.');
     }
     return output;
   }
+}
+
+String _cleanGeneratedText(String rawOutput) {
+  var text = rawOutput.trim();
+  const modelMarker = '<|turn>model';
+  final markerIndex = text.indexOf(modelMarker);
+  if (markerIndex != -1) {
+    text = text.substring(markerIndex + modelMarker.length);
+    final separatorIndex = text.indexOf('==========');
+    if (separatorIndex != -1) {
+      text = text.substring(0, separatorIndex);
+    }
+  }
+
+  final lines = const LineSplitter()
+      .convert(text)
+      .where((line) {
+        final trimmed = line.trim();
+        return trimmed.isNotEmpty &&
+            trimmed != '==========' &&
+            !trimmed.startsWith('Files:') &&
+            !trimmed.startsWith('Prompt:') &&
+            !trimmed.startsWith('Generation:') &&
+            !trimmed.startsWith('Peak memory:');
+      })
+      .toList(growable: false);
+  return lines.join('\n').trim();
 }
 
 class LocalAudioRunner {
