@@ -1674,6 +1674,7 @@ class StudioController extends ChangeNotifier {
     final pipelineTag = repo.pipelineTag ?? 'text-generation';
     final runtimeAdapter = switch (pipelineTag) {
       'image-text-to-text' => RuntimeAdapter.mlxVlm,
+      'text-to-image' => RuntimeAdapter.mflux,
       'text-to-speech' => RuntimeAdapter.mlxAudio,
       'audio-text-to-text' => RuntimeAdapter.mlxAudio,
       'automatic-speech-recognition' => RuntimeAdapter.mlxAudio,
@@ -1685,6 +1686,7 @@ class StudioController extends ChangeNotifier {
         ModelTask.chat,
         ModelTask.vision,
       ],
+      'text-to-image' => const <ModelTask>[ModelTask.imageGeneration],
       'text-to-speech' => const <ModelTask>[
         ModelTask.textToSpeech,
         ModelTask.audioOutput,

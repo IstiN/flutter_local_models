@@ -43,6 +43,18 @@ void main() {
     expect(manifest.packaging.releaseTag, 'model-qwen3-asr-0.6b-4bit');
   });
 
+  test('parses mflux image generation manifests', () {
+    final manifest = LocalModelManifest.fromYaml(
+      _sampleManifest
+          .replaceAll('runtime_adapter: mlx_audio', 'runtime_adapter: mflux')
+          .replaceAll('  - speech_to_text', '  - image_generation'),
+    );
+
+    expect(manifest.runtimeAdapter, RuntimeAdapter.mflux);
+    expect(manifest.tasks, [ModelTask.imageGeneration]);
+    expect(modelTaskToString(manifest.tasks.single), 'image_generation');
+  });
+
   test('loads and sorts a registry directory', () async {
     final temp = await Directory.systemTemp.createTemp('local-models-core-');
     addTearDown(() => temp.delete(recursive: true));

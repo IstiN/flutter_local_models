@@ -145,6 +145,41 @@
     }
   },
   {
+    "id": "hidream-o1-image-dev-mlx-bf16",
+    "displayName": "HiDream O1 Image Dev MLX bf16",
+    "description": "MIT-licensed MLX image generation model for high-quality local text-to-image experiments.",
+    "runtimeAdapter": "mflux",
+    "tasks": [
+      "image_generation"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/HiDream-O1-Image-Dev-mlx-bf16",
+      "revision": "main",
+      "license": "mit"
+    },
+    "packaging": {
+      "releaseTag": "model-hidream-o1-image-dev-mlx-bf16",
+      "archiveName": "hidream-o1-image-dev-mlx-bf16.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "hidream-o1-image-dev-mlx-bf16"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 24,
+      "recommendedMemoryGb": 48,
+      "notes": [
+        "MLX text-to-image runtime",
+        "High-quality image generation candidate"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": false
+    }
+  },
+  {
     "id": "kokoro-82m-4bit",
     "displayName": "Kokoro 82M 4bit",
     "description": "Tiny MLX TTS model for very fast local English voice output on Apple Silicon.",
@@ -177,6 +212,76 @@
     "capabilities": {
       "audioInput": false,
       "audioOutput": true,
+      "toolCalling": false
+    }
+  },
+  {
+    "id": "qwen-image-2512-3bit",
+    "displayName": "Qwen Image 2512 3bit",
+    "description": "Smaller mflux Qwen Image bundle for local text-to-image generation on Apple Silicon.",
+    "runtimeAdapter": "mflux",
+    "tasks": [
+      "image_generation"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Qwen-Image-2512-3bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-qwen-image-2512-3bit",
+      "archiveName": "qwen-image-2512-3bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "qwen-image-2512-3bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 16,
+      "recommendedMemoryGb": 32,
+      "notes": [
+        "mflux text-to-image runtime",
+        "Smaller Qwen Image tier"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": false
+    }
+  },
+  {
+    "id": "qwen-image-2512-4bit",
+    "displayName": "Qwen Image 2512 4bit",
+    "description": "Balanced mflux Qwen Image bundle for local text-to-image generation on Apple Silicon.",
+    "runtimeAdapter": "mflux",
+    "tasks": [
+      "image_generation"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Qwen-Image-2512-4bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-qwen-image-2512-4bit",
+      "archiveName": "qwen-image-2512-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "qwen-image-2512-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 24,
+      "recommendedMemoryGb": 48,
+      "notes": [
+        "mflux text-to-image runtime",
+        "Balanced Qwen Image tier"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
       "toolCalling": false
     }
   },

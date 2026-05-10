@@ -7,7 +7,7 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-enum RuntimeAdapter { mlxLm, mlxVlm, mlxAudio, nativeBridge }
+enum RuntimeAdapter { mlxLm, mlxVlm, mlxAudio, mflux, nativeBridge }
 
 enum ModelTask {
   chat,
@@ -17,6 +17,7 @@ enum ModelTask {
   audioOutput,
   speechToText,
   textToSpeech,
+  imageGeneration,
 }
 
 enum LocalChatRole { system, user, assistant, tool }
@@ -83,6 +84,8 @@ RuntimeAdapter _runtimeAdapterFromString(String value) {
       return RuntimeAdapter.mlxVlm;
     case 'mlx_audio':
       return RuntimeAdapter.mlxAudio;
+    case 'mflux':
+      return RuntimeAdapter.mflux;
     case 'native_bridge':
       return RuntimeAdapter.nativeBridge;
     default:
@@ -98,6 +101,8 @@ String _runtimeAdapterToString(RuntimeAdapter value) {
       return 'mlx_vlm';
     case RuntimeAdapter.mlxAudio:
       return 'mlx_audio';
+    case RuntimeAdapter.mflux:
+      return 'mflux';
     case RuntimeAdapter.nativeBridge:
       return 'native_bridge';
   }
@@ -119,6 +124,8 @@ ModelTask _modelTaskFromString(String value) {
       return ModelTask.speechToText;
     case 'text_to_speech':
       return ModelTask.textToSpeech;
+    case 'image_generation':
+      return ModelTask.imageGeneration;
     default:
       throw FormatException('Unsupported model task: $value');
   }
@@ -140,6 +147,8 @@ String modelTaskToString(ModelTask value) {
       return 'speech_to_text';
     case ModelTask.textToSpeech:
       return 'text_to_speech';
+    case ModelTask.imageGeneration:
+      return 'image_generation';
   }
 }
 

@@ -411,6 +411,7 @@ class _StudioShellState extends State<StudioShell> {
                 _buildCatalogFilterChip('audio', 'Audio input'),
                 _buildCatalogFilterChip('asr', 'ASR'),
                 _buildCatalogFilterChip('tts', 'TTS'),
+                _buildCatalogFilterChip('image_generation', 'Image gen'),
                 _buildCatalogFilterChip('installed', 'Installed'),
                 _buildCatalogFilterChip('released', 'GitHub release'),
               ],
@@ -521,6 +522,7 @@ class _StudioShellState extends State<StudioShell> {
       'tts' =>
         manifest.tasks.contains(ModelTask.textToSpeech) ||
             manifest.tasks.contains(ModelTask.audioOutput),
+      'image_generation' => manifest.tasks.contains(ModelTask.imageGeneration),
       'installed' => controller.installedModelForManifest(manifest) != null,
       'released' => controller.releaseForManifest(manifest) != null,
       _ => true,

@@ -1,0 +1,27 @@
+id: qwen-image-2512-3bit
+display_name: Qwen Image 2512 3bit
+description: Smaller mflux Qwen Image bundle for local text-to-image generation on Apple Silicon.
+runtime_adapter: mflux
+tasks:
+  - image_generation
+source:
+  provider: huggingface
+  repo: mlx-community/Qwen-Image-2512-3bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-qwen-image-2512-3bit
+  archive_name: qwen-image-2512-3bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: qwen-image-2512-3bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 16
+  recommended_memory_gb: 32
+  notes:
+    - mflux text-to-image runtime
+    - Smaller Qwen Image tier
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: false

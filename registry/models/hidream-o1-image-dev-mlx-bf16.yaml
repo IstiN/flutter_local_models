@@ -1,0 +1,27 @@
+id: hidream-o1-image-dev-mlx-bf16
+display_name: HiDream O1 Image Dev MLX bf16
+description: MIT-licensed MLX image generation model for high-quality local text-to-image experiments.
+runtime_adapter: mflux
+tasks:
+  - image_generation
+source:
+  provider: huggingface
+  repo: mlx-community/HiDream-O1-Image-Dev-mlx-bf16
+  revision: main
+  license: mit
+packaging:
+  release_tag: model-hidream-o1-image-dev-mlx-bf16
+  archive_name: hidream-o1-image-dev-mlx-bf16.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: hidream-o1-image-dev-mlx-bf16
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 24
+  recommended_memory_gb: 48
+  notes:
+    - MLX text-to-image runtime
+    - High-quality image generation candidate
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: false
