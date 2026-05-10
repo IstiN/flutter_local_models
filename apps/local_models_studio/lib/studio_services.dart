@@ -40,6 +40,23 @@ class StudioPaths {
         ),
       );
     }
+
+    final containerDirectory = Directory(
+      p.join(
+        home,
+        'Library',
+        'Containers',
+        'com.example.localModelsStudio',
+        'Data',
+        'Library',
+        'Application Support',
+        'flutter_local_models',
+      ),
+    );
+    if (containerDirectory.existsSync()) {
+      return StudioPaths(baseDirectory: containerDirectory);
+    }
+
     return StudioPaths(
       baseDirectory: Directory(
         p.join(home, 'Library', 'Application Support', 'flutter_local_models'),
