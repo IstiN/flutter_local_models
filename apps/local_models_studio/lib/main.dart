@@ -185,6 +185,9 @@ class _StudioShellState extends State<StudioShell> {
   late final TextEditingController ttsLanguageController;
   late final TextEditingController ttsSpeedController;
   late final TextEditingController ttsReferenceTextController;
+  late final TextEditingController generationMaxTokensController;
+  late final TextEditingController generationTemperatureController;
+  late final TextEditingController generationTopPController;
   late final ScrollController chatScrollController;
   late final AudioRecorder audioRecorder;
   late final AudioPlayer audioPlayer;
@@ -239,6 +242,9 @@ class _StudioShellState extends State<StudioShell> {
     ttsLanguageController = TextEditingController(text: 'auto');
     ttsSpeedController = TextEditingController(text: '1.0');
     ttsReferenceTextController = TextEditingController();
+    generationMaxTokensController = TextEditingController(text: '256');
+    generationTemperatureController = TextEditingController(text: '0.7');
+    generationTopPController = TextEditingController(text: '0.95');
     chatScrollController = ScrollController();
     audioRecorder = AudioRecorder();
     audioPlayer = AudioPlayer();
@@ -260,6 +266,9 @@ class _StudioShellState extends State<StudioShell> {
     ttsLanguageController.dispose();
     ttsSpeedController.dispose();
     ttsReferenceTextController.dispose();
+    generationMaxTokensController.dispose();
+    generationTemperatureController.dispose();
+    generationTopPController.dispose();
     chatScrollController.dispose();
     audioRecorder.dispose();
     audioPlayer.dispose();
@@ -910,6 +919,9 @@ class _StudioShellState extends State<StudioShell> {
                               value?.textPromptSupported != true;
                           imageInputMode = false;
                           testErrorMessage = null;
+                          if (value?.textPromptSupported == true) {
+                            _applyGenerationDefaultsForModel(value);
+                          }
                           if (value?.textToSpeechSupported == true) {
                             _applyTtsDefaultsForModel(value);
                           }
@@ -980,6 +992,10 @@ class _StudioShellState extends State<StudioShell> {
               ),
             ),
           ),
+          if (selectedModel?.textPromptSupported == true) ...[
+            const SizedBox(height: 12),
+            _buildGenerationControls(selectedModel),
+          ],
           const SizedBox(height: 16),
           Expanded(child: _buildConversationPane(context)),
           const SizedBox(height: 16),
@@ -1168,7 +1184,13 @@ class _StudioShellState extends State<StudioShell> {
     final imagePath = turn.imagePath;
     final audioPath = turn.audioPath;
     if (imagePath == null && audioPath == null) {
-      return SelectableText(turn.message);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SelectableText(turn.message),
+          _buildGenerationTimeFooter(turn),
+        ],
+      );
     }
     if (imagePath != null) {
       final imageFile = File(imagePath);
@@ -1197,6 +1219,7 @@ class _StudioShellState extends State<StudioShell> {
             p.basename(imagePath),
             style: TextStyle(color: Theme.of(context).colorScheme.outline),
           ),
+          _buildGenerationTimeFooter(turn),
         ],
       );
     }
@@ -1246,7 +1269,25 @@ class _StudioShellState extends State<StudioShell> {
             ],
           ),
         ),
+        _buildGenerationTimeFooter(turn),
       ],
+    );
+  }
+
+  Widget _buildGenerationTimeFooter(ChatTurn turn) {
+    final duration = turn.generationDuration;
+    if (duration == null) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(
+        'Generated in ${_formatGenerationDuration(duration)}',
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.outline,
+          fontSize: 12,
+        ),
+      ),
     );
   }
 
@@ -1351,8 +1392,12 @@ class _StudioShellState extends State<StudioShell> {
                           models: chatModels,
                           value: chatModel,
                           emptyText: 'Install a chat model',
-                          onChanged: (value) =>
-                              setState(() => selectedVoiceChatModel = value),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedVoiceChatModel = value;
+                              _applyGenerationDefaultsForModel(value);
+                            });
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1374,6 +1419,8 @@ class _StudioShellState extends State<StudioShell> {
                     ],
                   ),
                   const SizedBox(height: 14),
+                  _buildGenerationControls(chatModel),
+                  const SizedBox(height: 14),
                   _buildTtsVoiceControls(ttsModel),
                   const SizedBox(height: 14),
                   TextField(
@@ -1392,12 +1439,7 @@ class _StudioShellState extends State<StudioShell> {
                   _buildAudioInputBar(asrModel),
                   if (testErrorMessage != null) ...[
                     const SizedBox(height: 12),
-                    Text(
-                      testErrorMessage!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
+                    _buildSelectableError(testErrorMessage!),
                   ],
                 ],
               ),
@@ -1674,6 +1716,86 @@ class _StudioShellState extends State<StudioShell> {
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenerationControls(InstalledModel? model) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Text('Generation', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 150,
+              child: TextField(
+                controller: generationMaxTokensController,
+                enabled: !testBusy,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Max tokens',
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: StudioSvgIcon('chat', size: 20),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 150,
+              child: TextField(
+                controller: generationTemperatureController,
+                enabled: !testBusy,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Temperature',
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: StudioSvgIcon('sparkle', size: 20),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 150,
+              child: TextField(
+                controller: generationTopPController,
+                enabled:
+                    !testBusy &&
+                    model?.manifest.runtimeAdapter != RuntimeAdapter.mlxVlm,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Top P',
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: StudioSvgIcon('settings', size: 20),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                model?.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm
+                    ? 'mlx-vlm exposes max tokens + temperature; top_p is skipped for this runner.'
+                    : 'mlx-lm uses max tokens, temperature, and top_p.',
+                style: TextStyle(color: Theme.of(context).colorScheme.outline),
+              ),
+            ),
           ],
         ),
       ),
@@ -2496,6 +2618,9 @@ class _StudioShellState extends State<StudioShell> {
           model.speechToTextSupported && model.textPromptSupported != true;
       testErrorMessage = null;
       selectedPageIndex = 2;
+      if (model.textPromptSupported) {
+        _applyGenerationDefaultsForModel(model);
+      }
       if (model.textToSpeechSupported) {
         _applyTtsDefaultsForModel(model);
       }
@@ -2526,6 +2651,19 @@ class _StudioShellState extends State<StudioShell> {
     if (speed != null) {
       ttsSpeedController.text = '$speed';
     }
+  }
+
+  void _applyGenerationDefaultsForModel(InstalledModel? model) {
+    if (model == null) {
+      return;
+    }
+    final defaults = model.manifest.runtimeConfig.defaultParameters;
+    generationMaxTokensController.text =
+        '${defaults['max_tokens'] ?? defaults['maxTokens'] ?? 256}';
+    final temperature = defaults['temperature'] ?? defaults['temp'];
+    generationTemperatureController.text = '${temperature ?? 0.7}';
+    final topP = defaults['top_p'] ?? defaults['topP'];
+    generationTopPController.text = '${topP ?? 0.95}';
   }
 
   Future<void> _chooseAudioFile() async {
@@ -2668,12 +2806,18 @@ class _StudioShellState extends State<StudioShell> {
     });
     _scrollChatToBottom();
 
+    final stopwatch = Stopwatch()..start();
     try {
-      await controller.chatRunner.chatStream(
+      final response = await controller.chatRunner.chatStream(
         model: model,
         messages: messages,
-        params: LocalChatParams(modelId: model.manifest.id),
+        params: _chatParamsForModel(model),
         onText: _replaceStreamingAssistant,
+      );
+      stopwatch.stop();
+      _replaceStreamingAssistant(
+        response,
+        generationDuration: stopwatch.elapsed,
       );
     } catch (error) {
       setState(() => testErrorMessage = '$error');
@@ -2713,20 +2857,31 @@ class _StudioShellState extends State<StudioShell> {
     });
     _scrollChatToBottom();
 
+    final stopwatch = Stopwatch()..start();
     try {
       if (model.speechToTextSupported) {
         final response = await controller.transcribeAudio(
           model: model,
           audioPath: audioPath,
         );
-        setState(() => controller.chatTurns.add(ChatTurn.assistant(response)));
+        stopwatch.stop();
+        setState(
+          () => controller.chatTurns.add(
+            ChatTurn.assistant(response, generationDuration: stopwatch.elapsed),
+          ),
+        );
       } else {
         setState(() => controller.chatTurns.add(const ChatTurn.assistant('')));
-        await controller.chatRunner.chatStream(
+        final response = await controller.chatRunner.chatStream(
           model: model,
           messages: messages,
-          params: LocalChatParams(modelId: model.manifest.id),
+          params: _chatParamsForModel(model),
           onText: _replaceStreamingAssistant,
+        );
+        stopwatch.stop();
+        _replaceStreamingAssistant(
+          response,
+          generationDuration: stopwatch.elapsed,
         );
       }
     } catch (error) {
@@ -2768,12 +2923,18 @@ class _StudioShellState extends State<StudioShell> {
     });
     _scrollChatToBottom();
 
+    final stopwatch = Stopwatch()..start();
     try {
-      await controller.chatRunner.chatStream(
+      final response = await controller.chatRunner.chatStream(
         model: model,
         messages: messages,
-        params: LocalChatParams(modelId: model.manifest.id),
+        params: _chatParamsForModel(model),
         onText: _replaceStreamingAssistant,
+      );
+      stopwatch.stop();
+      _replaceStreamingAssistant(
+        response,
+        generationDuration: stopwatch.elapsed,
       );
     } catch (error) {
       setState(() => testErrorMessage = '$error');
@@ -2797,11 +2958,13 @@ class _StudioShellState extends State<StudioShell> {
     });
     _scrollChatToBottom();
 
+    final stopwatch = Stopwatch()..start();
     try {
       final imageFile = await controller.generateImage(
         model: model,
         prompt: prompt,
       );
+      stopwatch.stop();
       setState(() {
         final lastIndex = controller.chatTurns.lastIndexWhere(
           (turn) => !turn.isUser,
@@ -2809,6 +2972,7 @@ class _StudioShellState extends State<StudioShell> {
         final generatedTurn = ChatTurn.assistant(
           'Generated image',
           imagePath: imageFile.path,
+          generationDuration: stopwatch.elapsed,
         );
         if (lastIndex == -1) {
           controller.chatTurns.add(generatedTurn);
@@ -2840,12 +3004,14 @@ class _StudioShellState extends State<StudioShell> {
     });
     _scrollChatToBottom();
 
+    final stopwatch = Stopwatch()..start();
     try {
       final file = await controller.synthesizeSpeech(
         model: model,
         text: text,
         options: _speechOptionsFromUi(),
       );
+      stopwatch.stop();
       final duration = await _probeAudioDuration(file.path);
       setState(() {
         generatedAudioPath = file.path;
@@ -2856,6 +3022,7 @@ class _StudioShellState extends State<StudioShell> {
             'Generated audio',
             audioPath: file.path,
             duration: duration,
+            generationDuration: stopwatch.elapsed,
           );
         }
       });
@@ -2888,6 +3055,7 @@ class _StudioShellState extends State<StudioShell> {
     });
     _scrollChatToBottom();
 
+    final stopwatch = Stopwatch()..start();
     try {
       final transcript = await controller.transcribeAudio(
         model: asrModel,
@@ -2910,9 +3078,10 @@ class _StudioShellState extends State<StudioShell> {
       final response = await controller.chatRunner.chatStream(
         model: chatModel,
         messages: [LocalChatMessage.user(voicePrompt)],
-        params: LocalChatParams(modelId: chatModel.manifest.id),
+        params: _chatParamsForModel(chatModel),
         onText: _replaceStreamingAssistant,
       );
+      stopwatch.stop();
       final speechFile = await controller.synthesizeSpeech(
         model: ttsModel,
         text: response,
@@ -2929,6 +3098,7 @@ class _StudioShellState extends State<StudioShell> {
             response,
             audioPath: speechFile.path,
             duration: duration,
+            generationDuration: stopwatch.elapsed,
           );
         }
       });
@@ -2949,6 +3119,17 @@ class _StudioShellState extends State<StudioShell> {
       referenceAudioPath: ttsReferenceAudioPath,
       referenceText: ttsReferenceTextController.text.trim(),
       speed: double.tryParse(ttsSpeedController.text.trim()),
+    );
+  }
+
+  LocalChatParams _chatParamsForModel(InstalledModel model) {
+    return LocalChatParams(
+      modelId: model.manifest.id,
+      maxTokens: int.tryParse(generationMaxTokensController.text.trim()) ?? 256,
+      temperature: double.tryParse(generationTemperatureController.text.trim()),
+      topP: model.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm
+          ? null
+          : double.tryParse(generationTopPController.text.trim()),
     );
   }
 
@@ -2981,7 +3162,10 @@ class _StudioShellState extends State<StudioShell> {
     }
   }
 
-  void _replaceStreamingAssistant(String message) {
+  void _replaceStreamingAssistant(
+    String message, {
+    Duration? generationDuration,
+  }) {
     if (!mounted) {
       return;
     }
@@ -2990,9 +3174,18 @@ class _StudioShellState extends State<StudioShell> {
         (turn) => !turn.isUser,
       );
       if (lastIndex == -1) {
-        controller.chatTurns.add(ChatTurn.assistant(message));
+        controller.chatTurns.add(
+          ChatTurn.assistant(message, generationDuration: generationDuration),
+        );
       } else {
-        controller.chatTurns[lastIndex] = ChatTurn.assistant(message);
+        final current = controller.chatTurns[lastIndex];
+        controller.chatTurns[lastIndex] = ChatTurn.assistant(
+          message,
+          audioPath: current.audioPath,
+          imagePath: current.imagePath,
+          duration: current.duration,
+          generationDuration: generationDuration ?? current.generationDuration,
+        );
       }
     });
     _scrollChatToBottom();
@@ -3032,6 +3225,19 @@ class _StudioShellState extends State<StudioShell> {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  String _formatGenerationDuration(Duration duration) {
+    if (duration.inMilliseconds < 1000) {
+      return '${duration.inMilliseconds} ms';
+    }
+    final seconds = duration.inMilliseconds / 1000;
+    if (seconds < 60) {
+      return '${seconds.toStringAsFixed(seconds < 10 ? 1 : 0)} s';
+    }
+    final minutes = duration.inMinutes;
+    final remainingSeconds = duration.inSeconds.remainder(60);
+    return '${minutes}m ${remainingSeconds}s';
   }
 
   String _formatDateTime(DateTime value) {

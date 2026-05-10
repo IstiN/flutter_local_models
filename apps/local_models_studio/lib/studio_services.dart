@@ -292,12 +292,14 @@ class ChatTurn {
   const ChatTurn.user(this.message, {this.imagePath})
     : isUser = true,
       audioPath = null,
-      duration = null;
+      duration = null,
+      generationDuration = null;
   const ChatTurn.assistant(
     this.message, {
     this.audioPath,
     this.imagePath,
     this.duration,
+    this.generationDuration,
   }) : isUser = false;
 
   final bool isUser;
@@ -305,6 +307,7 @@ class ChatTurn {
   final String? audioPath;
   final String? imagePath;
   final Duration? duration;
+  final Duration? generationDuration;
 }
 
 class DownloadTaskRecord {
@@ -624,6 +627,8 @@ class LocalChatRunner {
     String? audioPath,
     String? imagePath,
     int maxTokens = 256,
+    double? temperature,
+    double? topP,
   }) {
     return switch (model.manifest.runtimeAdapter) {
       RuntimeAdapter.mlxLm => <String>[
@@ -636,6 +641,8 @@ class LocalChatRunner {
         prompt,
         '--max-tokens',
         '$maxTokens',
+        if (temperature != null) ...<String>['--temp', '$temperature'],
+        if (topP != null) ...<String>['--top-p', '$topP'],
         '--verbose',
         'false',
       ],
@@ -651,6 +658,7 @@ class LocalChatRunner {
         prompt,
         '--max-tokens',
         '$maxTokens',
+        if (temperature != null) ...<String>['--temperature', '$temperature'],
       ],
       _ => throw StateError('Unsupported text runtime.'),
     };
@@ -676,6 +684,8 @@ class LocalChatRunner {
     String? audioPath,
     String? imagePath,
     int maxTokens = 256,
+    double? temperature,
+    double? topP,
   }) async {
     _checkRuntime(model);
     final args = _buildGenerateArgs(
@@ -684,6 +694,8 @@ class LocalChatRunner {
       audioPath: audioPath,
       imagePath: imagePath,
       maxTokens: maxTokens,
+      temperature: temperature,
+      topP: topP,
     );
 
     final result = await Process.run(pythonExecutable, args);
@@ -706,6 +718,8 @@ class LocalChatRunner {
     String? audioPath,
     String? imagePath,
     int maxTokens = 256,
+    double? temperature,
+    double? topP,
   }) async {
     _checkRuntime(model);
     final args = _buildGenerateArgs(
@@ -714,6 +728,8 @@ class LocalChatRunner {
       audioPath: audioPath,
       imagePath: imagePath,
       maxTokens: maxTokens,
+      temperature: temperature,
+      topP: topP,
     );
     final process = await Process.start(pythonExecutable, args);
     final stdoutBuffer = StringBuffer();
@@ -776,6 +792,8 @@ class LocalChatRunner {
       audioPath: audioPath,
       imagePath: imagePath,
       maxTokens: params.maxTokens,
+      temperature: params.temperature,
+      topP: params.topP,
       onText: onText,
     );
   }

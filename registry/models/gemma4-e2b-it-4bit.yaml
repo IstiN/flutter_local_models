@@ -27,6 +27,27 @@ capabilities:
   audio_input: true
   audio_output: false
   tool_calling: true
+runtime_config:
+  default_parameters:
+    max_tokens: 512
+    temperature: 0.7
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 4096
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+  extra:
+    cli_flags:
+      max_tokens: --max-tokens
+      temperature: --temperature
+    runner_notes:
+    - mlx-vlm generate exposes max tokens and temperature for CLI generation.
 model_card:
   summary: Small Gemma 4 bundle for lightweight multimodal chat on Apple Silicon.
   use_cases:

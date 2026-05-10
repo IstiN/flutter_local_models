@@ -153,6 +153,36 @@
       "links": {
         "huggingface": "https://huggingface.co/mlx-community/gemma-4-31b-it-4bit"
       }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 512,
+        "temperature": 0.7
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          }
+        }
+      },
+      "extra": {
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temperature"
+        },
+        "runner_notes": [
+          "mlx-vlm generate exposes max tokens and temperature for CLI generation."
+        ]
+      }
     }
   },
   {
@@ -214,6 +244,36 @@
       "links": {
         "huggingface": "https://huggingface.co/mlx-community/gemma-4-e2b-it-4bit"
       }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 512,
+        "temperature": 0.7
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          }
+        }
+      },
+      "extra": {
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temperature"
+        },
+        "runner_notes": [
+          "mlx-vlm generate exposes max tokens and temperature for CLI generation."
+        ]
+      }
     }
   },
   {
@@ -273,6 +333,36 @@
       ],
       "links": {
         "huggingface": "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 512,
+        "temperature": 0.7
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          }
+        }
+      },
+      "extra": {
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temperature"
+        },
+        "runner_notes": [
+          "mlx-vlm generate exposes max tokens and temperature for CLI generation."
+        ]
       }
     }
   },
@@ -772,6 +862,40 @@
       ],
       "links": {
         "huggingface": "https://huggingface.co/mlx-community/Qwen3-8B-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 512,
+        "temperature": 0.7,
+        "top_p": 0.95
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8192
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        }
+      },
+      "extra": {
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temp",
+          "top_p": "--top-p"
+        }
       }
     }
   },
