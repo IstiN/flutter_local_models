@@ -2,6 +2,7 @@ name: local_models_flutter
 description: Flutter wrapper around the local model core with a macOS-native FFI bridge for MLX-focused runtimes.
 version: 0.1.0
 repository: https://github.com/IstiN/flutter_local_models
+publish_to: none
 
 environment:
   sdk: ^3.10.8

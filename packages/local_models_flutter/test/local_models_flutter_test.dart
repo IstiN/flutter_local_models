@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:local_models_core/local_models_core.dart';
 import 'package:local_models_flutter/local_models_flutter.dart';
 import 'package:local_models_flutter/local_models_flutter_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -105,29 +104,34 @@ void main() {
   test('chat builds a response from the configured stream runtime', () async {
     final plugin = LocalModelsFlutter(chatRuntime: FakeChatRuntime());
     final models = await plugin.getModels();
-    final response = await plugin.chat(
-      messages: [
-        LocalChatMessage.user(
-          'hi',
-          attachments: [
-            LocalMessageAttachment.file(
-              type: LocalAttachmentType.audio,
-              path: '/tmp/input.wav',
-              mimeType: 'audio/wav',
+    final response = await plugin.chatRequest(
+      LocalChatRequest(
+        messages: [
+          LocalChatMessage.user(
+            'hi',
+            attachments: [
+              LocalMessageAttachment.file(
+                type: LocalAttachmentType.audio,
+                path: '/tmp/input.wav',
+                mimeType: 'audio/wav',
+              ),
+            ],
+          ),
+        ],
+        params: const LocalChatParams(
+          modelId: 'fake-model',
+          maxTokens: 12,
+          temperature: 0.2,
+          topP: 0.8,
+          stop: ['</tool_call>'],
+          tools: [
+            LocalTool.function(
+              name: 'get_weather',
+              description: 'Get weather.',
             ),
           ],
+          extra: {'voice': 'Ryan'},
         ),
-      ],
-      params: const LocalChatParams(
-        modelId: 'fake-model',
-        maxTokens: 12,
-        temperature: 0.2,
-        topP: 0.8,
-        stop: ['</tool_call>'],
-        tools: [
-          LocalTool.function(name: 'get_weather', description: 'Get weather.'),
-        ],
-        extra: {'voice': 'Ryan'},
       ),
     );
 

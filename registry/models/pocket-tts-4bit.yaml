@@ -1,0 +1,78 @@
+id: pocket-tts-4bit
+display_name: Pocket TTS 4bit
+description: Tiny English MLX-Audio TTS model with optional reference audio voice cloning.
+runtime_adapter: mlx_audio
+tasks:
+- text_to_speech
+- audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/pocket-tts-4bit
+  revision: main
+  license: cc-by-4.0
+packaging:
+  release_tag: model-pocket-tts-4bit
+  archive_name: pocket-tts-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: pocket-tts-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX-Audio TTS runtime
+  - Very small English voice generation model
+capabilities:
+  audio_input: false
+  audio_output: true
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    audio_format: wav
+    language: en
+    voice: default
+  parameter_schema:
+    type: object
+    properties:
+      language:
+        type: string
+        enum: [en]
+      voice:
+        type: string
+        enum: [default, reference_audio]
+      ref_audio:
+        type: string
+        description: Optional reference voice audio path.
+  extra:
+    model_type: pocket_tts
+    supports_voice_clone: true
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    hf_downloads_last_month: 85
+    hf_size_bytes: 89316161
+  output:
+    media_type: audio/wav
+    extension: wav
+    supports_inline_playback: true
+model_card:
+  summary: Tiny English MLX-Audio TTS model with optional reference audio voice cloning.
+  use_cases:
+  - Very small voice output baseline
+  - English local assistant playback
+  - TTS runtime smoke tests
+  limitations:
+  - English-only model card
+  - Russian TTS is not advertised for this model
+  languages:
+  - English
+  tags:
+  - tts
+  - speech
+  - voice-cloning
+  - mlx-audio
+  - tiny
+  links:
+    huggingface: https://huggingface.co/mlx-community/pocket-tts-4bit
+

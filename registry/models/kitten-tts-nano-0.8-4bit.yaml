@@ -1,0 +1,84 @@
+id: kitten-tts-nano-0.8-4bit
+display_name: Kitten TTS Nano 0.8 4bit
+description: Tiny MLX-Audio TTS model for local voice generation smoke tests.
+runtime_adapter: mlx_audio
+tasks:
+- text_to_speech
+- audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/kitten-tts-nano-0.8-4bit
+  revision: main
+  license: unknown
+packaging:
+  release_tag: model-kitten-tts-nano-0.8-4bit
+  archive_name: kitten-tts-nano-0.8-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: kitten-tts-nano-0.8-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX-Audio TTS runtime
+  - Tiny package for SDK voice generation tests
+capabilities:
+  audio_input: false
+  audio_output: true
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    audio_format: wav
+    voice: expr-voice-5-m
+    fade_out_ms: 50
+    tail_silence_ms: 120
+  parameter_schema:
+    type: object
+    properties:
+      voice:
+        type: string
+        description: Kitten voice preset passed to --voice.
+      fade_out_ms:
+        type: integer
+        minimum: 0
+        maximum: 1000
+      tail_silence_ms:
+        type: integer
+        minimum: 0
+        maximum: 2000
+  voices:
+  - id: expr-voice-5-m
+    display_name: Expr Voice 5 Male
+    locale: English
+    description: Example voice preset from the MLX model card.
+  extra:
+    model_type: kitten_tts
+    end_of_utterance_smoothing: true
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    hf_downloads_last_month: 18
+    hf_size_bytes: 33594962
+  output:
+    media_type: audio/wav
+    extension: wav
+    supports_inline_playback: true
+model_card:
+  summary: Tiny MLX-Audio TTS model for local voice generation smoke tests.
+  use_cases:
+  - Smallest TTS model in the catalog
+  - Voice generation SDK smoke tests
+  - Offline audio output baseline
+  limitations:
+  - License metadata is not published on the MLX model card
+  - Russian support is not advertised
+  languages:
+  - English
+  tags:
+  - tts
+  - speech
+  - mlx-audio
+  - tiny
+  links:
+    huggingface: https://huggingface.co/mlx-community/kitten-tts-nano-0.8-4bit

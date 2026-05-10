@@ -1,0 +1,86 @@
+id: whisper-small-asr-4bit
+display_name: Whisper Small ASR 4bit
+description: Compact multilingual Whisper MLX-Audio model for better Russian and English transcription under 150 MB.
+runtime_adapter: mlx_audio
+tasks:
+- speech_to_text
+- audio_input
+source:
+  provider: huggingface
+  repo: mlx-community/whisper-small-asr-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-whisper-small-asr-4bit
+  archive_name: whisper-small-asr-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: whisper-small-asr-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX-Audio Whisper STT runtime
+  - Better accuracy pick while staying far below 1GB
+capabilities:
+  audio_input: true
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    task: transcribe
+    language: auto
+    temperature: 0.0
+    word_timestamps: false
+  parameter_schema:
+    type: object
+    properties:
+      task:
+        type: string
+        enum: [transcribe, translate]
+      language:
+        type: string
+        enum: [auto, en, ru]
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      word_timestamps:
+        type: boolean
+  extra:
+    model_type: whisper
+    architecture: WhisperForConditionalGeneration
+    decoder_layers: 12
+    tokenizer_model_max_length: 1024
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    hf_downloads_last_month: 16
+    hf_size_bytes: 143545770
+    mlx_audio_command: mlx_audio.stt
+  output:
+    media_type: text/plain
+    format: text
+model_card:
+  summary: Compact multilingual Whisper MLX-Audio model for better Russian and English transcription under 150 MB.
+  use_cases:
+  - Better-quality voice input for local assistants
+  - Russian and English ASR validation
+  - Offline transcription and translation experiments
+  limitations:
+  - Slower than tiny/base variants
+  - No audio generation
+  languages:
+  - English
+  - Russian
+  - multilingual
+  tags:
+  - whisper
+  - asr
+  - speech-to-text
+  - mlx-audio
+  - compact
+  links:
+    huggingface: https://huggingface.co/mlx-community/whisper-small-asr-4bit
+

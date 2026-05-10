@@ -1,0 +1,92 @@
+id: falcon-h1-tiny-tool-calling-90m-4bit
+display_name: Falcon H1 Tiny Tool Calling 90M 4bit
+description: Extremely small MLX chat model tuned for function/tool calling API tests.
+runtime_adapter: mlx_lm
+tasks:
+- chat
+source:
+  provider: huggingface
+  repo: mlx-community/Falcon-H1-Tiny-Tool-Calling-90M-4bit
+  revision: main
+  license: falcon-llm-license
+packaging:
+  release_tag: model-falcon-h1-tiny-tool-calling-90m-4bit
+  archive_name: falcon-h1-tiny-tool-calling-90m-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: falcon-h1-tiny-tool-calling-90m-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX-LM text runtime
+  - Tiny tool-calling model for SDK tests, not high-quality chat
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: true
+runtime_config:
+  default_parameters:
+    max_tokens: 512
+    temperature: 0.2
+    top_p: 0.9
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 4096
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      top_p:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      tools:
+        type: array
+        description: OpenAI-style function tool schemas.
+      tool_choice:
+        type: object
+        description: auto, none, required, or named function selection.
+  extra:
+    model_type: falcon_h1
+    architecture: FalconH1ForCausalLM
+    context_length: 262144
+    tokenizer_model_max_length: 1000000000000000019884624838656
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    generation_config:
+      eos_token_id: 11
+      pad_token_id: 0
+    hf_downloads_last_month: 58
+    hf_size_bytes: 53966831
+    cli_flags:
+      max_tokens: --max-tokens
+      temperature: --temp
+      top_p: --top-p
+model_card:
+  summary: Extremely small MLX chat model tuned for function/tool calling API tests.
+  use_cases:
+  - Tool calling SDK regression tests
+  - Offline function-calling demos
+  - Low-memory chat scaffolding
+  limitations:
+  - Tiny 90M model is not a strong general assistant
+  - Falcon license terms apply
+  languages:
+  - English
+  tags:
+  - llm
+  - chat
+  - tool-calling
+  - function-calling
+  - mlx
+  - tiny
+  links:
+    huggingface: https://huggingface.co/mlx-community/Falcon-H1-Tiny-Tool-Calling-90M-4bit
+

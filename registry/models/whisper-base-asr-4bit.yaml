@@ -1,0 +1,86 @@
+id: whisper-base-asr-4bit
+display_name: Whisper Base ASR 4bit
+description: Small multilingual Whisper MLX-Audio model balancing speed and Russian/English transcription quality.
+runtime_adapter: mlx_audio
+tasks:
+- speech_to_text
+- audio_input
+source:
+  provider: huggingface
+  repo: mlx-community/whisper-base-asr-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-whisper-base-asr-4bit
+  archive_name: whisper-base-asr-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: whisper-base-asr-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX-Audio Whisper STT runtime
+  - Better accuracy than tiny with still-tiny package size
+capabilities:
+  audio_input: true
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    task: transcribe
+    language: auto
+    temperature: 0.0
+    word_timestamps: false
+  parameter_schema:
+    type: object
+    properties:
+      task:
+        type: string
+        enum: [transcribe, translate]
+      language:
+        type: string
+        enum: [auto, en, ru]
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      word_timestamps:
+        type: boolean
+  extra:
+    model_type: whisper
+    architecture: WhisperForConditionalGeneration
+    decoder_layers: 6
+    tokenizer_model_max_length: 1024
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    hf_downloads_last_month: 6
+    hf_size_bytes: 46622312
+    mlx_audio_command: mlx_audio.stt
+  output:
+    media_type: text/plain
+    format: text
+model_card:
+  summary: Small multilingual Whisper MLX-Audio model balancing speed and Russian/English transcription quality.
+  use_cases:
+  - Russian and English speech-to-text
+  - Voice assistant ASR stage
+  - Low-memory offline transcription
+  limitations:
+  - Lower accuracy than Whisper Small/Large variants
+  - No audio generation
+  languages:
+  - English
+  - Russian
+  - multilingual
+  tags:
+  - whisper
+  - asr
+  - speech-to-text
+  - mlx-audio
+  - compact
+  links:
+    huggingface: https://huggingface.co/mlx-community/whisper-base-asr-4bit
+

@@ -1,0 +1,88 @@
+id: smolvlm-256m-instruct-4bit
+display_name: SmolVLM 256M Instruct 4bit
+description: Ultra-small MLX vision-language model for image Q&A and lightweight multimodal SDK demos.
+runtime_adapter: mlx_vlm
+tasks:
+- chat
+- vision
+source:
+  provider: huggingface
+  repo: mlx-community/SmolVLM-256M-Instruct-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-smolvlm-256m-instruct-4bit
+  archive_name: smolvlm-256m-instruct-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: smolvlm-256m-instruct-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX-VLM image runtime
+  - Tiny vision model for UI and SDK smoke tests
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    max_tokens: 256
+    temperature: 0.0
+    top_p: 0.9
+    image_count: 1
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 1024
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      top_p:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      image_count:
+        type: integer
+        minimum: 1
+        maximum: 1
+  extra:
+    model_type: idefics3
+    architecture: Idefics3ForConditionalGeneration
+    tokenizer_model_max_length: 8192
+    quantization:
+      bits: 4
+      group_size: 64
+    hf_downloads_last_month: 77
+    hf_size_bytes: 150417043
+    mlx_vlm_cli:
+      image_flag: --image
+      prompt_flag: --prompt
+      max_tokens: --max-tokens
+      temperature: --temp
+model_card:
+  summary: Ultra-small MLX vision-language model for image Q&A and lightweight multimodal SDK demos.
+  use_cases:
+  - Image captioning smoke tests
+  - Vision attachment regression tests
+  - Low-memory multimodal Flutter demos
+  limitations:
+  - English-focused model card
+  - Not intended for precise OCR or complex visual reasoning
+  languages:
+  - English
+  tags:
+  - vlm
+  - vision
+  - image
+  - chat
+  - mlx
+  - compact
+  links:
+    huggingface: https://huggingface.co/mlx-community/SmolVLM-256M-Instruct-4bit
+

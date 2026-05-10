@@ -123,7 +123,7 @@ void main() {
       p.join(repoRoot.path, 'registry', 'models'),
     );
 
-    expect(registry.manifests.length, greaterThanOrEqualTo(20));
+    expect(registry.manifests.length, greaterThanOrEqualTo(30));
 
     final qwen = registry.byId('qwen3-4b-instruct-2507-4bit');
     expect(qwen.runtimeAdapter, RuntimeAdapter.mlxLm);
@@ -148,6 +148,22 @@ void main() {
     expect(
       voxtral.runtimeConfig.parameterSchema['properties'],
       containsPair('voice', isA<Map<Object?, Object?>>()),
+    );
+
+    final whisper = registry.byId('whisper-small-asr-4bit');
+    expect(whisper.runtimeConfig.defaultParameters['language'], 'auto');
+    expect(whisper.runtimeConfig.extra['model_type'], 'whisper');
+    expect(whisper.modelCard.languages, contains('Russian'));
+
+    final toolModel = registry.byId('falcon-h1-tiny-tool-calling-90m-4bit');
+    expect(toolModel.capabilities.toolCalling, isTrue);
+    expect(toolModel.runtimeConfig.extra['context_length'], 262144);
+
+    final visionModel = registry.byId('qwen3.5-0.8b-vlm-4bit');
+    expect(visionModel.tasks, contains(ModelTask.vision));
+    expect(
+      visionModel.runtimeConfig.extra['hf_size_bytes'],
+      lessThan(1000000000),
     );
   });
 
@@ -181,8 +197,17 @@ void main() {
       modelId: 'qwen3-8b-4bit',
       maxTokens: 128,
       temperature: 0.2,
+      topP: 0.8,
+      stop: ['</tool_call>'],
+      extra: {'seed': 7},
     );
-    expect(LocalChatParams.fromJsonMap(params.toJson()).maxTokens, 128);
+    final decodedParams = LocalChatParams.fromJsonMap(params.toJson());
+    final openAIParams = params.toOpenAIJson();
+    expect(decodedParams.maxTokens, 128);
+    expect(openAIParams['model'], 'qwen3-8b-4bit');
+    expect(openAIParams['max_tokens'], 128);
+    expect(openAIParams['top_p'], 0.8);
+    expect(openAIParams['seed'], 7);
   });
 
   test('serializes tools, tool choices, and tool call messages', () {
@@ -224,5 +249,39 @@ void main() {
     expect(decodedResult.toolCallId, 'call_1');
     expect(tool.toOpenAIJson()['type'], 'function');
     expect(toolCall.toOpenAIJson()['type'], 'function');
+  });
+
+  test('serializes chat requests, deltas, and responses', () {
+    const request = LocalChatRequest(
+      messages: [
+        LocalChatMessage.system('You are local.'),
+        LocalChatMessage.user('hi'),
+      ],
+      params: LocalChatParams(modelId: 'falcon-tool', maxTokens: 64),
+      metadata: {'traceId': 'trace-1'},
+    );
+    const delta = LocalChatDelta(
+      content: 'hello',
+      done: true,
+      finishReason: 'stop',
+      metadata: {'durationMs': 42},
+    );
+    const response = LocalChatResponse(
+      message: LocalChatMessage.assistant('hello'),
+      metadata: {'durationMs': 42},
+    );
+
+    final decodedRequest = LocalChatRequest.fromJsonMap(request.toJson());
+    final decodedDelta = LocalChatDelta.fromJsonMap(delta.toJson());
+    final decodedResponse = LocalChatResponse.fromJsonMap(response.toJson());
+
+    expect(decodedRequest.messages.length, 2);
+    expect(decodedRequest.params.modelId, 'falcon-tool');
+    expect(decodedRequest.metadata['traceId'], 'trace-1');
+    expect(decodedDelta.content, 'hello');
+    expect(decodedDelta.done, isTrue);
+    expect(decodedDelta.finishReason, 'stop');
+    expect(decodedResponse.message.content, 'hello');
+    expect(decodedResponse.metadata['durationMs'], 42);
   });
 }

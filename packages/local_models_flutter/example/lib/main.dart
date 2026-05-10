@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:local_models_flutter/local_models_flutter.dart';
-import 'package:local_models_core/local_models_core.dart';
 
 void main() {
   runApp(const MyApp());

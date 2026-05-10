@@ -1,3 +1,5 @@
-## 0.0.1
+## 0.1.0
 
-* TODO: Describe initial release.
+- Initial Flutter SDK wrapper around `local_models_core`.
+- Added runtime-agnostic chat streaming, non-streaming chat helpers, model
+  discovery, tool-call plumbing, and request-based convenience methods.

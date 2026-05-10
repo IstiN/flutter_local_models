@@ -1,0 +1,84 @@
+id: qwen3.5-0.8b-vlm-4bit
+display_name: Qwen3.5 0.8B VLM 4bit
+description: Compact Qwen3.5 vision-language model under 1GB for image chat and multilingual experiments.
+runtime_adapter: mlx_vlm
+tasks:
+- chat
+- vision
+source:
+  provider: huggingface
+  repo: mlx-community/Qwen3.5-0.8B-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-qwen3.5-0.8b-vlm-4bit
+  archive_name: qwen3.5-0.8b-vlm-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: qwen3.5-0.8b-vlm-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 6
+  recommended_memory_gb: 8
+  notes:
+  - MLX-VLM runtime
+  - Stronger tiny VLM option than SmolVLM for general image chat
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    max_tokens: 512
+    temperature: 0.2
+    top_p: 0.9
+    image_count: 1
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 4096
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      top_p:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      image_count:
+        type: integer
+        minimum: 1
+        maximum: 8
+  extra:
+    model_type: qwen3_5
+    architecture: Qwen3_5ForConditionalGeneration
+    tokenizer_model_max_length: 262144
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    hf_downloads_last_month: 2521
+    hf_size_bytes: 652029391
+    mlx_vlm_module: mlx_vlm
+model_card:
+  summary: Compact Qwen3.5 vision-language model under 1GB for image chat and multilingual experiments.
+  use_cases:
+  - Image chat in Flutter apps
+  - Lightweight VLM benchmarking
+  - Multimodal assistant prototypes
+  limitations:
+  - Tool calling is not enabled for this manifest
+  - Quality is lower than larger Qwen VLM variants
+  languages:
+  - multilingual
+  tags:
+  - vlm
+  - image
+  - chat
+  - qwen3.5
+  - mlx
+  links:
+    huggingface: https://huggingface.co/mlx-community/Qwen3.5-0.8B-4bit
+

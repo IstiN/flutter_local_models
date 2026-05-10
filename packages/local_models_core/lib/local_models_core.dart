@@ -959,6 +959,53 @@ class LocalChatParams {
     if (toolChoice != null) 'toolChoice': toolChoice!.toJson(),
     if (extra.isNotEmpty) 'extra': extra,
   };
+
+  Map<String, Object?> toOpenAIJson() => <String, Object?>{
+    if (modelId != null) 'model': modelId,
+    'max_tokens': maxTokens,
+    if (temperature != null) 'temperature': temperature,
+    if (topP != null) 'top_p': topP,
+    if (stop.isNotEmpty) 'stop': stop,
+    if (tools.isNotEmpty)
+      'tools': tools.map((item) => item.toOpenAIJson()).toList(),
+    if (toolChoice != null) 'tool_choice': toolChoice!.toOpenAIJson(),
+    ...extra,
+  };
+}
+
+@immutable
+class LocalChatRequest {
+  const LocalChatRequest({
+    required this.messages,
+    this.params = const LocalChatParams(),
+    this.metadata = const <String, Object?>{},
+  });
+
+  final List<LocalChatMessage> messages;
+  final LocalChatParams params;
+  final Map<String, Object?> metadata;
+
+  factory LocalChatRequest.fromJsonMap(Map<String, Object?> map) {
+    return LocalChatRequest(
+      messages: List<Map<String, Object?>>.from(
+        map['messages'] as List? ?? const <Map<String, Object?>>[],
+      ).map(LocalChatMessage.fromJsonMap).toList(growable: false),
+      params: map['params'] == null
+          ? const LocalChatParams()
+          : LocalChatParams.fromJsonMap(
+              Map<String, Object?>.from(map['params'] as Map),
+            ),
+      metadata: Map<String, Object?>.from(
+        map['metadata'] as Map? ?? const <String, Object?>{},
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'messages': messages.map((item) => item.toJson()).toList(),
+    'params': params.toJson(),
+    if (metadata.isNotEmpty) 'metadata': metadata,
+  };
 }
 
 @immutable
@@ -976,6 +1023,20 @@ class LocalChatDelta {
   final List<LocalToolCall> toolCalls;
   final String? finishReason;
   final Map<String, Object?> metadata;
+
+  factory LocalChatDelta.fromJsonMap(Map<String, Object?> map) {
+    return LocalChatDelta(
+      content: map['content'] as String? ?? '',
+      done: map['done'] as bool? ?? false,
+      toolCalls: List<Map<String, Object?>>.from(
+        map['toolCalls'] as List? ?? const <Map<String, Object?>>[],
+      ).map(LocalToolCall.fromJsonMap).toList(growable: false),
+      finishReason: map['finishReason'] as String?,
+      metadata: Map<String, Object?>.from(
+        map['metadata'] as Map? ?? const <String, Object?>{},
+      ),
+    );
+  }
 
   Map<String, Object?> toJson() => <String, Object?>{
     'content': content,
@@ -996,6 +1057,17 @@ class LocalChatResponse {
 
   final LocalChatMessage message;
   final Map<String, Object?> metadata;
+
+  factory LocalChatResponse.fromJsonMap(Map<String, Object?> map) {
+    return LocalChatResponse(
+      message: LocalChatMessage.fromJsonMap(
+        Map<String, Object?>.from(map['message'] as Map),
+      ),
+      metadata: Map<String, Object?>.from(
+        map['metadata'] as Map? ?? const <String, Object?>{},
+      ),
+    );
+  }
 
   Map<String, Object?> toJson() => <String, Object?>{
     'message': message.toJson(),

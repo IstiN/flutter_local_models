@@ -1,0 +1,85 @@
+id: smolvlm2-256m-video-instruct-mlx
+display_name: SmolVLM2 256M Video Instruct MLX
+description: Sub-1GB MLX vision/video model for image and short-video prompting experiments.
+runtime_adapter: mlx_vlm
+tasks:
+- chat
+- vision
+source:
+  provider: huggingface
+  repo: mlx-community/SmolVLM2-256M-Video-Instruct-mlx
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-smolvlm2-256m-video-instruct-mlx
+  archive_name: smolvlm2-256m-video-instruct-mlx.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: smolvlm2-256m-video-instruct-mlx
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX-VLM image/video runtime
+  - Good small model for testing attachment plumbing
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    max_tokens: 256
+    temperature: 0.0
+    top_p: 0.9
+    image_count: 1
+    video_frames: 8
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 1024
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      top_p:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      video_frames:
+        type: integer
+        minimum: 1
+        maximum: 32
+  extra:
+    model_type: smolvlm
+    architecture: SmolVLMForConditionalGeneration
+    tokenizer_model_max_length: 8192
+    supports_video: true
+    hf_downloads_last_month: 726
+    hf_size_bytes: 517928208
+    mlx_vlm_cli:
+      image_flag: --image
+      prompt_flag: --prompt
+model_card:
+  summary: Sub-1GB MLX vision/video model for image and short-video prompting experiments.
+  use_cases:
+  - Video/image attachment SDK tests
+  - Lightweight visual assistant demos
+  - Fast local multimodal smoke tests
+  limitations:
+  - English-focused model card
+  - Video adapter support must be implemented by the runtime
+  languages:
+  - English
+  tags:
+  - vlm
+  - video
+  - vision
+  - image
+  - mlx
+  - compact
+  links:
+    huggingface: https://huggingface.co/mlx-community/SmolVLM2-256M-Video-Instruct-mlx
+

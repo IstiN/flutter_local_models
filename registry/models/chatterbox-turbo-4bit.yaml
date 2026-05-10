@@ -1,0 +1,98 @@
+id: chatterbox-turbo-4bit
+display_name: Chatterbox Turbo 4bit
+description: Compact English expressive TTS model with reference voice cloning and event tags.
+runtime_adapter: mlx_audio
+tasks:
+- text_to_speech
+- audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/chatterbox-turbo-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-chatterbox-turbo-4bit
+  archive_name: chatterbox-turbo-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: chatterbox-turbo-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX-Audio TTS runtime
+  - Supports expressive text tags and reference audio
+capabilities:
+  audio_input: false
+  audio_output: true
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    audio_format: wav
+    language: en
+    voice: default
+    exaggeration: 0.5
+  parameter_schema:
+    type: object
+    properties:
+      language:
+        type: string
+        enum: [en]
+      voice:
+        type: string
+        enum: [default, reference_audio]
+      ref_audio:
+        type: string
+        description: Optional reference voice audio path.
+      exaggeration:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      emotion_tags:
+        type: array
+        items:
+          type: string
+        enum:
+        - "[clear throat]"
+        - "[sigh]"
+        - "[shush]"
+        - "[cough]"
+        - "[groan]"
+        - "[sniff]"
+        - "[gasp]"
+        - "[chuckle]"
+        - "[laugh]"
+  extra:
+    model_type: chatterbox_turbo
+    supports_voice_clone: true
+    supports_emotion_tags: true
+    tokenizer_model_max_length: 1024
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    hf_downloads_last_month: 258
+    hf_size_bytes: 416875430
+  output:
+    media_type: audio/wav
+    extension: wav
+    supports_inline_playback: true
+model_card:
+  summary: Compact English expressive TTS model with reference voice cloning and event tags.
+  use_cases:
+  - Expressive English voice playback
+  - Voice cloning experiments with reference audio
+  - TTS emotion tag tests
+  limitations:
+  - English-only model card
+  - Event tags can change prosody and should be sanitized for plain assistant speech
+  languages:
+  - English
+  tags:
+  - tts
+  - speech
+  - voice-cloning
+  - emotion-tags
+  - mlx-audio
+  links:
+    huggingface: https://huggingface.co/mlx-community/chatterbox-turbo-4bit
