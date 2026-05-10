@@ -31,23 +31,56 @@ runtime_config:
   default_parameters:
     audio_format: wav
     join_audio: true
+    voice: Ethan
+    lang_code: ru
+    speed: 1.0
+    instruct: A calm, natural assistant voice with stable tone, speaking clearly in Russian.
   parameter_schema:
     type: object
     properties:
+      voice:
+        type: string
+        description: Optional voice/speaker name passed to --voice.
+        enum:
+        - Ethan
+        - Chelsie
+        - Vivian
+      instruct:
+        type: string
+        description: Voice design prompt passed to --instruct.
       voice_prompt:
         type: string
-        description: Natural language voice design prompt.
+        description: Backward-compatible alias for instruct.
+      lang_code:
+        type: string
+        description: Output language code passed to --lang_code.
       speed:
         type: number
         minimum: 0.5
         maximum: 2.0
+      ref_audio:
+        type: string
+        description: Optional reference audio path passed to --ref_audio.
+      ref_text:
+        type: string
+        description: Optional transcript for reference audio passed to --ref_text.
       seed:
         type: integer
   voices:
+  - id: Ethan
+    display_name: Ethan
+    locale: multilingual
+    description: Default stable assistant voice preset.
+  - id: Chelsie
+    display_name: Chelsie
+    locale: multilingual
+  - id: Vivian
+    display_name: Vivian
+    locale: multilingual
   - id: designed
     display_name: Designed voice
     locale: multilingual
-    description: Voice controlled by a voice_prompt parameter.
+    description: Voice controlled by an instruct / voice_prompt parameter.
   output:
     media_type: audio/wav
     extension: wav

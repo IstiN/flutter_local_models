@@ -53,6 +53,28 @@ class BundleModelTests(unittest.TestCase):
         self.assertEqual(metadata["runtime_config"]["output"]["media_type"], "audio/wav")
         self.assertIn("Default parameters", notes)
 
+    def test_release_metadata_contains_runtime_config(self) -> None:
+        manifest_path = ROOT / "registry" / "models" / "qwen3-tts-12hz-1.7b-base-4bit.yaml"
+        manifest = bundle_model.load_manifest(manifest_path)
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = pathlib.Path(tmp) / "model.tar"
+            archive.write_bytes(b"model")
+            release_metadata = bundle_model.build_release_metadata(
+                manifest,
+                archive,
+                [{"file_name": "model.part-000", "size_bytes": 5}],
+                "main",
+            )
+
+        self.assertEqual(
+            release_metadata["runtime_config"]["default_parameters"]["voice"],
+            "Ethan",
+        )
+        self.assertEqual(
+            release_metadata["runtime_config"]["default_parameters"]["lang_code"],
+            "ru",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

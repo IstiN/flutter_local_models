@@ -126,6 +126,7 @@ def build_release_metadata(
         "archive_size_bytes": archive_path.stat().st_size,
         "chunk_size_bytes": manifest.chunk_size_bytes,
         "parts": parts,
+        "runtime_config": manifest.runtime_config,
     }
 
 

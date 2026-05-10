@@ -2183,7 +2183,8 @@ class _StudioShellState extends State<StudioShell> {
     }
     final defaults = model.manifest.runtimeConfig.defaultParameters;
     final voice = defaults['voice'] as String?;
-    final voicePrompt = defaults['voice_prompt'] as String?;
+    final voicePrompt =
+        defaults['instruct'] as String? ?? defaults['voice_prompt'] as String?;
     final language =
         defaults['lang_code'] as String? ?? defaults['language'] as String?;
     final speed = defaults['speed'];

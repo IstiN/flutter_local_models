@@ -59,11 +59,11 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "audio_format": "wav",
         "join_audio": true
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
           "voice": {
@@ -83,7 +83,7 @@
       "voices": [
         {
           "id": "default",
-          "display_name": "Default Dia voice",
+          "displayName": "Default Dia voice",
           "locale": "multilingual",
           "description": "Dia default expressive voice profile."
         }
@@ -334,13 +334,13 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "width": 1024,
         "height": 1024,
         "steps": 30,
         "guidance": 5.0
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
           "width": {
@@ -427,12 +427,12 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "audio_format": "wav",
         "join_audio": true,
         "voice": "af_heart"
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
           "voice": {
@@ -448,17 +448,17 @@
       "voices": [
         {
           "id": "af_heart",
-          "display_name": "AF Heart",
+          "displayName": "AF Heart",
           "locale": "en-US"
         },
         {
           "id": "af_bella",
-          "display_name": "AF Bella",
+          "displayName": "AF Bella",
           "locale": "en-US"
         },
         {
           "id": "am_adam",
-          "display_name": "AM Adam",
+          "displayName": "AM Adam",
           "locale": "en-US"
         }
       ],
@@ -527,13 +527,13 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "width": 1024,
         "height": 1024,
         "steps": 30,
         "guidance": 4.0
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
           "width": {
@@ -618,13 +618,13 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "width": 1024,
         "height": 1024,
         "steps": 30,
         "guidance": 4.0
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
           "width": {
@@ -890,27 +890,64 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "audio_format": "wav",
-        "join_audio": true
+        "join_audio": true,
+        "voice": "Ethan",
+        "lang_code": "ru",
+        "speed": 1.0,
+        "instruct": "A calm, natural assistant voice with stable tone, speaking clearly in Russian."
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
           "voice": {
-            "type": "string"
+            "type": "string",
+            "description": "Voice/speaker name passed to --voice.",
+            "enum": [
+              "Ethan",
+              "Chelsie",
+              "Vivian"
+            ]
+          },
+          "instruct": {
+            "type": "string",
+            "description": "Stable voice style instruction passed to --instruct."
+          },
+          "lang_code": {
+            "type": "string",
+            "description": "Output language code passed to --lang_code."
           },
           "speed": {
             "type": "number",
             "minimum": 0.5,
             "maximum": 2.0
+          },
+          "ref_audio": {
+            "type": "string",
+            "description": "Optional reference audio path passed to --ref_audio."
+          },
+          "ref_text": {
+            "type": "string",
+            "description": "Optional transcript for reference audio passed to --ref_text."
           }
         }
       },
       "voices": [
         {
-          "id": "default",
-          "display_name": "Default Qwen3 TTS voice",
+          "id": "Ethan",
+          "displayName": "Ethan",
+          "locale": "multilingual",
+          "description": "Default stable assistant voice preset."
+        },
+        {
+          "id": "Chelsie",
+          "displayName": "Chelsie",
+          "locale": "multilingual"
+        },
+        {
+          "id": "Vivian",
+          "displayName": "Vivian",
           "locale": "multilingual"
         }
       ],
@@ -981,20 +1018,46 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "audio_format": "wav",
-        "join_audio": true
+        "join_audio": true,
+        "voice": "Ethan",
+        "lang_code": "ru",
+        "speed": 1.0,
+        "instruct": "A calm, natural assistant voice with stable tone, speaking clearly in Russian."
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
           "voice": {
-            "type": "string"
+            "type": "string",
+            "description": "Voice/speaker name passed to --voice.",
+            "enum": [
+              "Ethan",
+              "Chelsie",
+              "Vivian"
+            ]
+          },
+          "instruct": {
+            "type": "string",
+            "description": "Stable voice style instruction passed to --instruct."
+          },
+          "lang_code": {
+            "type": "string",
+            "description": "Output language code passed to --lang_code."
           },
           "speed": {
             "type": "number",
             "minimum": 0.5,
             "maximum": 2.0
+          },
+          "ref_audio": {
+            "type": "string",
+            "description": "Optional reference audio path passed to --ref_audio."
+          },
+          "ref_text": {
+            "type": "string",
+            "description": "Optional transcript for reference audio passed to --ref_text."
           },
           "seed": {
             "type": "integer"
@@ -1003,8 +1066,19 @@
       },
       "voices": [
         {
-          "id": "default",
-          "display_name": "Default Qwen3 TTS voice",
+          "id": "Ethan",
+          "displayName": "Ethan",
+          "locale": "multilingual",
+          "description": "Default stable assistant voice preset."
+        },
+        {
+          "id": "Chelsie",
+          "displayName": "Chelsie",
+          "locale": "multilingual"
+        },
+        {
+          "id": "Vivian",
+          "displayName": "Vivian",
           "locale": "multilingual"
         }
       ],
@@ -1075,21 +1149,50 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "audio_format": "wav",
-        "join_audio": true
+        "join_audio": true,
+        "voice": "Ethan",
+        "lang_code": "ru",
+        "speed": 1.0,
+        "instruct": "A calm, natural assistant voice with stable tone, speaking clearly in Russian."
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
+          "voice": {
+            "type": "string",
+            "description": "Optional voice/speaker name passed to --voice.",
+            "enum": [
+              "Ethan",
+              "Chelsie",
+              "Vivian"
+            ]
+          },
+          "instruct": {
+            "type": "string",
+            "description": "Voice design prompt passed to --instruct."
+          },
           "voice_prompt": {
             "type": "string",
-            "description": "Natural language voice design prompt."
+            "description": "Backward-compatible alias for instruct."
+          },
+          "lang_code": {
+            "type": "string",
+            "description": "Output language code passed to --lang_code."
           },
           "speed": {
             "type": "number",
             "minimum": 0.5,
             "maximum": 2.0
+          },
+          "ref_audio": {
+            "type": "string",
+            "description": "Optional reference audio path passed to --ref_audio."
+          },
+          "ref_text": {
+            "type": "string",
+            "description": "Optional transcript for reference audio passed to --ref_text."
           },
           "seed": {
             "type": "integer"
@@ -1098,10 +1201,26 @@
       },
       "voices": [
         {
-          "id": "designed",
-          "display_name": "Designed voice",
+          "id": "Ethan",
+          "displayName": "Ethan",
           "locale": "multilingual",
-          "description": "Voice controlled by a voice_prompt parameter."
+          "description": "Default stable assistant voice preset."
+        },
+        {
+          "id": "Chelsie",
+          "displayName": "Chelsie",
+          "locale": "multilingual"
+        },
+        {
+          "id": "Vivian",
+          "displayName": "Vivian",
+          "locale": "multilingual"
+        },
+        {
+          "id": "designed",
+          "displayName": "Designed voice",
+          "locale": "multilingual",
+          "description": "Voice controlled by an instruct / voice_prompt parameter."
         }
       ],
       "output": {
@@ -1171,11 +1290,11 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "audio_format": "wav",
         "join_audio": true
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
           "voice": {
@@ -1191,7 +1310,7 @@
       "voices": [
         {
           "id": "default",
-          "display_name": "Default VibeVoice",
+          "displayName": "Default VibeVoice",
           "locale": "multilingual"
         }
       ],
@@ -1262,11 +1381,11 @@
       }
     },
     "runtimeConfig": {
-      "default_parameters": {
+      "defaultParameters": {
         "audio_format": "wav",
         "join_audio": true
       },
-      "parameter_schema": {
+      "parameterSchema": {
         "type": "object",
         "properties": {
           "voice": {
@@ -1282,7 +1401,7 @@
       "voices": [
         {
           "id": "default",
-          "display_name": "Default VoxCPM2",
+          "displayName": "Default VoxCPM2",
           "locale": "multilingual"
         }
       ],
