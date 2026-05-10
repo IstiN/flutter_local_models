@@ -146,6 +146,7 @@ class _StudioShellState extends State<StudioShell> {
   late final TextEditingController hfTokenController;
   late final TextEditingController githubRepoController;
   late final TextEditingController customRepoController;
+  late final TextEditingController downloadRetryCountController;
   late final TextEditingController chatPromptController;
   late final ScrollController chatScrollController;
   late final AudioRecorder audioRecorder;
@@ -185,6 +186,9 @@ class _StudioShellState extends State<StudioShell> {
     customRepoController = TextEditingController(
       text: controller.customHfRepoId,
     );
+    downloadRetryCountController = TextEditingController(
+      text: controller.maxDownloadRetries.toString(),
+    );
     chatPromptController = TextEditingController();
     chatScrollController = ScrollController();
     audioRecorder = AudioRecorder();
@@ -200,6 +204,7 @@ class _StudioShellState extends State<StudioShell> {
     hfTokenController.dispose();
     githubRepoController.dispose();
     customRepoController.dispose();
+    downloadRetryCountController.dispose();
     chatPromptController.dispose();
     chatScrollController.dispose();
     audioRecorder.dispose();
@@ -223,6 +228,8 @@ class _StudioShellState extends State<StudioShell> {
     hfTokenController.text = controller.hfToken;
     githubRepoController.text = controller.githubRepoPath;
     customRepoController.text = controller.customHfRepoId;
+    downloadRetryCountController.text = controller.maxDownloadRetries
+        .toString();
   }
 
   void _scrollChatToBottom() {
@@ -671,6 +678,18 @@ class _StudioShellState extends State<StudioShell> {
                     hintText: 'mlx-community/Qwen3-8B-4bit',
                   ),
                 ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: downloadRetryCountController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.replay),
+                    labelText: 'Download auto retries',
+                    helperText:
+                        'Retries transient curl/network/file-size failures before stopping.',
+                  ),
+                ),
                 const SizedBox(height: 18),
                 Wrap(
                   spacing: 12,
@@ -682,6 +701,11 @@ class _StudioShellState extends State<StudioShell> {
                           hfToken: hfTokenController.text,
                           githubRepoPath: githubRepoController.text,
                           customHfRepoId: customRepoController.text,
+                          maxDownloadRetries:
+                              int.tryParse(
+                                downloadRetryCountController.text.trim(),
+                              ) ??
+                              controller.maxDownloadRetries,
                         );
                         await controller.refreshSources();
                       }),
@@ -1577,6 +1601,10 @@ class _StudioShellState extends State<StudioShell> {
             const SizedBox(height: 8),
             Text('Source: ${task.sourceLabel}'),
             Text('Status: $statusLabel'),
+            if (task.retryAttempt > 0)
+              Text(
+                'Retry: ${task.retryAttempt} / ${controller.maxDownloadRetries}',
+              ),
             if (task.totalBytes > 0)
               Text(
                 '${formatBytes(task.downloadedBytes)} / ${formatBytes(task.totalBytes)}',

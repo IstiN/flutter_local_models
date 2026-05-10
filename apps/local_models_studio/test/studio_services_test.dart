@@ -184,6 +184,7 @@ void main() {
       hfToken: 'hf_test',
       githubRepoPath: 'TestOwner/test_repo',
       customHfRepoId: 'mlx-community/custom',
+      maxDownloadRetries: 7,
     );
 
     final secondController = StudioController(
@@ -203,6 +204,7 @@ void main() {
     expect(secondController.hfToken, 'hf_test');
     expect(secondController.githubRepoPath, 'TestOwner/test_repo');
     expect(secondController.customHfRepoId, 'mlx-community/custom');
+    expect(secondController.maxDownloadRetries, 7);
   });
 
   test('initialize restores persisted downloads and resumes them', () async {

@@ -198,12 +198,14 @@ class StudioSettings {
     this.githubOwner = 'IstiN',
     this.githubRepository = 'flutter_local_models',
     this.customHfRepoId = '',
+    this.maxDownloadRetries = 5,
   });
 
   final String hfToken;
   final String githubOwner;
   final String githubRepository;
   final String customHfRepoId;
+  final int maxDownloadRetries;
 
   String get githubRepoPath => '$githubOwner/$githubRepository';
 
@@ -212,12 +214,14 @@ class StudioSettings {
     String? githubOwner,
     String? githubRepository,
     String? customHfRepoId,
+    int? maxDownloadRetries,
   }) {
     return StudioSettings(
       hfToken: hfToken ?? this.hfToken,
       githubOwner: githubOwner ?? this.githubOwner,
       githubRepository: githubRepository ?? this.githubRepository,
       customHfRepoId: customHfRepoId ?? this.customHfRepoId,
+      maxDownloadRetries: maxDownloadRetries ?? this.maxDownloadRetries,
     );
   }
 
@@ -228,6 +232,7 @@ class StudioSettings {
       githubRepository:
           map['githubRepository'] as String? ?? 'flutter_local_models',
       customHfRepoId: map['customHfRepoId'] as String? ?? '',
+      maxDownloadRetries: (map['maxDownloadRetries'] as num?)?.toInt() ?? 5,
     );
   }
 
@@ -236,6 +241,7 @@ class StudioSettings {
     'githubOwner': githubOwner,
     'githubRepository': githubRepository,
     'customHfRepoId': customHfRepoId,
+    'maxDownloadRetries': maxDownloadRetries,
   };
 }
 
@@ -318,6 +324,7 @@ class DownloadTaskRecord {
   int totalBytes = 0;
   String? errorMessage;
   String? installedPath;
+  int retryAttempt = 0;
   bool pauseRequested = false;
   bool cancelRequested = false;
 
@@ -357,6 +364,7 @@ class DownloadTaskRecord {
       )
       ..downloadedBytes = (map['downloadedBytes'] as num?)?.toInt() ?? 0
       ..totalBytes = (map['totalBytes'] as num?)?.toInt() ?? 0
+      ..retryAttempt = (map['retryAttempt'] as num?)?.toInt() ?? 0
       ..status = DownloadTaskStatus.paused;
   }
 
@@ -371,6 +379,7 @@ class DownloadTaskRecord {
     'manifest': manifest.toJson(),
     'downloadedBytes': downloadedBytes,
     'totalBytes': totalBytes,
+    'retryAttempt': retryAttempt,
   };
 }
 
@@ -910,6 +919,7 @@ class StudioController extends ChangeNotifier {
   String? sourceErrorMessage;
   String hfToken = '';
   String customHfRepoId = '';
+  int maxDownloadRetries = 5;
   String settingsStatusMessage = '';
   String? customHfErrorMessage;
   HuggingFaceRepoDetails? customHfRepoDetails;
@@ -1005,12 +1015,14 @@ class StudioController extends ChangeNotifier {
     required String hfToken,
     required String githubRepoPath,
     required String customHfRepoId,
+    required int maxDownloadRetries,
   }) async {
     final parsed = _parseGitHubRepoPath(githubRepoPath);
     this.hfToken = hfToken.trim();
     apiClient.githubOwner = parsed.$1;
     apiClient.githubRepository = parsed.$2;
     this.customHfRepoId = customHfRepoId.trim();
+    this.maxDownloadRetries = _clampDownloadRetryCount(maxDownloadRetries);
     settingsStatusMessage = 'Settings saved';
     await _saveSettings();
     notifyListeners();
@@ -1334,6 +1346,9 @@ class StudioController extends ChangeNotifier {
       final settings = StudioSettings.fromJsonMap(decoded);
       hfToken = settings.hfToken;
       customHfRepoId = settings.customHfRepoId;
+      maxDownloadRetries = _clampDownloadRetryCount(
+        settings.maxDownloadRetries,
+      );
       apiClient.githubOwner = settings.githubOwner;
       apiClient.githubRepository = settings.githubRepository;
     } catch (error) {
@@ -1348,6 +1363,7 @@ class StudioController extends ChangeNotifier {
       githubOwner: apiClient.githubOwner,
       githubRepository: apiClient.githubRepository,
       customHfRepoId: customHfRepoId,
+      maxDownloadRetries: maxDownloadRetries,
     );
     await paths.settingsFile.writeAsString(
       const JsonEncoder.withIndent('  ').convert(settings.toJson()),
@@ -1456,6 +1472,7 @@ class StudioController extends ChangeNotifier {
     if (!record.canResume) {
       return;
     }
+    record.retryAttempt = 0;
     record.pauseRequested = false;
     record.cancelRequested = false;
     record.errorMessage = null;
@@ -1543,13 +1560,66 @@ class StudioController extends ChangeNotifier {
       await _cleanupCanceledTask(record);
       await _persistDownloadQueue();
     } catch (error) {
+      if (_isRetryableDownloadError(error) &&
+          record.retryAttempt < maxDownloadRetries &&
+          !record.cancelRequested &&
+          !record.pauseRequested) {
+        record.retryAttempt += 1;
+        record.status = DownloadTaskStatus.running;
+        record.errorMessage =
+            'Retry ${record.retryAttempt}/$maxDownloadRetries after: $error';
+        await _persistDownloadQueue();
+        notifyListeners();
+        await Future<void>.delayed(_retryDelay(record.retryAttempt));
+        if (record.cancelRequested) {
+          await _cleanupCanceledTask(record);
+          await _persistDownloadQueue();
+          return;
+        }
+        if (record.pauseRequested) {
+          record.status = DownloadTaskStatus.paused;
+          await _persistDownloadQueue();
+          return;
+        }
+        unawaited(_runDownload(record));
+        return;
+      }
       record.status = DownloadTaskStatus.failed;
-      record.errorMessage = '$error';
+      final retrySuffix = record.retryAttempt > 0
+          ? ' after ${record.retryAttempt}/$maxDownloadRetries retries'
+          : '';
+      record.errorMessage = '$error$retrySuffix';
       await _persistDownloadQueue();
     } finally {
       notifyListeners();
     }
   }
+
+  Duration _retryDelay(int attempt) {
+    final seconds = (1 << (attempt - 1)).clamp(1, 30).toInt();
+    return Duration(seconds: seconds);
+  }
+
+  bool _isRetryableDownloadError(Object error) {
+    if (error is HttpException) {
+      final message = error.message.toLowerCase();
+      return message.contains('curl: (56)') ||
+          message.contains('curl: (18)') ||
+          message.contains('curl: (28)') ||
+          message.contains('connection reset') ||
+          message.contains('connection timed out') ||
+          message.contains('transfer closed') ||
+          message.contains('recv failure') ||
+          message.contains('failed receiving network data');
+    }
+    if (error is StateError) {
+      final message = error.message.toLowerCase();
+      return message.contains('unexpected file size');
+    }
+    return false;
+  }
+
+  static int _clampDownloadRetryCount(int value) => value.clamp(0, 50).toInt();
 
   Future<void> _cleanupCanceledTask(DownloadTaskRecord record) async {
     record.status = DownloadTaskStatus.canceled;
