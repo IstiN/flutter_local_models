@@ -198,12 +198,15 @@ class _StudioShellState extends State<StudioShell> {
   String? selectedAudioPath;
   String? selectedImagePath;
   String? ttsReferenceAudioPath;
+  String? myVoiceReferencePath;
   String? generatedAudioPath;
   String? playingAudioPath;
   bool audioInputMode = false;
   bool imageInputMode = false;
   _TestWorkspaceMode testWorkspaceMode = _TestWorkspaceMode.single;
   bool recordingAudio = false;
+  bool recordingReferenceVoice = false;
+  bool showVoicePipelineSettings = false;
   bool testBusy = false;
   String? testErrorMessage;
   bool obscureHfToken = true;
@@ -250,6 +253,7 @@ class _StudioShellState extends State<StudioShell> {
     audioPlayer = AudioPlayer();
     controller.addListener(_handleControllerUpdate);
     unawaited(controller.initialize());
+    unawaited(_loadLatestVoiceReference());
   }
 
   @override
@@ -293,6 +297,27 @@ class _StudioShellState extends State<StudioShell> {
     customRepoController.text = controller.customHfRepoId;
     downloadRetryCountController.text = controller.maxDownloadRetries
         .toString();
+  }
+
+  Future<void> _loadLatestVoiceReference() async {
+    final directory = controller.paths.voiceReferencesDirectory;
+    if (!directory.existsSync()) {
+      return;
+    }
+    final files =
+        directory
+            .listSync()
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.m4a'))
+            .toList()
+          ..sort(
+            (left, right) =>
+                right.lastModifiedSync().compareTo(left.lastModifiedSync()),
+          );
+    if (files.isEmpty || !mounted) {
+      return;
+    }
+    setState(() => myVoiceReferencePath = files.first.path);
   }
 
   void _scrollChatToBottom() {
@@ -963,7 +988,8 @@ class _StudioShellState extends State<StudioShell> {
                             ? _TestInputMode.audio
                             : _TestInputMode.text,
                       },
-                      onSelectionChanged: testBusy || recordingAudio
+                      onSelectionChanged:
+                          testBusy || recordingAudio || recordingReferenceVoice
                           ? null
                           : (selection) {
                               final mode = selection.first;
@@ -1306,7 +1332,7 @@ class _StudioShellState extends State<StudioShell> {
         ),
       ],
       selected: <_TestWorkspaceMode>{testWorkspaceMode},
-      onSelectionChanged: testBusy || recordingAudio
+      onSelectionChanged: testBusy || recordingAudio || recordingReferenceVoice
           ? null
           : (selection) {
               setState(() {
@@ -1344,6 +1370,7 @@ class _StudioShellState extends State<StudioShell> {
         ttsModel != null &&
         selectedAudioPath != null &&
         !recordingAudio &&
+        !recordingReferenceVoice &&
         !testBusy;
 
     return Padding(
@@ -1359,17 +1386,52 @@ class _StudioShellState extends State<StudioShell> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Voice pipeline',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Voice pipeline',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Record once, then run ASR → LLM response → TTS playback locally.',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton.filledTonal(
+                        tooltip: showVoicePipelineSettings
+                            ? 'Hide voice settings'
+                            : 'Voice settings',
+                        onPressed:
+                            testBusy ||
+                                recordingAudio ||
+                                recordingReferenceVoice
+                            ? null
+                            : () => setState(
+                                () => showVoicePipelineSettings =
+                                    !showVoicePipelineSettings,
+                              ),
+                        icon: const StudioSvgIcon('settings', size: 22),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Record once, then run ASR → LLM response → TTS playback locally.',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.outline,
+                  if (!showVoicePipelineSettings) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Settings hidden. Use the gear to choose generation params, TTS voice, language, or your own voice reference.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -1418,10 +1480,12 @@ class _StudioShellState extends State<StudioShell> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  _buildGenerationControls(chatModel),
-                  const SizedBox(height: 14),
-                  _buildTtsVoiceControls(ttsModel),
+                  if (showVoicePipelineSettings) ...[
+                    const SizedBox(height: 14),
+                    _buildGenerationControls(chatModel),
+                    const SizedBox(height: 14),
+                    _buildTtsVoiceControls(ttsModel),
+                  ],
                   const SizedBox(height: 14),
                   TextField(
                     controller: chatPromptController,
@@ -1684,6 +1748,8 @@ class _StudioShellState extends State<StudioShell> {
               ),
             ],
             const SizedBox(height: 10),
+            _buildMyVoiceReferenceMenu(mode),
+            const SizedBox(height: 10),
             Row(
               children: [
                 const StudioSvgIcon('audio', size: 22),
@@ -1813,6 +1879,74 @@ class _StudioShellState extends State<StudioShell> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMyVoiceReferenceMenu(String mode) {
+    final hasMyVoice = myVoiceReferencePath != null;
+    final selectedMyVoice =
+        hasMyVoice && ttsReferenceAudioPath == myVoiceReferencePath;
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C2038),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF464B70)),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          StudioSvgIcon(recordingReferenceVoice ? 'mic' : 'audio', size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  mode == 'base'
+                      ? 'My voice clone source'
+                      : 'My reference voice',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  recordingReferenceVoice
+                      ? 'Recording your voice sample...'
+                      : hasMyVoice
+                      ? '${p.basename(myVoiceReferencePath!)}${selectedMyVoice ? ' • selected' : ''}'
+                      : 'Record a 3–10 sec sample once, then reuse it as Ref Audio.',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          OutlinedButton.icon(
+            onPressed: testBusy || recordingAudio
+                ? null
+                : recordingReferenceVoice
+                ? _stopReferenceVoiceRecording
+                : _startReferenceVoiceRecording,
+            icon: StudioSvgIcon(
+              recordingReferenceVoice ? 'stop' : 'mic',
+              size: 20,
+            ),
+            label: Text(recordingReferenceVoice ? 'Stop' : 'Record My Voice'),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: !hasMyVoice || testBusy || recordingReferenceVoice
+                ? null
+                : () => setState(() {
+                    ttsReferenceAudioPath = myVoiceReferencePath;
+                  }),
+            icon: const StudioSvgIcon('play', size: 20),
+            label: const Text('Use My Voice'),
+          ),
+        ],
       ),
     );
   }
@@ -2074,7 +2208,7 @@ class _StudioShellState extends State<StudioShell> {
             ),
             const SizedBox(width: 12),
             OutlinedButton.icon(
-              onPressed: testBusy
+              onPressed: testBusy || recordingReferenceVoice
                   ? null
                   : recordingAudio
                   ? _stopAudioRecording
@@ -2084,7 +2218,9 @@ class _StudioShellState extends State<StudioShell> {
             ),
             const SizedBox(width: 8),
             OutlinedButton.icon(
-              onPressed: recordingAudio || testBusy ? null : _chooseAudioFile,
+              onPressed: recordingAudio || recordingReferenceVoice || testBusy
+                  ? null
+                  : _chooseAudioFile,
               icon: const StudioSvgIcon('folder', size: 20),
               label: const Text('Choose'),
             ),
@@ -2733,6 +2869,42 @@ class _StudioShellState extends State<StudioShell> {
     setState(() => ttsReferenceAudioPath = file.path);
   }
 
+  Future<void> _startReferenceVoiceRecording() async {
+    final hasPermission = await audioRecorder.hasPermission();
+    if (!hasPermission) {
+      setState(() => testErrorMessage = 'Microphone permission was denied.');
+      return;
+    }
+
+    final directory = controller.paths.voiceReferencesDirectory;
+    await directory.create(recursive: true);
+    final path = p.join(
+      directory.path,
+      'my-voice-${DateTime.now().millisecondsSinceEpoch}.m4a',
+    );
+    await audioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc),
+      path: path,
+    );
+    setState(() {
+      recordingReferenceVoice = true;
+      myVoiceReferencePath = path;
+      ttsReferenceAudioPath = path;
+      testErrorMessage = null;
+    });
+  }
+
+  Future<void> _stopReferenceVoiceRecording() async {
+    final path = await audioRecorder.stop();
+    setState(() {
+      recordingReferenceVoice = false;
+      if (path != null) {
+        myVoiceReferencePath = path;
+        ttsReferenceAudioPath = path;
+      }
+    });
+  }
+
   Future<XFile?> _openAudioFile() {
     const audioTypeGroup = XTypeGroup(
       label: 'audio',
@@ -2778,7 +2950,10 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   void _runVoicePipelineWithCurrentSelection() {
-    if (testBusy || recordingAudio || selectedAudioPath == null) {
+    if (testBusy ||
+        recordingAudio ||
+        recordingReferenceVoice ||
+        selectedAudioPath == null) {
       return;
     }
     final installedModels = controller.installedModels;

@@ -52,6 +52,8 @@ class StudioPaths {
       Directory(p.join(baseDirectory.path, 'downloads'));
   Directory get modelsDirectory =>
       Directory(p.join(baseDirectory.path, 'models'));
+  Directory get voiceReferencesDirectory =>
+      Directory(p.join(baseDirectory.path, 'voice_references'));
   File get downloadQueueFile =>
       File(p.join(baseDirectory.path, _downloadQueueFileName));
   File get settingsFile => File(p.join(baseDirectory.path, _settingsFileName));
