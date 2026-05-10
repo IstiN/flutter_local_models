@@ -16,6 +16,7 @@ class BundleModelTests(unittest.TestCase):
         manifest = bundle_model.load_manifest(manifest_path)
         self.assertEqual(manifest.id, "qwen3-asr-0.6b-4bit")
         self.assertEqual(manifest.release_tag, "model-qwen3-asr-0.6b-4bit")
+        self.assertEqual(manifest.model_card["languages"][0], "ru")
 
     def test_split_file_creates_numbered_parts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -33,6 +34,24 @@ class BundleModelTests(unittest.TestCase):
             self.assertEqual(len(parts), 3)
             self.assertEqual(parts[0]["file_name"], "sample-model.part-000")
             self.assertEqual(parts[2]["size_bytes"], 2)
+
+    def test_model_metadata_contains_runtime_and_card(self) -> None:
+        manifest_path = ROOT / "registry" / "models" / "dia-1.6b-4bit.yaml"
+        manifest = bundle_model.load_manifest(manifest_path)
+        release_metadata = {
+            "resolved_revision": "main",
+            "archive_size_bytes": 123,
+            "archive_sha256": "abc",
+            "parts": [{"file_name": "dia.part-000", "size_bytes": 123}],
+        }
+
+        metadata = bundle_model.build_model_metadata(manifest, release_metadata)
+        notes = bundle_model.build_release_notes(metadata)
+
+        self.assertEqual(metadata["schema_version"], 1)
+        self.assertEqual(metadata["model_card"]["summary"], manifest.description)
+        self.assertEqual(metadata["runtime_config"]["output"]["media_type"], "audio/wav")
+        self.assertIn("Default parameters", notes)
 
 
 if __name__ == "__main__":

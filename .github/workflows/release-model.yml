@@ -54,6 +54,7 @@ jobs:
           echo "release_tag=$(jq -r .release_tag "$METADATA_PATH")" >> "$GITHUB_OUTPUT"
           echo "bundle_dir=$(dirname "$METADATA_PATH")" >> "$GITHUB_OUTPUT"
           echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "notes_path=$(dirname "$METADATA_PATH")/release_notes.md" >> "$GITHUB_OUTPUT"
 
       - name: Create or update release
         env:
@@ -62,11 +63,11 @@ jobs:
           if gh release view "${{ steps.metadata.outputs.release_tag }}" >/dev/null 2>&1; then
             gh release edit "${{ steps.metadata.outputs.release_tag }}" \
               --title "${{ steps.metadata.outputs.title }}" \
-              --notes "Automated model bundle release for ${{ inputs.manifest_id }}."
+              --notes-file "${{ steps.metadata.outputs.notes_path }}"
           else
             gh release create "${{ steps.metadata.outputs.release_tag }}" \
               --title "${{ steps.metadata.outputs.title }}" \
-              --notes "Automated model bundle release for ${{ inputs.manifest_id }}."
+              --notes-file "${{ steps.metadata.outputs.notes_path }}"
           fi
           gh release upload "${{ steps.metadata.outputs.release_tag }}" \
             "${{ steps.metadata.outputs.bundle_dir }}"/* \
