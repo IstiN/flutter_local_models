@@ -1340,7 +1340,7 @@ class _StudioShellState extends State<StudioShell> {
                 ),
                 if (installed != null)
                   OutlinedButton.icon(
-                    onPressed: installed.chatSupported
+                    onPressed: _isModelOpenableInTest(installed)
                         ? () => _openModelInChat(installed, context)
                         : null,
                     icon: const Icon(Icons.chat_bubble_outline),
@@ -1550,6 +1550,14 @@ class _StudioShellState extends State<StudioShell> {
 
   void _openModelInChat(InstalledModel model, BuildContext context) {
     _openModelInTest(model, context);
+  }
+
+  bool _isModelOpenableInTest(InstalledModel model) {
+    return model.textPromptSupported ||
+        model.audioPromptSupported ||
+        model.speechToTextSupported ||
+        model.textToSpeechSupported ||
+        model.manifest.tasks.contains(ModelTask.vision);
   }
 
   void _openModelInTest(InstalledModel model, BuildContext context) {
