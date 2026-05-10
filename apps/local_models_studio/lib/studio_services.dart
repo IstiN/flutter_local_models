@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 
 const _installMetadataFileName = '.flutter_local_model.json';
 const _downloadQueueFileName = 'download_queue.json';
+const _settingsFileName = 'settings.json';
 
 enum DownloadSourceKind { huggingFace, githubRelease }
 
@@ -53,6 +54,7 @@ class StudioPaths {
       Directory(p.join(baseDirectory.path, 'models'));
   File get downloadQueueFile =>
       File(p.join(baseDirectory.path, _downloadQueueFileName));
+  File get settingsFile => File(p.join(baseDirectory.path, _settingsFileName));
 
   static StudioPaths forCurrentUser({String? homeDirectory}) {
     final home = homeDirectory ?? Platform.environment['HOME'];
@@ -190,6 +192,53 @@ class GitHubReleaseRecord {
   );
 }
 
+class StudioSettings {
+  const StudioSettings({
+    this.hfToken = '',
+    this.githubOwner = 'IstiN',
+    this.githubRepository = 'flutter_local_models',
+    this.customHfRepoId = '',
+  });
+
+  final String hfToken;
+  final String githubOwner;
+  final String githubRepository;
+  final String customHfRepoId;
+
+  String get githubRepoPath => '$githubOwner/$githubRepository';
+
+  StudioSettings copyWith({
+    String? hfToken,
+    String? githubOwner,
+    String? githubRepository,
+    String? customHfRepoId,
+  }) {
+    return StudioSettings(
+      hfToken: hfToken ?? this.hfToken,
+      githubOwner: githubOwner ?? this.githubOwner,
+      githubRepository: githubRepository ?? this.githubRepository,
+      customHfRepoId: customHfRepoId ?? this.customHfRepoId,
+    );
+  }
+
+  factory StudioSettings.fromJsonMap(Map<String, Object?> map) {
+    return StudioSettings(
+      hfToken: map['hfToken'] as String? ?? '',
+      githubOwner: map['githubOwner'] as String? ?? 'IstiN',
+      githubRepository:
+          map['githubRepository'] as String? ?? 'flutter_local_models',
+      customHfRepoId: map['customHfRepoId'] as String? ?? '',
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'hfToken': hfToken,
+    'githubOwner': githubOwner,
+    'githubRepository': githubRepository,
+    'customHfRepoId': customHfRepoId,
+  };
+}
+
 class InstalledModel {
   const InstalledModel({
     required this.manifest,
@@ -325,8 +374,8 @@ class StudioApiClient {
     this.githubRepository = 'flutter_local_models',
   });
 
-  final String githubOwner;
-  final String githubRepository;
+  String githubOwner;
+  String githubRepository;
 
   Future<List<GitHubReleaseRecord>> fetchGitHubReleases(
     ModelRegistry registry,
@@ -852,6 +901,7 @@ class StudioController extends ChangeNotifier {
   String? sourceErrorMessage;
   String hfToken = '';
   String customHfRepoId = '';
+  String settingsStatusMessage = '';
   String? customHfErrorMessage;
   HuggingFaceRepoDetails? customHfRepoDetails;
   List<GitHubReleaseRecord> githubReleases = const [];
@@ -869,10 +919,11 @@ class StudioController extends ChangeNotifier {
     if (initialized) {
       return;
     }
-    initialized = true;
     await _ensureDirectories();
+    await _loadSettings();
     await reloadInstalledModels();
     await _restoreDownloadQueue();
+    initialized = true;
     if (refreshRemoteSourcesOnInitialize) {
       await refreshSources();
     } else {
@@ -915,6 +966,7 @@ class StudioController extends ChangeNotifier {
 
   Future<void> loadCustomHuggingFaceRepo(String repoId) async {
     customHfRepoId = repoId.trim();
+    await _saveSettings();
     customHfRepoDetails = null;
     customHfErrorMessage = null;
     notifyListeners();
@@ -933,10 +985,29 @@ class StudioController extends ChangeNotifier {
     }
   }
 
-  void updateHfToken(String value) {
+  Future<void> updateHfToken(String value) async {
     hfToken = value.trim();
+    await _saveSettings();
     notifyListeners();
   }
+
+  Future<void> updateSettings({
+    required String hfToken,
+    required String githubRepoPath,
+    required String customHfRepoId,
+  }) async {
+    final parsed = _parseGitHubRepoPath(githubRepoPath);
+    this.hfToken = hfToken.trim();
+    apiClient.githubOwner = parsed.$1;
+    apiClient.githubRepository = parsed.$2;
+    this.customHfRepoId = customHfRepoId.trim();
+    settingsStatusMessage = 'Settings saved';
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  String get githubRepoPath =>
+      '${apiClient.githubOwner}/${apiClient.githubRepository}';
 
   String? get hfTokenOrNull => hfToken.trim().isEmpty ? null : hfToken.trim();
 
@@ -1242,6 +1313,37 @@ class StudioController extends ChangeNotifier {
     );
   }
 
+  Future<void> _loadSettings() async {
+    final file = paths.settingsFile;
+    if (!file.existsSync()) {
+      return;
+    }
+    try {
+      final decoded =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final settings = StudioSettings.fromJsonMap(decoded);
+      hfToken = settings.hfToken;
+      customHfRepoId = settings.customHfRepoId;
+      apiClient.githubOwner = settings.githubOwner;
+      apiClient.githubRepository = settings.githubRepository;
+    } catch (error) {
+      sourceErrorMessage = 'Failed to load settings: $error';
+    }
+  }
+
+  Future<void> _saveSettings() async {
+    await _ensureDirectories();
+    final settings = StudioSettings(
+      hfToken: hfToken,
+      githubOwner: apiClient.githubOwner,
+      githubRepository: apiClient.githubRepository,
+      customHfRepoId: customHfRepoId,
+    );
+    await paths.settingsFile.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(settings.toJson()),
+    );
+  }
+
   Future<InstalledModel> _installerForPersistedDownload(
     DownloadTaskRecord record,
   ) {
@@ -1451,112 +1553,143 @@ class StudioController extends ChangeNotifier {
     DownloadTaskRecord record,
     RemoteFileDescriptor file,
   ) async {
-    if (record.cancelRequested) {
-      throw _CanceledDownload();
-    }
-    if (record.pauseRequested) {
-      throw _PausedDownload();
-    }
-
     final destination = File(
       p.join(record.stageDirectory.path, file.relativePath),
     );
     await destination.parent.create(recursive: true);
     final expectedSize = file.sizeBytes;
-    final alreadyWritten = destination.existsSync()
-        ? await destination.length()
-        : 0;
-    if (expectedSize != null && alreadyWritten == expectedSize) {
-      if (file.sha256 != null) {
-        final digest = await _computeFileSha256(destination);
-        if (digest != file.sha256) {
-          await destination.delete();
-          throw StateError('Checksum mismatch for ${file.relativePath}.');
-        }
-      }
-      return;
-    }
+    var retriedCleanDownload = false;
 
-    final baselineDownloaded = record.downloadedBytes - alreadyWritten;
-    final stderrBuffer = StringBuffer();
-    final args = <String>[
-      '-L',
-      '--fail',
-      '--silent',
-      '--show-error',
-      '--http1.1',
-      ..._curlHeaderArgs(<String, String>{
-        HttpHeaders.userAgentHeader: 'flutter_local_models/0.1',
-        ..._authorizationHeaders(
-          record.sourceKind == DownloadSourceKind.huggingFace
-              ? hfTokenOrNull
-              : null,
-        ),
-      }),
-      if (alreadyWritten > 0) ...<String>['-C', '-'],
-      '-o',
-      destination.path,
-      file.downloadUri.toString(),
-    ];
-
-    final process = await Process.start(_curlExecutable, args);
-    final stderrSubscription = process.stderr
-        .transform(utf8.decoder)
-        .listen(stderrBuffer.write);
-    final stdoutSubscription = process.stdout.listen((_) {});
-    final monitor = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (record.cancelRequested || record.pauseRequested) {
-        process.kill(ProcessSignal.sigterm);
-        return;
-      }
-      if (!destination.existsSync()) {
-        return;
-      }
-      destination.length().then((currentLength) {
-        record.downloadedBytes = baselineDownloaded + currentLength;
-        unawaited(_persistDownloadQueue());
-        notifyListeners();
-      });
-    });
-
-    try {
-      final exitCode = await process.exitCode;
-      monitor.cancel();
-      await stdoutSubscription.cancel();
-      await stderrSubscription.cancel();
-
+    while (true) {
       if (record.cancelRequested) {
         throw _CanceledDownload();
       }
       if (record.pauseRequested) {
         throw _PausedDownload();
       }
-      if (exitCode != 0) {
-        final stderrText = stderrBuffer.toString().trim();
-        throw HttpException(
-          'Download failed for ${file.relativePath}: '
-          '${stderrText.isEmpty ? 'curl exited with code $exitCode' : stderrText}',
-        );
-      }
 
-      final finalLength = destination.existsSync()
+      var alreadyWritten = destination.existsSync()
           ? await destination.length()
           : 0;
-      record.downloadedBytes = baselineDownloaded + finalLength;
-      await _persistDownloadQueue();
-      notifyListeners();
-
-      if (expectedSize != null && finalLength != expectedSize) {
-        throw StateError('Unexpected file size for ${file.relativePath}.');
-      }
-      if (file.sha256 != null) {
-        final digest = await _computeFileSha256(destination);
-        if (digest != file.sha256) {
-          throw StateError('Checksum mismatch for ${file.relativePath}.');
+      if (expectedSize != null && alreadyWritten > expectedSize) {
+        await destination.delete();
+        record.downloadedBytes -= alreadyWritten;
+        if (record.downloadedBytes < 0) {
+          record.downloadedBytes = 0;
         }
+        alreadyWritten = 0;
+        await _persistDownloadQueue();
+        notifyListeners();
       }
-    } finally {
-      monitor.cancel();
+
+      if (expectedSize != null && alreadyWritten == expectedSize) {
+        if (file.sha256 != null) {
+          final digest = await _computeFileSha256(destination);
+          if (digest != file.sha256) {
+            await destination.delete();
+            throw StateError('Checksum mismatch for ${file.relativePath}.');
+          }
+        }
+        return;
+      }
+
+      final baselineDownloaded = record.downloadedBytes - alreadyWritten;
+      final stderrBuffer = StringBuffer();
+      final args = <String>[
+        '-L',
+        '--fail',
+        '--silent',
+        '--show-error',
+        '--http1.1',
+        ..._curlHeaderArgs(<String, String>{
+          HttpHeaders.userAgentHeader: 'flutter_local_models/0.1',
+          HttpHeaders.acceptHeader: 'application/octet-stream',
+          ..._authorizationHeaders(
+            record.sourceKind == DownloadSourceKind.huggingFace
+                ? hfTokenOrNull
+                : null,
+          ),
+        }),
+        if (alreadyWritten > 0) ...<String>['-C', '-'],
+        '-o',
+        destination.path,
+        file.downloadUri.toString(),
+      ];
+
+      final process = await Process.start(_curlExecutable, args);
+      final stderrSubscription = process.stderr
+          .transform(utf8.decoder)
+          .listen(stderrBuffer.write);
+      final stdoutSubscription = process.stdout.listen((_) {});
+      final monitor = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        if (record.cancelRequested || record.pauseRequested) {
+          process.kill(ProcessSignal.sigterm);
+          return;
+        }
+        if (!destination.existsSync()) {
+          return;
+        }
+        destination.length().then((currentLength) {
+          record.downloadedBytes = baselineDownloaded + currentLength;
+          unawaited(_persistDownloadQueue());
+          notifyListeners();
+        });
+      });
+
+      try {
+        final exitCode = await process.exitCode;
+        monitor.cancel();
+        await stdoutSubscription.cancel();
+        await stderrSubscription.cancel();
+
+        if (record.cancelRequested) {
+          throw _CanceledDownload();
+        }
+        if (record.pauseRequested) {
+          throw _PausedDownload();
+        }
+        if (exitCode != 0) {
+          final stderrText = stderrBuffer.toString().trim();
+          throw HttpException(
+            'Download failed for ${file.relativePath}: '
+            '${stderrText.isEmpty ? 'curl exited with code $exitCode' : stderrText}',
+          );
+        }
+
+        final finalLength = destination.existsSync()
+            ? await destination.length()
+            : 0;
+        record.downloadedBytes = baselineDownloaded + finalLength;
+        await _persistDownloadQueue();
+        notifyListeners();
+
+        if (expectedSize != null && finalLength != expectedSize) {
+          if (!retriedCleanDownload &&
+              record.sourceKind == DownloadSourceKind.githubRelease) {
+            retriedCleanDownload = true;
+            if (destination.existsSync()) {
+              await destination.delete();
+            }
+            record.downloadedBytes = baselineDownloaded;
+            await _persistDownloadQueue();
+            notifyListeners();
+            continue;
+          }
+          throw StateError(
+            'Unexpected file size for ${file.relativePath}: '
+            '${formatBytes(finalLength)} downloaded, expected ${formatBytes(expectedSize)}.',
+          );
+        }
+        if (file.sha256 != null) {
+          final digest = await _computeFileSha256(destination);
+          if (digest != file.sha256) {
+            throw StateError('Checksum mismatch for ${file.relativePath}.');
+          }
+        }
+        return;
+      } finally {
+        monitor.cancel();
+      }
     }
   }
 
@@ -1750,6 +1883,18 @@ String sanitizeId(String value) {
       .replaceAll(RegExp(r'[^a-z0-9._-]+'), '-')
       .replaceAll(RegExp(r'-{2,}'), '-')
       .replaceAll(RegExp(r'^-|-$'), '');
+}
+
+(String, String) _parseGitHubRepoPath(String value) {
+  var normalized = value.trim();
+  normalized = normalized.replaceFirst(RegExp(r'^https://github\.com/'), '');
+  normalized = normalized.replaceFirst(RegExp(r'^git@github\.com:'), '');
+  normalized = normalized.replaceFirst(RegExp(r'\.git$'), '');
+  final parts = normalized.split('/').where((part) => part.isNotEmpty).toList();
+  if (parts.length < 2) {
+    throw FormatException('Use GitHub repo as owner/name.');
+  }
+  return (parts[0], parts[1]);
 }
 
 String formatBytes(int bytes) {

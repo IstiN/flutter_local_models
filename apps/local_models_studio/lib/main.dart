@@ -143,6 +143,7 @@ class _StudioShellState extends State<StudioShell> {
   late final StudioController controller;
   late final TextEditingController catalogSearchController;
   late final TextEditingController hfTokenController;
+  late final TextEditingController githubRepoController;
   late final TextEditingController customRepoController;
   late final TextEditingController chatPromptController;
   late final ScrollController chatScrollController;
@@ -157,6 +158,7 @@ class _StudioShellState extends State<StudioShell> {
   bool testBusy = false;
   String? testErrorMessage;
   bool obscureHfToken = true;
+  bool settingsControllersHydrated = false;
   int selectedPageIndex = 0;
   String catalogFilter = 'all';
 
@@ -173,6 +175,9 @@ class _StudioShellState extends State<StudioShell> {
           runtimeSummary: widget.snapshot.runtimeSummary,
         );
     hfTokenController = TextEditingController(text: controller.hfToken);
+    githubRepoController = TextEditingController(
+      text: controller.githubRepoPath,
+    );
     catalogSearchController = TextEditingController();
     customRepoController = TextEditingController(
       text: controller.customHfRepoId,
@@ -189,6 +194,7 @@ class _StudioShellState extends State<StudioShell> {
     controller.removeListener(_handleControllerUpdate);
     catalogSearchController.dispose();
     hfTokenController.dispose();
+    githubRepoController.dispose();
     customRepoController.dispose();
     chatPromptController.dispose();
     chatScrollController.dispose();
@@ -201,7 +207,17 @@ class _StudioShellState extends State<StudioShell> {
       return;
     }
     setState(() {});
+    if (!settingsControllersHydrated && controller.initialized) {
+      settingsControllersHydrated = true;
+      _syncSettingsControllers();
+    }
     _scrollChatToBottom();
+  }
+
+  void _syncSettingsControllers() {
+    hfTokenController.text = controller.hfToken;
+    githubRepoController.text = controller.githubRepoPath;
+    customRepoController.text = controller.customHfRepoId;
   }
 
   void _scrollChatToBottom() {
@@ -248,6 +264,11 @@ class _StudioShellState extends State<StudioShell> {
                 icon: Icon(Icons.play_circle_outline),
                 selectedIcon: Icon(Icons.play_circle),
                 label: Text('Test'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings),
+                label: Text('Settings'),
               ),
             ],
           ),
@@ -298,6 +319,7 @@ class _StudioShellState extends State<StudioShell> {
                       _buildCatalogTab(context),
                       _buildDownloadsTab(context),
                       _buildTestTab(context),
+                      _buildSettingsTab(context),
                     ],
                   ),
                 ),
@@ -581,6 +603,104 @@ class _StudioShellState extends State<StudioShell> {
               child: _buildInstalledModelCard(context, model),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsTab(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Text('Settings', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 8),
+        const Text(
+          'Shared app settings for source discovery, gated downloads, and future runtime configuration.',
+        ),
+        const SizedBox(height: 20),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Sources', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: githubRepoController,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.code),
+                    labelText: 'GitHub releases repository',
+                    hintText: 'IstiN/flutter_local_models',
+                    helperText:
+                        'Owner/repo where Studio looks for model bundle releases.',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: hfTokenController,
+                  obscureText: obscureHfToken,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.key),
+                    labelText: 'Hugging Face token',
+                    hintText: 'hf_...',
+                    helperText:
+                        'Stored locally in app settings. Leave empty for public repos.',
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() => obscureHfToken = !obscureHfToken);
+                      },
+                      icon: Icon(
+                        obscureHfToken
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: customRepoController,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.travel_explore),
+                    labelText: 'Default custom Hugging Face repo',
+                    hintText: 'mlx-community/Qwen3-8B-4bit',
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () => _runAction(() async {
+                        await controller.updateSettings(
+                          hfToken: hfTokenController.text,
+                          githubRepoPath: githubRepoController.text,
+                          customHfRepoId: customRepoController.text,
+                        );
+                        await controller.refreshSources();
+                      }),
+                      icon: const Icon(Icons.save),
+                      label: const Text('Save & Refresh'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _syncSettingsControllers();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.restore),
+                      label: const Text('Reset Form'),
+                    ),
+                  ],
+                ),
+                if (controller.settingsStatusMessage.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(controller.settingsStatusMessage),
+                ],
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1093,40 +1213,13 @@ class _StudioShellState extends State<StudioShell> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Browse the configured Hugging Face repos, inspect our GitHub releases, and test downloads with pause, resume, cancel, and delete.',
+              'Browse configured Hugging Face repos, inspect GitHub releases, and test downloads with pause, resume, cancel, and delete.',
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: hfTokenController,
-              obscureText: obscureHfToken,
-              decoration: InputDecoration(
-                labelText: 'HF token (optional)',
-                border: const OutlineInputBorder(),
-                helperText:
-                    'Leave empty for public repos. Use a token for gated or private Hugging Face repos.',
-                suffixIcon: IconButton(
-                  onPressed: () {
-                    setState(() => obscureHfToken = !obscureHfToken);
-                  },
-                  icon: Icon(
-                    obscureHfToken ? Icons.visibility : Icons.visibility_off,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
-                FilledButton.icon(
-                  onPressed: () {
-                    controller.updateHfToken(hfTokenController.text);
-                    _runAction(controller.refreshSources);
-                  },
-                  icon: const Icon(Icons.key),
-                  label: const Text('Apply Token'),
-                ),
                 OutlinedButton.icon(
                   onPressed: controller.loadingSources
                       ? null
@@ -1135,6 +1228,11 @@ class _StudioShellState extends State<StudioShell> {
                   label: Text(
                     controller.loadingSources ? 'Refreshing...' : 'Refresh All',
                   ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => setState(() => selectedPageIndex = 3),
+                  icon: const Icon(Icons.settings),
+                  label: const Text('Source Settings'),
                 ),
               ],
             ),

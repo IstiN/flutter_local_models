@@ -156,6 +156,55 @@ void main() {
     expect(sanitizeId('mlx-community/Qwen3 8B!'), 'mlx-community-qwen3-8b');
   });
 
+  test('settings persist source configuration', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'local-models-studio-settings-test',
+    );
+    addTearDown(() async {
+      if (tempDirectory.existsSync()) {
+        await tempDirectory.delete(recursive: true);
+      }
+    });
+
+    final paths = StudioPaths(baseDirectory: tempDirectory);
+    final firstController = StudioController(
+      registry: ModelRegistry(const [_manifest]),
+      runtimeSummary: const NativeRuntimeSummary(
+        bridgeVersion: 'test',
+        platform: 'macOS test',
+        metalAvailable: true,
+        mlxFocused: true,
+        ffiEnabled: true,
+      ),
+      paths: paths,
+      refreshRemoteSourcesOnInitialize: false,
+    );
+    await firstController.initialize();
+    await firstController.updateSettings(
+      hfToken: 'hf_test',
+      githubRepoPath: 'TestOwner/test_repo',
+      customHfRepoId: 'mlx-community/custom',
+    );
+
+    final secondController = StudioController(
+      registry: ModelRegistry(const [_manifest]),
+      runtimeSummary: const NativeRuntimeSummary(
+        bridgeVersion: 'test',
+        platform: 'macOS test',
+        metalAvailable: true,
+        mlxFocused: true,
+        ffiEnabled: true,
+      ),
+      paths: paths,
+      refreshRemoteSourcesOnInitialize: false,
+    );
+    await secondController.initialize();
+
+    expect(secondController.hfToken, 'hf_test');
+    expect(secondController.githubRepoPath, 'TestOwner/test_repo');
+    expect(secondController.customHfRepoId, 'mlx-community/custom');
+  });
+
   test('initialize restores persisted downloads and resumes them', () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
       'local-models-studio-resume-test',
