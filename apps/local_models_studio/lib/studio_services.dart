@@ -8,8 +8,29 @@ import 'package:local_models_core/local_models_core.dart';
 import 'package:path/path.dart' as p;
 
 const _installMetadataFileName = '.flutter_local_model.json';
+const _downloadQueueFileName = 'download_queue.json';
 
 enum DownloadSourceKind { huggingFace, githubRelease }
+
+String _downloadSourceKindToString(DownloadSourceKind value) {
+  switch (value) {
+    case DownloadSourceKind.huggingFace:
+      return 'huggingFace';
+    case DownloadSourceKind.githubRelease:
+      return 'githubRelease';
+  }
+}
+
+DownloadSourceKind _downloadSourceKindFromString(String value) {
+  switch (value) {
+    case 'huggingFace':
+      return DownloadSourceKind.huggingFace;
+    case 'githubRelease':
+      return DownloadSourceKind.githubRelease;
+    default:
+      throw FormatException('Unsupported download source kind: $value');
+  }
+}
 
 enum DownloadTaskStatus {
   queued,
@@ -30,6 +51,8 @@ class StudioPaths {
       Directory(p.join(baseDirectory.path, 'downloads'));
   Directory get modelsDirectory =>
       Directory(p.join(baseDirectory.path, 'models'));
+  File get downloadQueueFile =>
+      File(p.join(baseDirectory.path, _downloadQueueFileName));
 
   static StudioPaths forCurrentUser({String? homeDirectory}) {
     final home = homeDirectory ?? Platform.environment['HOME'];
@@ -91,6 +114,22 @@ class RemoteFileDescriptor {
       sha256: sha256 ?? this.sha256,
     );
   }
+
+  factory RemoteFileDescriptor.fromJsonMap(Map<String, Object?> map) {
+    return RemoteFileDescriptor(
+      relativePath: map['relativePath'] as String,
+      downloadUri: Uri.parse(map['downloadUri'] as String),
+      sizeBytes: (map['sizeBytes'] as num?)?.toInt(),
+      sha256: map['sha256'] as String?,
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'relativePath': relativePath,
+    'downloadUri': downloadUri.toString(),
+    if (sizeBytes != null) 'sizeBytes': sizeBytes,
+    if (sha256 != null) 'sha256': sha256,
+  };
 }
 
 class HuggingFaceRepoDetails {
@@ -206,6 +245,7 @@ class DownloadTaskRecord {
     required this.stageDirectory,
     required this.files,
     required this.installer,
+    required this.manifest,
   });
 
   final String id;
@@ -216,6 +256,7 @@ class DownloadTaskRecord {
   final Directory stageDirectory;
   final List<RemoteFileDescriptor> files;
   final Future<InstalledModel> Function(DownloadTaskRecord record) installer;
+  final LocalModelManifest manifest;
 
   DownloadTaskStatus status = DownloadTaskStatus.queued;
   int downloadedBytes = 0;
@@ -239,6 +280,43 @@ class DownloadTaskRecord {
       status == DownloadTaskStatus.completed ||
       status == DownloadTaskStatus.canceled ||
       status == DownloadTaskStatus.failed;
+
+  factory DownloadTaskRecord.fromJsonMap(
+    Map<String, Object?> map,
+    Future<InstalledModel> Function(DownloadTaskRecord record) installer,
+  ) {
+    return DownloadTaskRecord(
+        id: map['id'] as String,
+        title: map['title'] as String,
+        sourceKind: _downloadSourceKindFromString(map['sourceKind'] as String),
+        modelId: map['modelId'] as String,
+        sourceLabel: map['sourceLabel'] as String,
+        stageDirectory: Directory(map['stageDirectory'] as String),
+        files: List<Map<String, Object?>>.from(
+          map['files'] as List,
+        ).map(RemoteFileDescriptor.fromJsonMap).toList(growable: false),
+        installer: installer,
+        manifest: LocalModelManifest.fromJsonMap(
+          Map<String, Object?>.from(map['manifest'] as Map),
+        ),
+      )
+      ..downloadedBytes = (map['downloadedBytes'] as num?)?.toInt() ?? 0
+      ..totalBytes = (map['totalBytes'] as num?)?.toInt() ?? 0
+      ..status = DownloadTaskStatus.paused;
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'id': id,
+    'title': title,
+    'sourceKind': _downloadSourceKindToString(sourceKind),
+    'modelId': modelId,
+    'sourceLabel': sourceLabel,
+    'stageDirectory': stageDirectory.path,
+    'files': files.map((file) => file.toJson()).toList(growable: false),
+    'manifest': manifest.toJson(),
+    'downloadedBytes': downloadedBytes,
+    'totalBytes': totalBytes,
+  };
 }
 
 class StudioApiClient {
@@ -338,6 +416,10 @@ class StudioApiClient {
     HuggingFaceRepoDetails details, {
     String? token,
   }) async {
+    final override = await hydrateFilesForTesting(details, token: token);
+    if (override != null) {
+      return override;
+    }
     final hydrated = <RemoteFileDescriptor>[];
     for (final file in details.files) {
       if (file.sizeBytes != null) {
@@ -352,6 +434,12 @@ class StudioApiClient {
     }
     return hydrated;
   }
+
+  @visibleForTesting
+  Future<List<RemoteFileDescriptor>?> hydrateFilesForTesting(
+    HuggingFaceRepoDetails details, {
+    String? token,
+  }) async => null;
 
   Future<int?> probeRemoteFileSize(
     Uri uri, {
@@ -784,6 +872,7 @@ class StudioController extends ChangeNotifier {
     initialized = true;
     await _ensureDirectories();
     await reloadInstalledModels();
+    await _restoreDownloadQueue();
     if (refreshRemoteSourcesOnInitialize) {
       await refreshSources();
     } else {
@@ -899,27 +988,8 @@ class StudioController extends ChangeNotifier {
       sourceLabel: 'Hugging Face',
       stageDirectory: payloadDir,
       files: files,
-      installer: (task) async {
-        final installDir = Directory(
-          p.join(paths.modelsDirectory.path, manifest.id),
-        );
-        if (installDir.existsSync()) {
-          await installDir.delete(recursive: true);
-        }
-        await payloadDir.rename(installDir.path);
-        await _writeInstallMetadata(
-          installDir,
-          manifest,
-          sourceLabel: 'Hugging Face',
-        );
-        return InstalledModel(
-          manifest: manifest,
-          directory: installDir,
-          sourceLabel: 'Hugging Face',
-          installedAt: DateTime.now(),
-          sizeBytes: await _directorySizeBytes(installDir),
-        );
-      },
+      manifest: manifest,
+      installer: _installHuggingFaceDownload,
     );
     await _startDownloadTask(record);
   }
@@ -949,27 +1019,8 @@ class StudioController extends ChangeNotifier {
       sourceLabel: 'Hugging Face',
       stageDirectory: payloadDir,
       files: files,
-      installer: (task) async {
-        final installDir = Directory(
-          p.join(paths.modelsDirectory.path, manifest.id),
-        );
-        if (installDir.existsSync()) {
-          await installDir.delete(recursive: true);
-        }
-        await payloadDir.rename(installDir.path);
-        await _writeInstallMetadata(
-          installDir,
-          manifest,
-          sourceLabel: 'Hugging Face',
-        );
-        return InstalledModel(
-          manifest: manifest,
-          directory: installDir,
-          sourceLabel: 'Hugging Face',
-          installedAt: DateTime.now(),
-          sizeBytes: await _directorySizeBytes(installDir),
-        );
-      },
+      manifest: manifest,
+      installer: _installHuggingFaceDownload,
     );
     await _startDownloadTask(record);
   }
@@ -1001,65 +1052,8 @@ class StudioController extends ChangeNotifier {
       sourceLabel: 'GitHub Release',
       stageDirectory: stageDir,
       files: files,
-      installer: (task) async {
-        final metadataFile = File(
-          p.join(stageDir.path, 'release_metadata.json'),
-        );
-        final manifestFile = File(
-          p.join(stageDir.path, 'manifest.source.yaml'),
-        );
-        LocalModelManifest manifest = releaseManifest;
-        if (manifestFile.existsSync()) {
-          manifest = LocalModelManifest.fromYaml(
-            await manifestFile.readAsString(),
-          );
-        }
-        final metadata =
-            jsonDecode(await metadataFile.readAsString())
-                as Map<String, dynamic>;
-        final partNames =
-            ((metadata['parts'] as List<dynamic>? ?? const [])
-                    .cast<Map<String, dynamic>>())
-                .map((part) => part['file_name'] as String)
-                .toList(growable: false);
-        final archivePath = p.join(
-          stageDir.path,
-          metadata['archive_name'] as String,
-        );
-        await _concatenateFiles(
-          partNames.map((name) => File(p.join(stageDir.path, name))).toList(),
-          File(archivePath),
-        );
-        final installDir = Directory(
-          p.join(paths.modelsDirectory.path, manifest.id),
-        );
-        if (installDir.existsSync()) {
-          await installDir.delete(recursive: true);
-        }
-        final result = await Process.run('tar', <String>[
-          '-xf',
-          archivePath,
-          '-C',
-          paths.modelsDirectory.path,
-        ]);
-        if (result.exitCode != 0) {
-          throw StateError(
-            'Failed to extract release archive: ${result.stderr}',
-          );
-        }
-        await _writeInstallMetadata(
-          installDir,
-          manifest,
-          sourceLabel: 'GitHub Release',
-        );
-        return InstalledModel(
-          manifest: manifest,
-          directory: installDir,
-          sourceLabel: 'GitHub Release',
-          installedAt: DateTime.now(),
-          sizeBytes: await _directorySizeBytes(installDir),
-        );
-      },
+      manifest: releaseManifest,
+      installer: _installGitHubReleaseDownload,
     );
     await _startDownloadTask(record);
   }
@@ -1189,8 +1183,160 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _restoreDownloadQueue() async {
+    final file = paths.downloadQueueFile;
+    if (!file.existsSync()) {
+      return;
+    }
+    try {
+      final decoded = jsonDecode(await file.readAsString()) as List<dynamic>;
+      final restored = decoded
+          .cast<Map<String, dynamic>>()
+          .map(
+            (item) => DownloadTaskRecord.fromJsonMap(
+              Map<String, Object?>.from(item),
+              _installerForPersistedDownload,
+            ),
+          )
+          .where((record) => record.stageDirectory.existsSync())
+          .toList(growable: false);
+      downloads
+        ..clear()
+        ..addAll(restored);
+      for (final record in restored) {
+        record.downloadedBytes = await _existingByteCount(record);
+        record.status = DownloadTaskStatus.paused;
+      }
+      notifyListeners();
+      for (final record in restored) {
+        unawaited(_runDownload(record));
+      }
+    } catch (error) {
+      sourceErrorMessage = 'Failed to restore downloads: $error';
+      await file.delete().catchError((_) => file);
+    }
+  }
+
+  Future<void> _persistDownloadQueue() async {
+    await _ensureDirectories();
+    final active = downloads
+        .where(
+          (record) =>
+              record.status == DownloadTaskStatus.queued ||
+              record.status == DownloadTaskStatus.running ||
+              record.status == DownloadTaskStatus.paused ||
+              record.status == DownloadTaskStatus.failed ||
+              record.status == DownloadTaskStatus.installing,
+        )
+        .map((record) => record.toJson())
+        .toList(growable: false);
+    final file = paths.downloadQueueFile;
+    if (active.isEmpty) {
+      if (file.existsSync()) {
+        await file.delete();
+      }
+      return;
+    }
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(active),
+    );
+  }
+
+  Future<InstalledModel> _installerForPersistedDownload(
+    DownloadTaskRecord record,
+  ) {
+    return switch (record.sourceKind) {
+      DownloadSourceKind.huggingFace => _installHuggingFaceDownload(record),
+      DownloadSourceKind.githubRelease => _installGitHubReleaseDownload(record),
+    };
+  }
+
+  Future<InstalledModel> _installHuggingFaceDownload(
+    DownloadTaskRecord record,
+  ) async {
+    final installDir = Directory(
+      p.join(paths.modelsDirectory.path, record.manifest.id),
+    );
+    if (installDir.existsSync()) {
+      await installDir.delete(recursive: true);
+    }
+    await record.stageDirectory.rename(installDir.path);
+    await _writeInstallMetadata(
+      installDir,
+      record.manifest,
+      sourceLabel: record.sourceLabel,
+    );
+    return InstalledModel(
+      manifest: record.manifest,
+      directory: installDir,
+      sourceLabel: record.sourceLabel,
+      installedAt: DateTime.now(),
+      sizeBytes: await _directorySizeBytes(installDir),
+    );
+  }
+
+  Future<InstalledModel> _installGitHubReleaseDownload(
+    DownloadTaskRecord record,
+  ) async {
+    final metadataFile = File(
+      p.join(record.stageDirectory.path, 'release_metadata.json'),
+    );
+    final manifestFile = File(
+      p.join(record.stageDirectory.path, 'manifest.source.yaml'),
+    );
+    var manifest = record.manifest;
+    if (manifestFile.existsSync()) {
+      manifest = LocalModelManifest.fromYaml(await manifestFile.readAsString());
+    }
+    final metadata =
+        jsonDecode(await metadataFile.readAsString()) as Map<String, dynamic>;
+    final partNames =
+        ((metadata['parts'] as List<dynamic>? ?? const [])
+                .cast<Map<String, dynamic>>())
+            .map((part) => part['file_name'] as String)
+            .toList(growable: false);
+    final archivePath = p.join(
+      record.stageDirectory.path,
+      metadata['archive_name'] as String,
+    );
+    await _concatenateFiles(
+      partNames
+          .map((name) => File(p.join(record.stageDirectory.path, name)))
+          .toList(),
+      File(archivePath),
+    );
+    final installDir = Directory(
+      p.join(paths.modelsDirectory.path, manifest.id),
+    );
+    if (installDir.existsSync()) {
+      await installDir.delete(recursive: true);
+    }
+    final result = await Process.run('tar', <String>[
+      '-xf',
+      archivePath,
+      '-C',
+      paths.modelsDirectory.path,
+    ]);
+    if (result.exitCode != 0) {
+      throw StateError('Failed to extract release archive: ${result.stderr}');
+    }
+    await _writeInstallMetadata(
+      installDir,
+      manifest,
+      sourceLabel: record.sourceLabel,
+    );
+    return InstalledModel(
+      manifest: manifest,
+      directory: installDir,
+      sourceLabel: record.sourceLabel,
+      installedAt: DateTime.now(),
+      sizeBytes: await _directorySizeBytes(installDir),
+    );
+  }
+
   void pauseDownload(DownloadTaskRecord record) {
     record.pauseRequested = true;
+    unawaited(_persistDownloadQueue());
     notifyListeners();
   }
 
@@ -1202,6 +1348,7 @@ class StudioController extends ChangeNotifier {
     record.cancelRequested = false;
     record.errorMessage = null;
     notifyListeners();
+    unawaited(_persistDownloadQueue());
     unawaited(_runDownload(record));
   }
 
@@ -1212,6 +1359,7 @@ class StudioController extends ChangeNotifier {
         record.status == DownloadTaskStatus.failed) {
       await _cleanupCanceledTask(record);
     }
+    await _persistDownloadQueue();
     notifyListeners();
   }
 
@@ -1220,6 +1368,7 @@ class StudioController extends ChangeNotifier {
       await record.stageDirectory.delete(recursive: true);
     }
     downloads.remove(record);
+    await _persistDownloadQueue();
     notifyListeners();
   }
 
@@ -1235,6 +1384,7 @@ class StudioController extends ChangeNotifier {
       throw StateError('A download for ${record.title} is already active.');
     }
     downloads.insert(0, record);
+    await _persistDownloadQueue();
     notifyListeners();
     unawaited(_runDownload(record));
   }
@@ -1251,6 +1401,7 @@ class StudioController extends ChangeNotifier {
       (sum, file) => sum + (file.sizeBytes ?? 0),
     );
     record.downloadedBytes = await _existingByteCount(record);
+    await _persistDownloadQueue();
     notifyListeners();
     try {
       for (final file in record.files) {
@@ -1271,13 +1422,17 @@ class StudioController extends ChangeNotifier {
         await record.stageDirectory.delete(recursive: true);
       }
       await reloadInstalledModels();
+      await _persistDownloadQueue();
     } on _PausedDownload {
       record.status = DownloadTaskStatus.paused;
+      await _persistDownloadQueue();
     } on _CanceledDownload {
       await _cleanupCanceledTask(record);
+      await _persistDownloadQueue();
     } catch (error) {
       record.status = DownloadTaskStatus.failed;
       record.errorMessage = '$error';
+      await _persistDownloadQueue();
     } finally {
       notifyListeners();
     }
@@ -1289,6 +1444,7 @@ class StudioController extends ChangeNotifier {
     if (record.stageDirectory.existsSync()) {
       await record.stageDirectory.delete(recursive: true);
     }
+    await _persistDownloadQueue();
   }
 
   Future<void> _downloadFile(
@@ -1358,6 +1514,7 @@ class StudioController extends ChangeNotifier {
       }
       destination.length().then((currentLength) {
         record.downloadedBytes = baselineDownloaded + currentLength;
+        unawaited(_persistDownloadQueue());
         notifyListeners();
       });
     });
@@ -1386,6 +1543,7 @@ class StudioController extends ChangeNotifier {
           ? await destination.length()
           : 0;
       record.downloadedBytes = baselineDownloaded + finalLength;
+      await _persistDownloadQueue();
       notifyListeners();
 
       if (expectedSize != null && finalLength != expectedSize) {
