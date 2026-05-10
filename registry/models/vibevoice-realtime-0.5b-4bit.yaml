@@ -1,10 +1,11 @@
 id: vibevoice-realtime-0.5b-4bit
 display_name: VibeVoice Realtime 0.5B 4bit
-description: Realtime-oriented MIT-licensed MLX TTS model for lightweight local voice responses.
+description: Realtime-oriented MIT-licensed MLX TTS model for lightweight local voice
+  responses.
 runtime_adapter: mlx_audio
 tasks:
-  - text_to_speech
-  - audio_output
+- text_to_speech
+- audio_output
 source:
   provider: huggingface
   repo: mlx-community/VibeVoice-Realtime-0.5B-4bit
@@ -20,8 +21,8 @@ requirements:
   min_memory_gb: 8
   recommended_memory_gb: 16
   notes:
-    - Realtime TTS candidate
-    - MIT licensed model
+  - Realtime TTS candidate
+  - MIT licensed model
 capabilities:
   audio_input: false
   audio_output: true
@@ -40,10 +41,29 @@ runtime_config:
         minimum: 0.5
         maximum: 2.0
   voices:
-    - id: default
-      display_name: Default VibeVoice
-      locale: multilingual
+  - id: default
+    display_name: Default VibeVoice
+    locale: multilingual
   output:
     media_type: audio/wav
     extension: wav
     supports_inline_playback: true
+model_card:
+  summary: Realtime-oriented MIT-licensed MLX TTS model for lightweight local voice
+    responses.
+  use_cases:
+  - Spoken assistant responses
+  - Local TTS playback in Flutter chat
+  - Voice UX prototyping
+  limitations:
+  - Voice controls vary by model family
+  - Generated speech quality depends on prompt and runtime support
+  languages:
+  - multilingual
+  tags:
+  - tts
+  - audio
+  - speech
+  - mlx-audio
+  links:
+    huggingface: https://huggingface.co/mlx-community/VibeVoice-Realtime-0.5B-4bit

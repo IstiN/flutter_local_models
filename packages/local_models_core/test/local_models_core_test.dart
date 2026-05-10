@@ -31,6 +31,20 @@ capabilities:
   audio_input: true
   audio_output: false
   tool_calling: false
+model_card:
+  summary: Small ASR model for app testing.
+  use_cases:
+    - Dictation
+    - Voice assistant input
+  limitations:
+    - Noisy audio can reduce accuracy
+  languages:
+    - ru
+    - en
+  tags:
+    - asr
+  links:
+    huggingface: https://huggingface.co/mlx-community/Qwen3-ASR-0.6B-4bit
 runtime_config:
   default_parameters:
     language: auto
@@ -49,6 +63,9 @@ void main() {
     expect(manifest.runtimeAdapter, RuntimeAdapter.mlxAudio);
     expect(manifest.tasks, [ModelTask.speechToText]);
     expect(manifest.capabilities.audioInput, isTrue);
+    expect(manifest.modelCard.summary, 'Small ASR model for app testing.');
+    expect(manifest.modelCard.useCases, contains('Dictation'));
+    expect(manifest.modelCard.languages, contains('ru'));
     expect(manifest.runtimeConfig.defaultParameters['language'], 'auto');
     expect(manifest.runtimeConfig.voices.single.displayName, 'Default voice');
     expect(manifest.runtimeConfig.output['format'], 'text');

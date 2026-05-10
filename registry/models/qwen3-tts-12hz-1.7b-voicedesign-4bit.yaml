@@ -1,10 +1,11 @@
 id: qwen3-tts-12hz-1.7b-voicedesign-4bit
 display_name: Qwen3 TTS 12Hz 1.7B VoiceDesign 4bit
-description: Larger Qwen3 TTS model with voice design support for higher-quality local speech output.
+description: Larger Qwen3 TTS model with voice design support for higher-quality local
+  speech output.
 runtime_adapter: mlx_audio
 tasks:
-  - text_to_speech
-  - audio_output
+- text_to_speech
+- audio_output
 source:
   provider: huggingface
   repo: mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-4bit
@@ -20,8 +21,8 @@ requirements:
   min_memory_gb: 16
   recommended_memory_gb: 32
   notes:
-    - Qwen3 TTS
-    - Voice design capable
+  - Qwen3 TTS
+  - Voice design capable
 capabilities:
   audio_input: false
   audio_output: true
@@ -43,11 +44,30 @@ runtime_config:
       seed:
         type: integer
   voices:
-    - id: designed
-      display_name: Designed voice
-      locale: multilingual
-      description: Voice controlled by a voice_prompt parameter.
+  - id: designed
+    display_name: Designed voice
+    locale: multilingual
+    description: Voice controlled by a voice_prompt parameter.
   output:
     media_type: audio/wav
     extension: wav
     supports_inline_playback: true
+model_card:
+  summary: Larger Qwen3 TTS model with voice design support for higher-quality local
+    speech output.
+  use_cases:
+  - Spoken assistant responses
+  - Local TTS playback in Flutter chat
+  - Voice UX prototyping
+  limitations:
+  - Voice controls vary by model family
+  - Generated speech quality depends on prompt and runtime support
+  languages:
+  - multilingual
+  tags:
+  - tts
+  - audio
+  - speech
+  - mlx-audio
+  links:
+    huggingface: https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-4bit

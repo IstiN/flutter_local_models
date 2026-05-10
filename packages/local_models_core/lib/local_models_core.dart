@@ -315,6 +315,63 @@ class CapabilitySpec {
 }
 
 @immutable
+class ModelCard {
+  const ModelCard({
+    this.summary = '',
+    this.useCases = const <String>[],
+    this.limitations = const <String>[],
+    this.languages = const <String>[],
+    this.tags = const <String>[],
+    this.links = const <String, String>{},
+  });
+
+  final String summary;
+  final List<String> useCases;
+  final List<String> limitations;
+  final List<String> languages;
+  final List<String> tags;
+  final Map<String, String> links;
+
+  bool get isEmpty =>
+      summary.isEmpty &&
+      useCases.isEmpty &&
+      limitations.isEmpty &&
+      languages.isEmpty &&
+      tags.isEmpty &&
+      links.isEmpty;
+
+  factory ModelCard.fromMap(Map<Object?, Object?> map) {
+    return ModelCard(
+      summary: map['summary'] as String? ?? '',
+      useCases: List<String>.from(
+        map['use_cases'] as List? ??
+            map['useCases'] as List? ??
+            const <String>[],
+      ),
+      limitations: List<String>.from(
+        map['limitations'] as List? ?? const <String>[],
+      ),
+      languages: List<String>.from(
+        map['languages'] as List? ?? const <String>[],
+      ),
+      tags: List<String>.from(map['tags'] as List? ?? const <String>[]),
+      links: Map<String, String>.from(
+        map['links'] as Map? ?? const <String, String>{},
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    if (summary.isNotEmpty) 'summary': summary,
+    if (useCases.isNotEmpty) 'useCases': useCases,
+    if (limitations.isNotEmpty) 'limitations': limitations,
+    if (languages.isNotEmpty) 'languages': languages,
+    if (tags.isNotEmpty) 'tags': tags,
+    if (links.isNotEmpty) 'links': links,
+  };
+}
+
+@immutable
 class ModelVoice {
   const ModelVoice({
     required this.id,
@@ -424,6 +481,7 @@ class LocalModelManifest {
     required this.packaging,
     required this.requirements,
     required this.capabilities,
+    this.modelCard = const ModelCard(),
     this.runtimeConfig = const ModelRuntimeConfig(),
   });
 
@@ -436,6 +494,7 @@ class LocalModelManifest {
   final PackagingSpec packaging;
   final SystemRequirements requirements;
   final CapabilitySpec capabilities;
+  final ModelCard modelCard;
   final ModelRuntimeConfig runtimeConfig;
 
   factory LocalModelManifest.fromYaml(String yaml) {
@@ -468,6 +527,13 @@ class LocalModelManifest {
       capabilities: CapabilitySpec.fromMap(
         Map<Object?, Object?>.from(map['capabilities'] as Map),
       ),
+      modelCard: map['model_card'] == null && map['modelCard'] == null
+          ? const ModelCard()
+          : ModelCard.fromMap(
+              Map<Object?, Object?>.from(
+                (map['model_card'] ?? map['modelCard']) as Map,
+              ),
+            ),
       runtimeConfig:
           map['runtime_config'] == null && map['runtimeConfig'] == null
           ? const ModelRuntimeConfig()
@@ -489,6 +555,7 @@ class LocalModelManifest {
     'packaging': packaging.toJson(),
     'requirements': requirements.toJson(),
     'capabilities': capabilities.toJson(),
+    if (!modelCard.isEmpty) 'modelCard': modelCard.toJson(),
     if (!runtimeConfig.isEmpty) 'runtimeConfig': runtimeConfig.toJson(),
   };
 }

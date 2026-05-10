@@ -3,8 +3,8 @@ display_name: Qwen3 8B 4bit
 description: General-purpose local Qwen text model for chat, automation, and coding.
 runtime_adapter: mlx_lm
 tasks:
-  - chat
-  - code
+- chat
+- code
 source:
   provider: huggingface
   repo: mlx-community/Qwen3-8B-4bit
@@ -20,9 +20,26 @@ requirements:
   min_memory_gb: 16
   recommended_memory_gb: 24
   notes:
-    - MLX text runtime
-    - Balanced local text model
+  - MLX text runtime
+  - Balanced local text model
 capabilities:
   audio_input: false
   audio_output: false
   tool_calling: true
+model_card:
+  summary: General-purpose local Qwen text model for chat, automation, and coding.
+  use_cases:
+  - Local assistant chat
+  - Coding and automation
+  - Tool-enabled Flutter app experiments
+  limitations:
+  - Quality and speed depend on Apple Silicon memory pressure
+  - Tool calling requires a compatible runtime parser
+  languages:
+  - multilingual
+  tags:
+  - llm
+  - chat
+  - mlx
+  links:
+    huggingface: https://huggingface.co/mlx-community/Qwen3-8B-4bit

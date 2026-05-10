@@ -1421,6 +1421,10 @@ class _StudioShellState extends State<StudioShell> {
             ),
             const SizedBox(height: 8),
             Text(manifest.description),
+            if (!manifest.modelCard.isEmpty) ...[
+              const SizedBox(height: 8),
+              _buildModelCardDetails(context, manifest.modelCard),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -2009,6 +2013,45 @@ class _StudioShellState extends State<StudioShell> {
       parts.add('Defaults: $defaults');
     }
     return parts.join(' • ');
+  }
+
+  Widget _buildModelCardDetails(BuildContext context, ModelCard card) {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: EdgeInsets.zero,
+      dense: true,
+      title: const Text('Model description'),
+      subtitle: card.summary.isEmpty ? null : Text(card.summary),
+      children: [
+        if (card.useCases.isNotEmpty)
+          _buildModelCardLine('Use cases', card.useCases.join(', ')),
+        if (card.languages.isNotEmpty)
+          _buildModelCardLine('Languages', card.languages.join(', ')),
+        if (card.limitations.isNotEmpty)
+          _buildModelCardLine('Limits', card.limitations.join(', ')),
+        if (card.tags.isNotEmpty)
+          _buildModelCardLine('Tags', card.tags.join(', ')),
+      ],
+    );
+  }
+
+  Widget _buildModelCardLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 88,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
   }
 
   List<LocalChatMessage> _messagesForCurrentChat(LocalChatMessage nextMessage) {

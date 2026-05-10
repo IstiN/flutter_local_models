@@ -1,10 +1,11 @@
 id: voxcpm2-4bit
 display_name: VoxCPM2 4bit
-description: Multilingual MLX text-to-speech and voice cloning model for local assistant voices.
+description: Multilingual MLX text-to-speech and voice cloning model for local assistant
+  voices.
 runtime_adapter: mlx_audio
 tasks:
-  - text_to_speech
-  - audio_output
+- text_to_speech
+- audio_output
 source:
   provider: huggingface
   repo: mlx-community/VoxCPM2-4bit
@@ -20,8 +21,8 @@ requirements:
   min_memory_gb: 12
   recommended_memory_gb: 24
   notes:
-    - MLX Audio TTS
-    - Multilingual voice generation
+  - MLX Audio TTS
+  - Multilingual voice generation
 capabilities:
   audio_input: false
   audio_output: true
@@ -40,10 +41,29 @@ runtime_config:
         minimum: 0.5
         maximum: 2.0
   voices:
-    - id: default
-      display_name: Default VoxCPM2
-      locale: multilingual
+  - id: default
+    display_name: Default VoxCPM2
+    locale: multilingual
   output:
     media_type: audio/wav
     extension: wav
     supports_inline_playback: true
+model_card:
+  summary: Multilingual MLX text-to-speech and voice cloning model for local assistant
+    voices.
+  use_cases:
+  - Spoken assistant responses
+  - Local TTS playback in Flutter chat
+  - Voice UX prototyping
+  limitations:
+  - Voice controls vary by model family
+  - Generated speech quality depends on prompt and runtime support
+  languages:
+  - multilingual
+  tags:
+  - tts
+  - audio
+  - speech
+  - mlx-audio
+  links:
+    huggingface: https://huggingface.co/mlx-community/VoxCPM2-4bit

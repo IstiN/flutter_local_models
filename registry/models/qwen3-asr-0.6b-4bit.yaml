@@ -1,9 +1,10 @@
 id: qwen3-asr-0.6b-4bit
 display_name: Qwen3 ASR 0.6B 4bit
-description: Small multilingual speech-to-text model for local dictation and voice assistant input.
+description: Small multilingual speech-to-text model for local dictation and voice
+  assistant input.
 runtime_adapter: mlx_audio
 tasks:
-  - speech_to_text
+- speech_to_text
 source:
   provider: huggingface
   repo: mlx-community/Qwen3-ASR-0.6B-4bit
@@ -19,9 +20,30 @@ requirements:
   min_memory_gb: 8
   recommended_memory_gb: 16
   notes:
-    - Fast local ASR
-    - RU plus EN speech recognition candidate
+  - Fast local ASR
+  - RU plus EN speech recognition candidate
 capabilities:
   audio_input: true
   audio_output: false
   tool_calling: false
+model_card:
+  summary: Small multilingual speech-to-text model for local dictation and voice assistant
+    input.
+  use_cases:
+  - Local dictation
+  - Voice assistant speech input
+  - Russian and English speech recognition tests
+  limitations:
+  - Accuracy depends on microphone quality and noise
+  - Long recordings may need chunking in app code
+  languages:
+  - ru
+  - en
+  - multilingual
+  tags:
+  - asr
+  - audio
+  - speech-to-text
+  - mlx-audio
+  links:
+    huggingface: https://huggingface.co/mlx-community/Qwen3-ASR-0.6B-4bit

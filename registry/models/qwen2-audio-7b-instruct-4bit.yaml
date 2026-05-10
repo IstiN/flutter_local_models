@@ -1,10 +1,11 @@
 id: qwen2-audio-7b-instruct-4bit
 display_name: Qwen2 Audio 7B Instruct 4bit
-description: Audio-first local Qwen model that accepts spoken input and returns text output.
+description: Audio-first local Qwen model that accepts spoken input and returns text
+  output.
 runtime_adapter: mlx_audio
 tasks:
-  - chat
-  - audio_input
+- chat
+- audio_input
 source:
   provider: huggingface
   repo: mlx-community/Qwen2-Audio-7B-Instruct-4bit
@@ -20,9 +21,27 @@ requirements:
   min_memory_gb: 16
   recommended_memory_gb: 24
   notes:
-    - Direct audio input support
-    - Good seed model for local voice chat
+  - Direct audio input support
+  - Good seed model for local voice chat
 capabilities:
   audio_input: true
   audio_output: false
   tool_calling: false
+model_card:
+  summary: Audio-first local Qwen model that accepts spoken input and returns text
+    output.
+  use_cases:
+  - Direct audio-question answering
+  - Voice assistant prototypes
+  - Audio understanding experiments
+  limitations:
+  - Audio chat support depends on model template and mlx runtime coverage
+  - May be slower than ASR plus text LLM pipeline
+  languages:
+  - multilingual
+  tags:
+  - audio-input
+  - chat
+  - mlx-audio
+  links:
+    huggingface: https://huggingface.co/mlx-community/Qwen2-Audio-7B-Instruct-4bit

@@ -34,6 +34,30 @@
       "audioOutput": true,
       "toolCalling": false
     },
+    "modelCard": {
+      "summary": "Expressive MLX TTS model for natural local generated speech.",
+      "useCases": [
+        "Spoken assistant responses",
+        "Local TTS playback in Flutter chat",
+        "Voice UX prototyping"
+      ],
+      "limitations": [
+        "Voice controls vary by model family",
+        "Generated speech quality depends on prompt and runtime support"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "tts",
+        "audio",
+        "speech",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Dia-1.6B-4bit"
+      }
+    },
     "runtimeConfig": {
       "default_parameters": {
         "audio_format": "wav",
@@ -105,6 +129,30 @@
       "audioInput": false,
       "audioOutput": false,
       "toolCalling": true
+    },
+    "modelCard": {
+      "summary": "Largest Gemma 4 instruction bundle in MLX for high-end local multimodal workflows.",
+      "useCases": [
+        "Multimodal chat",
+        "Image understanding",
+        "Local assistant experiments with attachments"
+      ],
+      "limitations": [
+        "Large image/audio context can increase latency",
+        "Requires mlx-vlm compatible runtime"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "vlm",
+        "chat",
+        "vision",
+        "mlx"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/gemma-4-31b-it-4bit"
+      }
     }
   },
   {
@@ -142,6 +190,30 @@
       "audioInput": true,
       "audioOutput": false,
       "toolCalling": true
+    },
+    "modelCard": {
+      "summary": "Small Gemma 4 bundle for lightweight multimodal chat on Apple Silicon.",
+      "useCases": [
+        "Multimodal chat",
+        "Image understanding",
+        "Local assistant experiments with attachments"
+      ],
+      "limitations": [
+        "Large image/audio context can increase latency",
+        "Requires mlx-vlm compatible runtime"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "vlm",
+        "chat",
+        "vision",
+        "mlx"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/gemma-4-e2b-it-4bit"
+      }
     }
   },
   {
@@ -178,6 +250,30 @@
       "audioInput": false,
       "audioOutput": false,
       "toolCalling": true
+    },
+    "modelCard": {
+      "summary": "Compact Gemma 4 bundle for local chat and vision workflows on Apple Silicon.",
+      "useCases": [
+        "Multimodal chat",
+        "Image understanding",
+        "Local assistant experiments with attachments"
+      ],
+      "limitations": [
+        "Large image/audio context can increase latency",
+        "Requires mlx-vlm compatible runtime"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "vlm",
+        "chat",
+        "vision",
+        "mlx"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit"
+      }
     }
   },
   {
@@ -213,6 +309,29 @@
       "audioInput": false,
       "audioOutput": false,
       "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "MIT-licensed MLX image generation model for high-quality local text-to-image experiments.",
+      "useCases": [
+        "Local text-to-image generation",
+        "Prompt-to-image UX prototyping",
+        "Offline creative workflows"
+      ],
+      "limitations": [
+        "Generation is memory intensive",
+        "Image generation UI/runtime adapter is still experimental"
+      ],
+      "languages": [
+        "prompt-based"
+      ],
+      "tags": [
+        "image-generation",
+        "mflux",
+        "mlx"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/HiDream-O1-Image-Dev-mlx-bf16"
+      }
     },
     "runtimeConfig": {
       "default_parameters": {
@@ -282,6 +401,30 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Tiny MLX TTS model for very fast local English voice output on Apple Silicon.",
+      "useCases": [
+        "Spoken assistant responses",
+        "Local TTS playback in Flutter chat",
+        "Voice UX prototyping"
+      ],
+      "limitations": [
+        "Voice controls vary by model family",
+        "Generated speech quality depends on prompt and runtime support"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "tts",
+        "audio",
+        "speech",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Kokoro-82M-4bit"
+      }
     },
     "runtimeConfig": {
       "default_parameters": {
@@ -360,6 +503,29 @@
       "audioOutput": false,
       "toolCalling": false
     },
+    "modelCard": {
+      "summary": "Smaller mflux Qwen Image bundle for local text-to-image generation on Apple Silicon.",
+      "useCases": [
+        "Local text-to-image generation",
+        "Prompt-to-image UX prototyping",
+        "Offline creative workflows"
+      ],
+      "limitations": [
+        "Generation is memory intensive",
+        "Image generation UI/runtime adapter is still experimental"
+      ],
+      "languages": [
+        "prompt-based"
+      ],
+      "tags": [
+        "image-generation",
+        "mflux",
+        "mlx"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen-Image-2512-3bit"
+      }
+    },
     "runtimeConfig": {
       "default_parameters": {
         "width": 1024,
@@ -427,6 +593,29 @@
       "audioInput": false,
       "audioOutput": false,
       "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Balanced mflux Qwen Image bundle for local text-to-image generation on Apple Silicon.",
+      "useCases": [
+        "Local text-to-image generation",
+        "Prompt-to-image UX prototyping",
+        "Offline creative workflows"
+      ],
+      "limitations": [
+        "Generation is memory intensive",
+        "Image generation UI/runtime adapter is still experimental"
+      ],
+      "languages": [
+        "prompt-based"
+      ],
+      "tags": [
+        "image-generation",
+        "mflux",
+        "mlx"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen-Image-2512-4bit"
+      }
     },
     "runtimeConfig": {
       "default_parameters": {
@@ -496,6 +685,29 @@
       "audioInput": true,
       "audioOutput": false,
       "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Audio-first local Qwen model that accepts spoken input and returns text output.",
+      "useCases": [
+        "Direct audio-question answering",
+        "Voice assistant prototypes",
+        "Audio understanding experiments"
+      ],
+      "limitations": [
+        "Audio chat support depends on model template and mlx runtime coverage",
+        "May be slower than ASR plus text LLM pipeline"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "audio-input",
+        "chat",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen2-Audio-7B-Instruct-4bit"
+      }
     }
   },
   {
@@ -532,6 +744,29 @@
       "audioInput": false,
       "audioOutput": false,
       "toolCalling": true
+    },
+    "modelCard": {
+      "summary": "General-purpose local Qwen text model for chat, automation, and coding.",
+      "useCases": [
+        "Local assistant chat",
+        "Coding and automation",
+        "Tool-enabled Flutter app experiments"
+      ],
+      "limitations": [
+        "Quality and speed depend on Apple Silicon memory pressure",
+        "Tool calling requires a compatible runtime parser"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "llm",
+        "chat",
+        "mlx"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen3-8B-4bit"
+      }
     }
   },
   {
@@ -567,6 +802,32 @@
       "audioInput": true,
       "audioOutput": false,
       "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Small multilingual speech-to-text model for local dictation and voice assistant input.",
+      "useCases": [
+        "Local dictation",
+        "Voice assistant speech input",
+        "Russian and English speech recognition tests"
+      ],
+      "limitations": [
+        "Accuracy depends on microphone quality and noise",
+        "Long recordings may need chunking in app code"
+      ],
+      "languages": [
+        "ru",
+        "en",
+        "multilingual"
+      ],
+      "tags": [
+        "asr",
+        "audio",
+        "speech-to-text",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen3-ASR-0.6B-4bit"
+      }
     }
   },
   {
@@ -603,6 +864,30 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Compact local text-to-speech model for spoken assistant responses.",
+      "useCases": [
+        "Spoken assistant responses",
+        "Local TTS playback in Flutter chat",
+        "Voice UX prototyping"
+      ],
+      "limitations": [
+        "Voice controls vary by model family",
+        "Generated speech quality depends on prompt and runtime support"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "tts",
+        "audio",
+        "speech",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
+      }
     },
     "runtimeConfig": {
       "default_parameters": {
@@ -670,6 +955,30 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Higher-capacity Qwen3 TTS base model for local assistant speech generation.",
+      "useCases": [
+        "Spoken assistant responses",
+        "Local TTS playback in Flutter chat",
+        "Voice UX prototyping"
+      ],
+      "limitations": [
+        "Voice controls vary by model family",
+        "Generated speech quality depends on prompt and runtime support"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "tts",
+        "audio",
+        "speech",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit"
+      }
     },
     "runtimeConfig": {
       "default_parameters": {
@@ -740,6 +1049,30 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Larger Qwen3 TTS model with voice design support for higher-quality local speech output.",
+      "useCases": [
+        "Spoken assistant responses",
+        "Local TTS playback in Flutter chat",
+        "Voice UX prototyping"
+      ],
+      "limitations": [
+        "Voice controls vary by model family",
+        "Generated speech quality depends on prompt and runtime support"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "tts",
+        "audio",
+        "speech",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-4bit"
+      }
     },
     "runtimeConfig": {
       "default_parameters": {
@@ -813,6 +1146,30 @@
       "audioOutput": true,
       "toolCalling": false
     },
+    "modelCard": {
+      "summary": "Realtime-oriented MIT-licensed MLX TTS model for lightweight local voice responses.",
+      "useCases": [
+        "Spoken assistant responses",
+        "Local TTS playback in Flutter chat",
+        "Voice UX prototyping"
+      ],
+      "limitations": [
+        "Voice controls vary by model family",
+        "Generated speech quality depends on prompt and runtime support"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "tts",
+        "audio",
+        "speech",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/VibeVoice-Realtime-0.5B-4bit"
+      }
+    },
     "runtimeConfig": {
       "default_parameters": {
         "audio_format": "wav",
@@ -879,6 +1236,30 @@
       "audioInput": false,
       "audioOutput": true,
       "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Multilingual MLX text-to-speech and voice cloning model for local assistant voices.",
+      "useCases": [
+        "Spoken assistant responses",
+        "Local TTS playback in Flutter chat",
+        "Voice UX prototyping"
+      ],
+      "limitations": [
+        "Voice controls vary by model family",
+        "Generated speech quality depends on prompt and runtime support"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "tts",
+        "audio",
+        "speech",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/VoxCPM2-4bit"
+      }
     },
     "runtimeConfig": {
       "default_parameters": {
