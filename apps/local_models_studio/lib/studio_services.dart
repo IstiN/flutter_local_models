@@ -321,66 +321,39 @@ class StudioApiClient {
     Uri uri, {
     Map<String, String> headers = const <String, String>{},
   }) async {
-    final client = HttpClient();
     try {
-      final request = await client.headUrl(uri);
-      headers.forEach(request.headers.add);
-      final response = await request.close();
-      final headLength = response.contentLength >= 0
-          ? response.contentLength
-          : null;
-      await response.drain<void>();
+      final response = await _runCurl(
+        uri,
+        extraArgs: const <String>['-I'],
+        headers: headers,
+      );
+      final headLength = _parseContentLength(response);
       if (headLength != null && headLength > 0) {
         return headLength;
       }
     } catch (_) {
-    } finally {
-      client.close(force: true);
     }
 
-    final rangeClient = HttpClient();
-    try {
-      final request = await rangeClient.getUrl(uri);
-      headers.forEach(request.headers.add);
-      request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-0');
-      final response = await request.close();
-      final contentRange = response.headers.value(
-        HttpHeaders.contentRangeHeader,
-      );
-      await response.drain<void>();
-      if (contentRange == null) {
-        return null;
-      }
-      final slashIndex = contentRange.lastIndexOf('/');
-      if (slashIndex == -1) {
-        return null;
-      }
-      return int.tryParse(contentRange.substring(slashIndex + 1));
-    } finally {
-      rangeClient.close(force: true);
-    }
+    final response = await _runCurl(
+      uri,
+      extraArgs: const <String>['-r', '0-0', '-D', '-', '-o', '/dev/null'],
+      headers: headers,
+    );
+    return _parseContentRangeLength(response);
   }
 
   Future<String> _requestJson(
     Uri uri, {
     Map<String, String> headers = const <String, String>{},
   }) async {
-    final client = HttpClient();
-    try {
-      final request = await client.getUrl(uri);
-      headers.forEach(request.headers.add);
-      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-      final response = await request.close();
-      if (response.statusCode >= 400) {
-        final body = await utf8.decoder.bind(response).join();
-        throw HttpException(
-          'Request failed (${response.statusCode}) for $uri: $body',
-        );
-      }
-      return utf8.decoder.bind(response).join();
-    } finally {
-      client.close(force: true);
-    }
+    return _runCurl(
+      uri,
+      headers: <String, String>{
+        HttpHeaders.acceptHeader: 'application/json',
+        HttpHeaders.userAgentHeader: 'flutter_local_models/0.1',
+        ...headers,
+      },
+    );
   }
 }
 
@@ -988,76 +961,86 @@ class StudioController extends ChangeNotifier {
         ? await destination.length()
         : 0;
     if (expectedSize != null && alreadyWritten == expectedSize) {
+      if (file.sha256 != null) {
+        final digest = await _computeFileSha256(destination);
+        if (digest != file.sha256) {
+          await destination.delete();
+          throw StateError('Checksum mismatch for ${file.relativePath}.');
+        }
+      }
       return;
     }
 
-    final client = HttpClient();
-    try {
-      final request = await client.getUrl(file.downloadUri);
-      _authorizationHeaders(
-        record.sourceKind == DownloadSourceKind.huggingFace
-            ? hfTokenOrNull
-            : null,
-      ).forEach(request.headers.add);
-      if (alreadyWritten > 0) {
-        request.headers.set(HttpHeaders.rangeHeader, 'bytes=$alreadyWritten-');
+    final baselineDownloaded = record.downloadedBytes - alreadyWritten;
+    final stderrBuffer = StringBuffer();
+    final args = <String>[
+      '-L',
+      '--fail',
+      '--silent',
+      '--show-error',
+      '--http1.1',
+      ..._curlHeaderArgs(
+        <String, String>{
+          HttpHeaders.userAgentHeader: 'flutter_local_models/0.1',
+          ..._authorizationHeaders(
+            record.sourceKind == DownloadSourceKind.huggingFace
+                ? hfTokenOrNull
+                : null,
+          ),
+        },
+      ),
+      if (alreadyWritten > 0) ...<String>['-C', '-'],
+      '-o',
+      destination.path,
+      file.downloadUri.toString(),
+    ];
+
+    final process = await Process.start(_curlExecutable, args);
+    final stderrSubscription = process.stderr
+        .transform(utf8.decoder)
+        .listen(stderrBuffer.write);
+    final stdoutSubscription = process.stdout.listen((_) {});
+    final monitor = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (record.cancelRequested || record.pauseRequested) {
+        process.kill(ProcessSignal.sigterm);
+        return;
       }
-      final response = await request.close();
-      if (response.statusCode >= 400) {
-        final body = await utf8.decoder.bind(response).join();
+      if (!destination.existsSync()) {
+        return;
+      }
+      destination.length().then((currentLength) {
+        record.downloadedBytes = baselineDownloaded + currentLength;
+        notifyListeners();
+      });
+    });
+
+    try {
+      final exitCode = await process.exitCode;
+      monitor.cancel();
+      await stdoutSubscription.cancel();
+      await stderrSubscription.cancel();
+
+      if (record.cancelRequested) {
+        throw _CanceledDownload();
+      }
+      if (record.pauseRequested) {
+        throw _PausedDownload();
+      }
+      if (exitCode != 0) {
+        final stderrText = stderrBuffer.toString().trim();
         throw HttpException(
-          'Download failed for ${file.relativePath}: ${response.statusCode} $body',
+          'Download failed for ${file.relativePath}: '
+          '${stderrText.isEmpty ? 'curl exited with code $exitCode' : stderrText}',
         );
       }
 
-      final appendMode =
-          alreadyWritten > 0 &&
-          response.statusCode == HttpStatus.partialContent;
-      if (alreadyWritten > 0 && !appendMode) {
-        await destination.writeAsBytes(const <int>[]);
-        record.downloadedBytes -= alreadyWritten;
-      }
+      final finalLength = destination.existsSync()
+          ? await destination.length()
+          : 0;
+      record.downloadedBytes = baselineDownloaded + finalLength;
+      notifyListeners();
 
-      final output = destination.openWrite(
-        mode: appendMode ? FileMode.append : FileMode.writeOnly,
-      );
-      late final StreamSubscription<List<int>> subscription;
-      final completer = Completer<void>();
-      subscription = response.listen(
-        (chunk) async {
-          output.add(chunk);
-          record.downloadedBytes += chunk.length;
-          notifyListeners();
-          if (record.cancelRequested) {
-            await subscription.cancel();
-            if (!completer.isCompleted) {
-              completer.completeError(_CanceledDownload());
-            }
-            return;
-          }
-          if (record.pauseRequested) {
-            await subscription.cancel();
-            if (!completer.isCompleted) {
-              completer.completeError(_PausedDownload());
-            }
-          }
-        },
-        onDone: () {
-          if (!completer.isCompleted) {
-            completer.complete();
-          }
-        },
-        onError: (Object error, StackTrace stackTrace) {
-          if (!completer.isCompleted) {
-            completer.completeError(error, stackTrace);
-          }
-        },
-        cancelOnError: true,
-      );
-      await completer.future;
-      await output.flush();
-      await output.close();
-      if (expectedSize != null && await destination.length() != expectedSize) {
+      if (expectedSize != null && finalLength != expectedSize) {
         throw StateError('Unexpected file size for ${file.relativePath}.');
       }
       if (file.sha256 != null) {
@@ -1067,7 +1050,7 @@ class StudioController extends ChangeNotifier {
         }
       }
     } finally {
-      client.close(force: true);
+      monitor.cancel();
     }
   }
 
@@ -1281,6 +1264,78 @@ Map<String, String> _authorizationHeaders(String? token) {
   }
   return <String, String>{HttpHeaders.authorizationHeader: 'Bearer $token'};
 }
+
+List<String> _curlHeaderArgs(Map<String, String> headers) {
+  final args = <String>[];
+  headers.forEach((key, value) {
+    args.add('-H');
+    args.add('$key: $value');
+  });
+  return args;
+}
+
+Future<String> _runCurl(
+  Uri uri, {
+  List<String> extraArgs = const <String>[],
+  Map<String, String> headers = const <String, String>{},
+}) async {
+  final result = await Process.run(_curlExecutable, <String>[
+    '-L',
+    '--fail',
+    '--silent',
+    '--show-error',
+    '--http1.1',
+    ...extraArgs,
+    ..._curlHeaderArgs(headers),
+    uri.toString(),
+  ]);
+  if (result.exitCode != 0) {
+    final stderr = (result.stderr as String).trim();
+    throw HttpException(
+      'Request failed for $uri: '
+      '${stderr.isEmpty ? 'curl exited with code ${result.exitCode}' : stderr}',
+    );
+  }
+  return result.stdout as String;
+}
+
+int? _parseContentLength(String headers) {
+  for (final line in const LineSplitter().convert(headers)) {
+    final separatorIndex = line.indexOf(':');
+    if (separatorIndex == -1) {
+      continue;
+    }
+    final name = line.substring(0, separatorIndex).trim().toLowerCase();
+    if (name != 'content-length') {
+      continue;
+    }
+    return int.tryParse(line.substring(separatorIndex + 1).trim());
+  }
+  return null;
+}
+
+int? _parseContentRangeLength(String headers) {
+  for (final line in const LineSplitter().convert(headers)) {
+    final separatorIndex = line.indexOf(':');
+    if (separatorIndex == -1) {
+      continue;
+    }
+    final name = line.substring(0, separatorIndex).trim().toLowerCase();
+    if (name != 'content-range') {
+      continue;
+    }
+    final value = line.substring(separatorIndex + 1).trim();
+    final slashIndex = value.lastIndexOf('/');
+    if (slashIndex == -1) {
+      return null;
+    }
+    return int.tryParse(value.substring(slashIndex + 1).trim());
+  }
+  return null;
+}
+
+String get _curlExecutable =>
+    File('/usr/bin/curl').existsSync() ? '/usr/bin/curl' : 'curl';
 
 class _PausedDownload implements Exception {}
 
