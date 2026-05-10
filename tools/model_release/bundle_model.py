@@ -110,8 +110,6 @@ def download_snapshot(manifest: Manifest, target_dir: pathlib.Path, revision_ove
         repo_id=manifest.repo,
         revision=revision,
         local_dir=target_dir,
-        local_dir_use_symlinks=False,
-        resume_download=True,
     )
     return pathlib.Path(snapshot_path), revision
 

@@ -50,18 +50,24 @@ jobs:
         id: metadata
         run: |
           METADATA_PATH=$(find dist -name release_metadata.json | head -n 1)
+          TITLE=$(jq -r '.id + " @ " + .resolved_revision' "$METADATA_PATH")
           echo "release_tag=$(jq -r .release_tag "$METADATA_PATH")" >> "$GITHUB_OUTPUT"
           echo "bundle_dir=$(dirname "$METADATA_PATH")" >> "$GITHUB_OUTPUT"
-          echo "title=$(jq -r '.id + \" @ \" + .resolved_revision' "$METADATA_PATH")" >> "$GITHUB_OUTPUT"
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
 
       - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "${{ steps.metadata.outputs.release_tag }}" >/dev/null 2>&1 || \
+          if gh release view "${{ steps.metadata.outputs.release_tag }}" >/dev/null 2>&1; then
+            gh release edit "${{ steps.metadata.outputs.release_tag }}" \
+              --title "${{ steps.metadata.outputs.title }}" \
+              --notes "Automated model bundle release for ${{ inputs.manifest_id }}."
+          else
             gh release create "${{ steps.metadata.outputs.release_tag }}" \
               --title "${{ steps.metadata.outputs.title }}" \
               --notes "Automated model bundle release for ${{ inputs.manifest_id }}."
+          fi
           gh release upload "${{ steps.metadata.outputs.release_tag }}" \
             "${{ steps.metadata.outputs.bundle_dir }}"/* \
             --clobber
