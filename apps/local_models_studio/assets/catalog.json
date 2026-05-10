@@ -1089,6 +1089,199 @@
     }
   },
   {
+    "id": "qwen3-tts-12hz-0.6b-customvoice-4bit",
+    "displayName": "Qwen3 TTS 12Hz 0.6B CustomVoice 4bit",
+    "description": "Smaller Qwen3 TTS CustomVoice model with built-in multilingual speaker presets.",
+    "runtimeAdapter": "mlx_audio",
+    "tasks": [
+      "text_to_speech",
+      "audio_output"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-qwen3-tts-12hz-0.6b-customvoice-4bit",
+      "archiveName": "qwen3-tts-12hz-0.6b-customvoice-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "qwen3-tts-12hz-0.6b-customvoice-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 12,
+      "recommendedMemoryGb": 16,
+      "notes": [
+        "Qwen3 TTS CustomVoice",
+        "Built-in speaker presets plus optional instruction control"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": true,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Smaller Qwen3 TTS CustomVoice model with built-in multilingual speaker presets.",
+      "useCases": [
+        "Stable preset voices for assistant playback",
+        "Fast voice UX prototyping",
+        "Multilingual local TTS experiments"
+      ],
+      "limitations": [
+        "Speaker presets work best in each speaker native language",
+        "Optional instruction quality affects emotion and prosody"
+      ],
+      "languages": [
+        "Chinese",
+        "English",
+        "Japanese",
+        "Korean",
+        "German",
+        "French",
+        "Russian",
+        "Portuguese",
+        "Spanish",
+        "Italian"
+      ],
+      "tags": [
+        "tts",
+        "audio",
+        "speech",
+        "mlx-audio",
+        "qwen3-tts",
+        "custom-voice"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit",
+        "github_docs": "https://github.com/QwenLM/Qwen3-TTS"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "audio_format": "wav",
+        "join_audio": true,
+        "lang_code": "auto",
+        "voice": "Ryan",
+        "speed": 1.0
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string",
+            "description": "Qwen3-TTS CustomVoice speaker passed to --voice.",
+            "enum": [
+              "Vivian",
+              "Serena",
+              "Uncle_Fu",
+              "Dylan",
+              "Eric",
+              "Ryan",
+              "Aiden",
+              "Ono_Anna",
+              "Sohee"
+            ]
+          },
+          "instruct": {
+            "type": "string",
+            "description": "Optional style/emotion instruction passed to --instruct."
+          },
+          "lang_code": {
+            "type": "string",
+            "description": "Qwen3-TTS language passed to --lang_code.",
+            "enum": [
+              "auto",
+              "chinese",
+              "english",
+              "japanese",
+              "korean",
+              "german",
+              "french",
+              "russian",
+              "portuguese",
+              "spanish",
+              "italian"
+            ]
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.0
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "Vivian",
+          "displayName": "Vivian",
+          "locale": "Chinese",
+          "description": "Bright, slightly edgy young female voice."
+        },
+        {
+          "id": "Serena",
+          "displayName": "Serena",
+          "locale": "Chinese",
+          "description": "Warm, gentle young female voice."
+        },
+        {
+          "id": "Uncle_Fu",
+          "displayName": "Uncle Fu",
+          "locale": "Chinese",
+          "description": "Seasoned male voice with a low, mellow timbre."
+        },
+        {
+          "id": "Dylan",
+          "displayName": "Dylan",
+          "locale": "Chinese Beijing dialect",
+          "description": "Youthful Beijing male voice with a clear, natural timbre."
+        },
+        {
+          "id": "Eric",
+          "displayName": "Eric",
+          "locale": "Chinese Sichuan dialect",
+          "description": "Lively Chengdu male voice with slightly husky brightness."
+        },
+        {
+          "id": "Ryan",
+          "displayName": "Ryan",
+          "locale": "English",
+          "description": "Dynamic male voice with strong rhythmic drive."
+        },
+        {
+          "id": "Aiden",
+          "displayName": "Aiden",
+          "locale": "English",
+          "description": "Sunny American male voice with a clear midrange."
+        },
+        {
+          "id": "Ono_Anna",
+          "displayName": "Ono Anna",
+          "locale": "Japanese",
+          "description": "Playful Japanese female voice with a light, nimble timbre."
+        },
+        {
+          "id": "Sohee",
+          "displayName": "Sohee",
+          "locale": "Korean",
+          "description": "Warm Korean female voice with rich emotion."
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "supports_inline_playback": true
+      },
+      "extra": {
+        "qwen_tts_mode": "custom_voice",
+        "supports_speaker_presets": true,
+        "docs_source": "QwenLM/Qwen3-TTS"
+      }
+    }
+  },
+  {
     "id": "qwen3-tts-12hz-1.7b-base-4bit",
     "displayName": "Qwen3 TTS 12Hz 1.7B Base 4bit",
     "description": "Higher-capacity Qwen3 TTS base model for local assistant speech generation.",
@@ -1213,6 +1406,199 @@
         "qwen_tts_mode": "base",
         "supports_voice_clone": true,
         "recommended_ref_audio_seconds": "3-10"
+      }
+    }
+  },
+  {
+    "id": "qwen3-tts-12hz-1.7b-customvoice-4bit",
+    "displayName": "Qwen3 TTS 12Hz 1.7B CustomVoice 4bit",
+    "description": "Higher-quality Qwen3 TTS CustomVoice model with built-in multilingual speaker presets.",
+    "runtimeAdapter": "mlx_audio",
+    "tasks": [
+      "text_to_speech",
+      "audio_output"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-4bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-qwen3-tts-12hz-1.7b-customvoice-4bit",
+      "archiveName": "qwen3-tts-12hz-1.7b-customvoice-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "qwen3-tts-12hz-1.7b-customvoice-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 16,
+      "recommendedMemoryGb": 32,
+      "notes": [
+        "Qwen3 TTS CustomVoice",
+        "Built-in speaker presets plus optional instruction control"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": true,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Higher-quality Qwen3 TTS CustomVoice model with built-in multilingual speaker presets.",
+      "useCases": [
+        "Stable preset voices for assistant playback",
+        "Fast voice UX prototyping",
+        "Multilingual local TTS experiments"
+      ],
+      "limitations": [
+        "Speaker presets work best in each speaker native language",
+        "Optional instruction quality affects emotion and prosody"
+      ],
+      "languages": [
+        "Chinese",
+        "English",
+        "Japanese",
+        "Korean",
+        "German",
+        "French",
+        "Russian",
+        "Portuguese",
+        "Spanish",
+        "Italian"
+      ],
+      "tags": [
+        "tts",
+        "audio",
+        "speech",
+        "mlx-audio",
+        "qwen3-tts",
+        "custom-voice"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-4bit",
+        "github_docs": "https://github.com/QwenLM/Qwen3-TTS"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "audio_format": "wav",
+        "join_audio": true,
+        "lang_code": "auto",
+        "voice": "Ryan",
+        "speed": 1.0
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string",
+            "description": "Qwen3-TTS CustomVoice speaker passed to --voice.",
+            "enum": [
+              "Vivian",
+              "Serena",
+              "Uncle_Fu",
+              "Dylan",
+              "Eric",
+              "Ryan",
+              "Aiden",
+              "Ono_Anna",
+              "Sohee"
+            ]
+          },
+          "instruct": {
+            "type": "string",
+            "description": "Optional style/emotion instruction passed to --instruct."
+          },
+          "lang_code": {
+            "type": "string",
+            "description": "Qwen3-TTS language passed to --lang_code.",
+            "enum": [
+              "auto",
+              "chinese",
+              "english",
+              "japanese",
+              "korean",
+              "german",
+              "french",
+              "russian",
+              "portuguese",
+              "spanish",
+              "italian"
+            ]
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.0
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "Vivian",
+          "displayName": "Vivian",
+          "locale": "Chinese",
+          "description": "Bright, slightly edgy young female voice."
+        },
+        {
+          "id": "Serena",
+          "displayName": "Serena",
+          "locale": "Chinese",
+          "description": "Warm, gentle young female voice."
+        },
+        {
+          "id": "Uncle_Fu",
+          "displayName": "Uncle Fu",
+          "locale": "Chinese",
+          "description": "Seasoned male voice with a low, mellow timbre."
+        },
+        {
+          "id": "Dylan",
+          "displayName": "Dylan",
+          "locale": "Chinese Beijing dialect",
+          "description": "Youthful Beijing male voice with a clear, natural timbre."
+        },
+        {
+          "id": "Eric",
+          "displayName": "Eric",
+          "locale": "Chinese Sichuan dialect",
+          "description": "Lively Chengdu male voice with slightly husky brightness."
+        },
+        {
+          "id": "Ryan",
+          "displayName": "Ryan",
+          "locale": "English",
+          "description": "Dynamic male voice with strong rhythmic drive."
+        },
+        {
+          "id": "Aiden",
+          "displayName": "Aiden",
+          "locale": "English",
+          "description": "Sunny American male voice with a clear midrange."
+        },
+        {
+          "id": "Ono_Anna",
+          "displayName": "Ono Anna",
+          "locale": "Japanese",
+          "description": "Playful Japanese female voice with a light, nimble timbre."
+        },
+        {
+          "id": "Sohee",
+          "displayName": "Sohee",
+          "locale": "Korean",
+          "description": "Warm Korean female voice with rich emotion."
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "supports_inline_playback": true
+      },
+      "extra": {
+        "qwen_tts_mode": "custom_voice",
+        "supports_speaker_presets": true,
+        "docs_source": "QwenLM/Qwen3-TTS"
       }
     }
   },

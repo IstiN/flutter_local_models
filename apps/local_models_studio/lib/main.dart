@@ -1606,6 +1606,21 @@ class _StudioShellState extends State<StudioShell> {
               'TTS voice lock',
               style: Theme.of(context).textTheme.titleMedium,
             ),
+            if (mode == 'base') ...[
+              const SizedBox(height: 8),
+              _buildTtsModeHint(
+                title: 'Speaker source: reference audio',
+                message:
+                    'Qwen3-TTS Base has no built-in speaker list. Choose a clean 3–10 sec Ref Audio and paste its transcript below to clone that speaker.',
+              ),
+            ] else if (mode == 'custom_voice') ...[
+              const SizedBox(height: 8),
+              _buildTtsModeHint(
+                title: 'Speaker presets',
+                message:
+                    'CustomVoice exposes built-in speakers. Pick one in Speaker, then optionally add emotion/style in Instruction.',
+              ),
+            ],
             const SizedBox(height: 10),
             Row(
               children: [
@@ -1798,6 +1813,42 @@ class _StudioShellState extends State<StudioShell> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTtsModeHint({required String title, required String message}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C2038),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF464B70)),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const StudioSvgIcon('mic', size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

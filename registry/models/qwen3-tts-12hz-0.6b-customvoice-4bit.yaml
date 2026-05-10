@@ -1,0 +1,128 @@
+id: qwen3-tts-12hz-0.6b-customvoice-4bit
+display_name: Qwen3 TTS 12Hz 0.6B CustomVoice 4bit
+description: Smaller Qwen3 TTS CustomVoice model with built-in multilingual speaker presets.
+runtime_adapter: mlx_audio
+tasks:
+- text_to_speech
+- audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-qwen3-tts-12hz-0.6b-customvoice-4bit
+  archive_name: qwen3-tts-12hz-0.6b-customvoice-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: qwen3-tts-12hz-0.6b-customvoice-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 12
+  recommended_memory_gb: 16
+  notes:
+  - Qwen3 TTS CustomVoice
+  - Built-in speaker presets plus optional instruction control
+capabilities:
+  audio_input: false
+  audio_output: true
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    audio_format: wav
+    join_audio: true
+    lang_code: auto
+    voice: Ryan
+    speed: 1.0
+  parameter_schema:
+    type: object
+    properties:
+      voice:
+        type: string
+        description: Qwen3-TTS CustomVoice speaker passed to --voice.
+        enum: [Vivian, Serena, Uncle_Fu, Dylan, Eric, Ryan, Aiden, Ono_Anna, Sohee]
+      instruct:
+        type: string
+        description: Optional style/emotion instruction passed to --instruct.
+      lang_code:
+        type: string
+        description: Qwen3-TTS language passed to --lang_code.
+        enum: [auto, chinese, english, japanese, korean, german, french, russian, portuguese, spanish, italian]
+      speed:
+        type: number
+        minimum: 0.5
+        maximum: 2.0
+  voices:
+  - id: Vivian
+    display_name: Vivian
+    locale: Chinese
+    description: Bright, slightly edgy young female voice.
+  - id: Serena
+    display_name: Serena
+    locale: Chinese
+    description: Warm, gentle young female voice.
+  - id: Uncle_Fu
+    display_name: Uncle Fu
+    locale: Chinese
+    description: Seasoned male voice with a low, mellow timbre.
+  - id: Dylan
+    display_name: Dylan
+    locale: Chinese Beijing dialect
+    description: Youthful Beijing male voice with a clear, natural timbre.
+  - id: Eric
+    display_name: Eric
+    locale: Chinese Sichuan dialect
+    description: Lively Chengdu male voice with slightly husky brightness.
+  - id: Ryan
+    display_name: Ryan
+    locale: English
+    description: Dynamic male voice with strong rhythmic drive.
+  - id: Aiden
+    display_name: Aiden
+    locale: English
+    description: Sunny American male voice with a clear midrange.
+  - id: Ono_Anna
+    display_name: Ono Anna
+    locale: Japanese
+    description: Playful Japanese female voice with a light, nimble timbre.
+  - id: Sohee
+    display_name: Sohee
+    locale: Korean
+    description: Warm Korean female voice with rich emotion.
+  extra:
+    qwen_tts_mode: custom_voice
+    supports_speaker_presets: true
+    docs_source: QwenLM/Qwen3-TTS
+  output:
+    media_type: audio/wav
+    extension: wav
+    supports_inline_playback: true
+model_card:
+  summary: Smaller Qwen3 TTS CustomVoice model with built-in multilingual speaker presets.
+  use_cases:
+  - Stable preset voices for assistant playback
+  - Fast voice UX prototyping
+  - Multilingual local TTS experiments
+  limitations:
+  - Speaker presets work best in each speaker native language
+  - Optional instruction quality affects emotion and prosody
+  languages:
+  - Chinese
+  - English
+  - Japanese
+  - Korean
+  - German
+  - French
+  - Russian
+  - Portuguese
+  - Spanish
+  - Italian
+  tags:
+  - tts
+  - audio
+  - speech
+  - mlx-audio
+  - qwen3-tts
+  - custom-voice
+  links:
+    huggingface: https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit
+    github_docs: https://github.com/QwenLM/Qwen3-TTS
