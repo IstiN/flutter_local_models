@@ -54,6 +54,15 @@ class StudioSvgIcon extends StatelessWidget {
   }
 }
 
+T? _firstWhereOrNull<T>(Iterable<T> values, bool Function(T value) test) {
+  for (final value in values) {
+    if (test(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
 class StudioApp extends StatelessWidget {
   const StudioApp({
     super.key,
@@ -1257,6 +1266,19 @@ class _StudioShellState extends State<StudioShell> {
                     ],
                   ),
                   const SizedBox(height: 14),
+                  TextField(
+                    controller: chatPromptController,
+                    minLines: 2,
+                    maxLines: 3,
+                    enabled: !testBusy,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Question / instruction',
+                      hintText:
+                          'Optional: e.g. answer briefly, translate, explain...',
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   _buildAudioInputBar(asrModel),
                   if (testErrorMessage != null) ...[
                     const SizedBox(height: 12),
@@ -1834,6 +1856,7 @@ class _StudioShellState extends State<StudioShell> {
 
   Widget _buildDownloadCard(DownloadTaskRecord task) {
     final progress = task.progress;
+    final speedBytesPerSecond = task.effectiveDownloadSpeedBytesPerSecond;
     final statusLabel = switch (task.status) {
       DownloadTaskStatus.queued => 'Queued',
       DownloadTaskStatus.running => 'Downloading',
@@ -1862,8 +1885,10 @@ class _StudioShellState extends State<StudioShell> {
               Text(
                 [
                   '${formatBytes(task.downloadedBytes)} / ${formatBytes(task.totalBytes)}',
-                  if (task.downloadSpeedBytesPerSecond > 0)
-                    '${formatBytes(task.downloadSpeedBytesPerSecond)}/s',
+                  if (task.status == DownloadTaskStatus.running)
+                    speedBytesPerSecond > 0
+                        ? '${formatBytes(speedBytesPerSecond)}/s'
+                        : 'speed: measuring…',
                 ].join(' • '),
               )
             else
@@ -2052,6 +2077,74 @@ class _StudioShellState extends State<StudioShell> {
         selectedAudioPath = path;
       }
     });
+    if (path != null && testWorkspaceMode == _TestWorkspaceMode.voicePipeline) {
+      _runVoicePipelineWithCurrentSelection();
+    }
+  }
+
+  void _runVoicePipelineWithCurrentSelection() {
+    if (testBusy || recordingAudio || selectedAudioPath == null) {
+      return;
+    }
+    final installedModels = controller.installedModels;
+    final asrModel = _firstWhereOrNull(
+      installedModels,
+      (model) =>
+          model.speechToTextSupported &&
+          (selectedAsrModel == null ||
+              model.directory.path == selectedAsrModel!.directory.path),
+    );
+    final chatModel = _firstWhereOrNull(
+      installedModels,
+      (model) =>
+          model.textPromptSupported &&
+          (selectedVoiceChatModel == null ||
+              model.directory.path == selectedVoiceChatModel!.directory.path),
+    );
+    final ttsModel = _firstWhereOrNull(
+      installedModels,
+      (model) =>
+          model.textToSpeechSupported &&
+          (selectedTtsModel == null ||
+              model.directory.path == selectedTtsModel!.directory.path),
+    );
+    final resolvedAsr =
+        asrModel ??
+        _firstWhereOrNull(
+          installedModels,
+          (model) => model.speechToTextSupported,
+        );
+    final resolvedChat =
+        chatModel ??
+        _firstWhereOrNull(
+          installedModels,
+          (model) => model.textPromptSupported,
+        );
+    final resolvedTts =
+        ttsModel ??
+        _firstWhereOrNull(
+          installedModels,
+          (model) => model.textToSpeechSupported,
+        );
+    if (resolvedAsr == null || resolvedChat == null || resolvedTts == null) {
+      setState(() {
+        testErrorMessage =
+            'Install/select ASR, response, and TTS models before recording.';
+      });
+      return;
+    }
+    setState(() {
+      selectedAsrModel = resolvedAsr;
+      selectedVoiceChatModel = resolvedChat;
+      selectedTtsModel = resolvedTts;
+    });
+    unawaited(
+      _runVoicePipeline(
+        asrModel: resolvedAsr,
+        chatModel: resolvedChat,
+        ttsModel: resolvedTts,
+      ),
+    );
   }
 
   Future<void> _sendPromptToSelectedModel(InstalledModel model) async {
@@ -2260,9 +2353,13 @@ class _StudioShellState extends State<StudioShell> {
       });
       _scrollChatToBottom();
 
+      final instruction = chatPromptController.text.trim();
+      final voicePrompt = instruction.isEmpty
+          ? transcript
+          : '$transcript\n\nInstruction: $instruction';
       final response = await controller.chatRunner.chatStream(
         model: chatModel,
-        messages: [LocalChatMessage.user(transcript)],
+        messages: [LocalChatMessage.user(voicePrompt)],
         params: LocalChatParams(modelId: chatModel.manifest.id),
         onText: _replaceStreamingAssistant,
       );

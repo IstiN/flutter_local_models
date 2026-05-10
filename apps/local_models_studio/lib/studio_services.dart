@@ -323,6 +323,8 @@ class DownloadTaskRecord {
   int downloadedBytes = 0;
   int totalBytes = 0;
   int downloadSpeedBytesPerSecond = 0;
+  int downloadSessionStartBytes = 0;
+  DateTime? downloadSessionStartedAt;
   String? errorMessage;
   String? installedPath;
   int retryAttempt = 0;
@@ -330,6 +332,24 @@ class DownloadTaskRecord {
   bool cancelRequested = false;
 
   double? get progress => totalBytes > 0 ? downloadedBytes / totalBytes : null;
+
+  int get effectiveDownloadSpeedBytesPerSecond {
+    if (downloadSpeedBytesPerSecond > 0) {
+      return downloadSpeedBytesPerSecond;
+    }
+    final startedAt = downloadSessionStartedAt;
+    if (startedAt == null || status != DownloadTaskStatus.running) {
+      return 0;
+    }
+    final elapsedMilliseconds = DateTime.now()
+        .difference(startedAt)
+        .inMilliseconds;
+    final byteDelta = downloadedBytes - downloadSessionStartBytes;
+    if (elapsedMilliseconds <= 0 || byteDelta <= 0) {
+      return 0;
+    }
+    return (byteDelta * 1000 / elapsedMilliseconds).round();
+  }
 
   bool get canPause => status == DownloadTaskStatus.running;
   bool get canResume =>
@@ -1268,7 +1288,8 @@ class StudioController extends ChangeNotifier {
     required InstalledModel model,
     required String text,
   }) {
-    return audioRunner.synthesizeSpeech(model: model, text: text);
+    final speechText = _sanitizeTextForSpeech(text);
+    return audioRunner.synthesizeSpeech(model: model, text: speechText);
   }
 
   void clearChat() {
@@ -1532,6 +1553,8 @@ class StudioController extends ChangeNotifier {
       (sum, file) => sum + (file.sizeBytes ?? 0),
     );
     record.downloadedBytes = await _existingByteCount(record);
+    record.downloadSessionStartBytes = record.downloadedBytes;
+    record.downloadSessionStartedAt = DateTime.now();
     await _persistDownloadQueue();
     notifyListeners();
     try {
@@ -1626,6 +1649,19 @@ class StudioController extends ChangeNotifier {
   }
 
   static int _clampDownloadRetryCount(int value) => value.clamp(0, 50).toInt();
+
+  static String _sanitizeTextForSpeech(String text) {
+    final withoutMarkdownLinks = text.replaceAllMapped(
+      RegExp(r'\[([^\]]+)\]\([^)]+\)'),
+      (match) => match.group(1) ?? '',
+    );
+    final cleaned = withoutMarkdownLinks
+        .replaceAll(RegExp(r'[*_`#>]'), '')
+        .replaceAll(RegExp(r'\s+\n'), '\n')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+    return cleaned.isEmpty ? text.trim() : cleaned;
+  }
 
   Future<void> _cleanupCanceledTask(DownloadTaskRecord record) async {
     record.status = DownloadTaskStatus.canceled;
