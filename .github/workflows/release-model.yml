@@ -50,14 +50,9 @@ jobs:
         id: metadata
         run: |
           METADATA_PATH=$(find dist -name release_metadata.json | head -n 1)
-          python - <<'PY' "$METADATA_PATH" >> "$GITHUB_OUTPUT"
-import json, pathlib, sys
-path = pathlib.Path(sys.argv[1])
-data = json.loads(path.read_text())
-print(f"release_tag={data['release_tag']}")
-print(f"bundle_dir={path.parent}")
-print(f"title={data['id']} @ {data['resolved_revision']}")
-PY
+          echo "release_tag=$(jq -r .release_tag "$METADATA_PATH")" >> "$GITHUB_OUTPUT"
+          echo "bundle_dir=$(dirname "$METADATA_PATH")" >> "$GITHUB_OUTPUT"
+          echo "title=$(jq -r '.id + \" @ \" + .resolved_revision' "$METADATA_PATH")" >> "$GITHUB_OUTPUT"
 
       - name: Create or update release
         env:
