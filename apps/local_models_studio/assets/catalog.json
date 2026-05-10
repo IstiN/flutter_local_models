@@ -1,5 +1,65 @@
 [
   {
+    "id": "gemma4-31b-it-4bit",
+    "displayName": "Gemma 4 31B IT 4bit",
+    "description": "Largest Gemma 4 instruction bundle in MLX for high-end local multimodal workflows.",
+    "runtimeAdapter": "mlx_vlm",
+    "tasks": ["chat", "vision"],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/gemma-4-31b-it-4bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-gemma4-31b-it-4bit",
+      "archiveName": "gemma4-31b-it-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "gemma4-31b-it-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 64,
+      "recommendedMemoryGb": 128,
+      "notes": ["MLX VLM", "Largest Gemma 4 tier"]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": true
+    }
+  },
+  {
+    "id": "gemma4-e2b-it-4bit",
+    "displayName": "Gemma 4 E2B IT 4bit",
+    "description": "Small Gemma 4 bundle for lightweight multimodal chat on Apple Silicon.",
+    "runtimeAdapter": "mlx_vlm",
+    "tasks": ["chat", "vision", "audio_input"],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/gemma-4-e2b-it-4bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-gemma4-e2b-it-4bit",
+      "archiveName": "gemma4-e2b-it-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "gemma4-e2b-it-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 8,
+      "recommendedMemoryGb": 16,
+      "notes": ["MLX multimodal runtime", "Smallest Gemma 4 tier"]
+    },
+    "capabilities": {
+      "audioInput": true,
+      "audioOutput": false,
+      "toolCalling": true
+    }
+  },
+  {
     "id": "gemma4-e4b-it-4bit",
     "displayName": "Gemma 4 E4B IT 4bit",
     "description": "Compact Gemma 4 bundle for local chat and vision workflows on Apple Silicon.",

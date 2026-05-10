@@ -1,0 +1,29 @@
+id: gemma4-e2b-it-4bit
+display_name: Gemma 4 E2B IT 4bit
+description: Small Gemma 4 bundle for lightweight multimodal chat on Apple Silicon.
+runtime_adapter: mlx_vlm
+tasks:
+  - chat
+  - vision
+  - audio_input
+source:
+  provider: huggingface
+  repo: mlx-community/gemma-4-e2b-it-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-gemma4-e2b-it-4bit
+  archive_name: gemma4-e2b-it-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: gemma4-e2b-it-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 8
+  recommended_memory_gb: 16
+  notes:
+    - MLX multimodal runtime
+    - Smallest Gemma 4 tier
+capabilities:
+  audio_input: true
+  audio_output: false
+  tool_calling: true
