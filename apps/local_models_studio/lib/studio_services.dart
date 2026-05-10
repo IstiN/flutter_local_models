@@ -1,0 +1,1287 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
+import 'package:local_models_core/local_models_core.dart';
+import 'package:path/path.dart' as p;
+
+const _installMetadataFileName = '.flutter_local_model.json';
+
+enum DownloadSourceKind { huggingFace, githubRelease }
+
+enum DownloadTaskStatus {
+  queued,
+  running,
+  paused,
+  canceled,
+  installing,
+  completed,
+  failed,
+}
+
+class StudioPaths {
+  StudioPaths({required this.baseDirectory});
+
+  final Directory baseDirectory;
+
+  Directory get downloadsDirectory =>
+      Directory(p.join(baseDirectory.path, 'downloads'));
+  Directory get modelsDirectory =>
+      Directory(p.join(baseDirectory.path, 'models'));
+
+  static StudioPaths forCurrentUser({String? homeDirectory}) {
+    final home = homeDirectory ?? Platform.environment['HOME'];
+    if (home == null || home.isEmpty) {
+      return StudioPaths(
+        baseDirectory: Directory(
+          p.join(Directory.current.path, '.flutter_local_models'),
+        ),
+      );
+    }
+    return StudioPaths(
+      baseDirectory: Directory(
+        p.join(home, 'Library', 'Application Support', 'flutter_local_models'),
+      ),
+    );
+  }
+}
+
+class RemoteFileDescriptor {
+  const RemoteFileDescriptor({
+    required this.relativePath,
+    required this.downloadUri,
+    this.sizeBytes,
+    this.sha256,
+  });
+
+  final String relativePath;
+  final Uri downloadUri;
+  final int? sizeBytes;
+  final String? sha256;
+
+  RemoteFileDescriptor copyWith({
+    String? relativePath,
+    Uri? downloadUri,
+    int? sizeBytes,
+    String? sha256,
+  }) {
+    return RemoteFileDescriptor(
+      relativePath: relativePath ?? this.relativePath,
+      downloadUri: downloadUri ?? this.downloadUri,
+      sizeBytes: sizeBytes ?? this.sizeBytes,
+      sha256: sha256 ?? this.sha256,
+    );
+  }
+}
+
+class HuggingFaceRepoDetails {
+  const HuggingFaceRepoDetails({
+    required this.repoId,
+    required this.revision,
+    required this.gated,
+    required this.pipelineTag,
+    required this.files,
+  });
+
+  final String repoId;
+  final String revision;
+  final bool gated;
+  final String? pipelineTag;
+  final List<RemoteFileDescriptor> files;
+
+  int? get totalKnownBytes {
+    if (files.any((file) => file.sizeBytes == null)) {
+      return null;
+    }
+    return files.fold<int>(0, (sum, file) => sum + (file.sizeBytes ?? 0));
+  }
+}
+
+class GitHubReleaseAsset {
+  const GitHubReleaseAsset({
+    required this.name,
+    required this.sizeBytes,
+    required this.downloadUri,
+    this.sha256,
+    this.contentType,
+  });
+
+  final String name;
+  final int sizeBytes;
+  final Uri downloadUri;
+  final String? sha256;
+  final String? contentType;
+}
+
+class GitHubReleaseRecord {
+  const GitHubReleaseRecord({
+    required this.tagName,
+    required this.title,
+    required this.assets,
+    this.manifest,
+  });
+
+  final String tagName;
+  final String title;
+  final List<GitHubReleaseAsset> assets;
+  final LocalModelManifest? manifest;
+
+  bool get hasBundleAssets => assets.any(
+    (asset) =>
+        asset.name.contains('.part-') || asset.name == 'release_metadata.json',
+  );
+}
+
+class InstalledModel {
+  const InstalledModel({
+    required this.manifest,
+    required this.directory,
+    required this.sourceLabel,
+    required this.installedAt,
+  });
+
+  final LocalModelManifest manifest;
+  final Directory directory;
+  final String sourceLabel;
+  final DateTime installedAt;
+
+  bool get chatSupported =>
+      manifest.tasks.contains(ModelTask.chat) &&
+      manifest.runtimeAdapter == RuntimeAdapter.mlxLm;
+}
+
+class ChatTurn {
+  const ChatTurn.user(this.message) : isUser = true;
+  const ChatTurn.assistant(this.message) : isUser = false;
+
+  final bool isUser;
+  final String message;
+}
+
+class DownloadTaskRecord {
+  DownloadTaskRecord({
+    required this.id,
+    required this.title,
+    required this.sourceKind,
+    required this.modelId,
+    required this.sourceLabel,
+    required this.stageDirectory,
+    required this.files,
+    required this.installer,
+  });
+
+  final String id;
+  final String title;
+  final DownloadSourceKind sourceKind;
+  final String modelId;
+  final String sourceLabel;
+  final Directory stageDirectory;
+  final List<RemoteFileDescriptor> files;
+  final Future<InstalledModel> Function(DownloadTaskRecord record) installer;
+
+  DownloadTaskStatus status = DownloadTaskStatus.queued;
+  int downloadedBytes = 0;
+  int totalBytes = 0;
+  String? errorMessage;
+  String? installedPath;
+  bool pauseRequested = false;
+  bool cancelRequested = false;
+
+  double? get progress => totalBytes > 0 ? downloadedBytes / totalBytes : null;
+
+  bool get canPause => status == DownloadTaskStatus.running;
+  bool get canResume =>
+      status == DownloadTaskStatus.paused ||
+      status == DownloadTaskStatus.failed;
+  bool get canCancel =>
+      status == DownloadTaskStatus.running ||
+      status == DownloadTaskStatus.paused ||
+      status == DownloadTaskStatus.queued;
+  bool get canClear =>
+      status == DownloadTaskStatus.completed ||
+      status == DownloadTaskStatus.canceled ||
+      status == DownloadTaskStatus.failed;
+}
+
+class StudioApiClient {
+  StudioApiClient({
+    this.githubOwner = 'IstiN',
+    this.githubRepository = 'flutter_local_models',
+  });
+
+  final String githubOwner;
+  final String githubRepository;
+
+  Future<List<GitHubReleaseRecord>> fetchGitHubReleases(
+    ModelRegistry registry,
+  ) async {
+    final uri = Uri.https(
+      'api.github.com',
+      '/repos/$githubOwner/$githubRepository/releases',
+    );
+    final response = await _requestJson(uri);
+    final releases = jsonDecode(response) as List<dynamic>;
+    return releases
+        .cast<Map<String, dynamic>>()
+        .map((release) {
+          final manifest = _firstWhereOrNull(
+            registry.manifests,
+            (item) => item.packaging.releaseTag == release['tag_name'],
+          );
+          final assets = (release['assets'] as List<dynamic>? ?? const [])
+              .cast<Map<String, dynamic>>()
+              .map(
+                (asset) => GitHubReleaseAsset(
+                  name: asset['name'] as String,
+                  sizeBytes: (asset['size'] as num?)?.toInt() ?? 0,
+                  downloadUri: Uri.parse(
+                    asset['browser_download_url'] as String,
+                  ),
+                  sha256: _stripShaPrefix(asset['digest'] as String?),
+                  contentType: asset['content_type'] as String?,
+                ),
+              )
+              .toList(growable: false);
+          return GitHubReleaseRecord(
+            tagName: release['tag_name'] as String,
+            title: (release['name'] as String?)?.trim().isNotEmpty == true
+                ? release['name'] as String
+                : release['tag_name'] as String,
+            assets: assets,
+            manifest: manifest,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  Future<HuggingFaceRepoDetails> fetchHuggingFaceRepo(
+    String repoId, {
+    String revision = 'main',
+    String? token,
+  }) async {
+    final uri = Uri.https('huggingface.co', '/api/models/$repoId');
+    final response = await _requestJson(
+      uri,
+      headers: _authorizationHeaders(token),
+    );
+    final decoded = jsonDecode(response) as Map<String, dynamic>;
+    final siblings = (decoded['siblings'] as List<dynamic>? ?? const [])
+        .cast<Map<String, dynamic>>();
+    final files = siblings
+        .map((sibling) {
+          final relativePath = sibling['rfilename'] as String;
+          final lfs = sibling['lfs'] as Map<String, dynamic>?;
+          return RemoteFileDescriptor(
+            relativePath: relativePath,
+            downloadUri: Uri.https(
+              'huggingface.co',
+              '/$repoId/resolve/$revision/$relativePath',
+            ),
+            sizeBytes:
+                (sibling['size'] as num?)?.toInt() ??
+                (lfs?['size'] as num?)?.toInt(),
+            sha256:
+                lfs?['sha256'] as String? ??
+                _stripShaPrefix(lfs?['oid'] as String?),
+          );
+        })
+        .toList(growable: false);
+
+    return HuggingFaceRepoDetails(
+      repoId: repoId,
+      revision: revision,
+      gated: decoded['gated'] as bool? ?? false,
+      pipelineTag: decoded['pipeline_tag'] as String?,
+      files: files,
+    );
+  }
+
+  Future<List<RemoteFileDescriptor>> hydrateHuggingFaceFiles(
+    HuggingFaceRepoDetails details, {
+    String? token,
+  }) async {
+    final hydrated = <RemoteFileDescriptor>[];
+    for (final file in details.files) {
+      if (file.sizeBytes != null) {
+        hydrated.add(file);
+        continue;
+      }
+      final size = await probeRemoteFileSize(
+        file.downloadUri,
+        headers: _authorizationHeaders(token),
+      );
+      hydrated.add(file.copyWith(sizeBytes: size));
+    }
+    return hydrated;
+  }
+
+  Future<int?> probeRemoteFileSize(
+    Uri uri, {
+    Map<String, String> headers = const <String, String>{},
+  }) async {
+    final client = HttpClient();
+    try {
+      final request = await client.headUrl(uri);
+      headers.forEach(request.headers.add);
+      final response = await request.close();
+      final headLength = response.contentLength >= 0
+          ? response.contentLength
+          : null;
+      await response.drain<void>();
+      if (headLength != null && headLength > 0) {
+        return headLength;
+      }
+    } catch (_) {
+    } finally {
+      client.close(force: true);
+    }
+
+    final rangeClient = HttpClient();
+    try {
+      final request = await rangeClient.getUrl(uri);
+      headers.forEach(request.headers.add);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-0');
+      final response = await request.close();
+      final contentRange = response.headers.value(
+        HttpHeaders.contentRangeHeader,
+      );
+      await response.drain<void>();
+      if (contentRange == null) {
+        return null;
+      }
+      final slashIndex = contentRange.lastIndexOf('/');
+      if (slashIndex == -1) {
+        return null;
+      }
+      return int.tryParse(contentRange.substring(slashIndex + 1));
+    } finally {
+      rangeClient.close(force: true);
+    }
+  }
+
+  Future<String> _requestJson(
+    Uri uri, {
+    Map<String, String> headers = const <String, String>{},
+  }) async {
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(uri);
+      headers.forEach(request.headers.add);
+      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      final response = await request.close();
+      if (response.statusCode >= 400) {
+        final body = await utf8.decoder.bind(response).join();
+        throw HttpException(
+          'Request failed (${response.statusCode}) for $uri: $body',
+        );
+      }
+      return utf8.decoder.bind(response).join();
+    } finally {
+      client.close(force: true);
+    }
+  }
+}
+
+class LocalChatRunner {
+  LocalChatRunner({String? pythonExecutable})
+    : pythonExecutable =
+          pythonExecutable ??
+          p.join(
+            Platform.environment['HOME'] ?? '',
+            '.venvs',
+            'mlx',
+            'bin',
+            'python',
+          );
+
+  final String pythonExecutable;
+
+  Future<String> generateResponse({
+    required InstalledModel model,
+    required String prompt,
+    int maxTokens = 256,
+  }) async {
+    if (!model.chatSupported) {
+      throw StateError(
+        'Chat verification currently supports only installed mlx_lm chat models.',
+      );
+    }
+    final executableFile = File(pythonExecutable);
+    if (!executableFile.existsSync()) {
+      throw StateError(
+        'MLX Python runtime not found at $pythonExecutable. Set up ~/.venvs/mlx first.',
+      );
+    }
+    final result = await Process.run(pythonExecutable, <String>[
+      '-m',
+      'mlx_lm',
+      'generate',
+      '--model',
+      model.directory.path,
+      '--prompt',
+      prompt,
+      '--max-tokens',
+      '$maxTokens',
+      '--verbose',
+      'false',
+    ]);
+    if (result.exitCode != 0) {
+      throw StateError(
+        'Local generation failed: ${(result.stderr as String).trim()}',
+      );
+    }
+    final output = (result.stdout as String).trim();
+    if (output.isEmpty) {
+      throw StateError('Local generation returned an empty response.');
+    }
+    return output;
+  }
+}
+
+class StudioController extends ChangeNotifier {
+  StudioController({
+    required this.registry,
+    required this.runtimeSummary,
+    StudioApiClient? apiClient,
+    StudioPaths? paths,
+    LocalChatRunner? chatRunner,
+    this.refreshRemoteSourcesOnInitialize = true,
+  }) : apiClient = apiClient ?? StudioApiClient(),
+       paths = paths ?? StudioPaths.forCurrentUser(),
+       chatRunner = chatRunner ?? LocalChatRunner() {
+    hfToken = Platform.environment['HF_TOKEN'] ?? '';
+  }
+
+  final ModelRegistry registry;
+  final NativeRuntimeSummary runtimeSummary;
+  final StudioApiClient apiClient;
+  final StudioPaths paths;
+  final LocalChatRunner chatRunner;
+  final bool refreshRemoteSourcesOnInitialize;
+
+  bool initialized = false;
+  bool loadingSources = false;
+  String? sourceErrorMessage;
+  String hfToken = '';
+  String customHfRepoId = '';
+  String? customHfErrorMessage;
+  HuggingFaceRepoDetails? customHfRepoDetails;
+  List<GitHubReleaseRecord> githubReleases = const [];
+  final Map<String, HuggingFaceRepoDetails> huggingFaceReposById =
+      <String, HuggingFaceRepoDetails>{};
+  final Map<String, String> huggingFaceErrorsById = <String, String>{};
+  final List<DownloadTaskRecord> downloads = <DownloadTaskRecord>[];
+  List<InstalledModel> installedModels = const [];
+  InstalledModel? selectedChatModel;
+  final List<ChatTurn> chatTurns = <ChatTurn>[];
+  bool chatBusy = false;
+  String? chatErrorMessage;
+
+  Future<void> initialize() async {
+    if (initialized) {
+      return;
+    }
+    initialized = true;
+    await _ensureDirectories();
+    await reloadInstalledModels();
+    if (refreshRemoteSourcesOnInitialize) {
+      await refreshSources();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshSources() async {
+    loadingSources = true;
+    sourceErrorMessage = null;
+    customHfErrorMessage = null;
+    notifyListeners();
+    try {
+      githubReleases = await apiClient.fetchGitHubReleases(registry);
+      await Future.wait(
+        registry.manifests.map((manifest) async {
+          try {
+            final repo = await apiClient.fetchHuggingFaceRepo(
+              manifest.source.repo,
+              revision: manifest.source.revision,
+              token: hfTokenOrNull,
+            );
+            huggingFaceReposById[repo.repoId] = repo;
+            huggingFaceErrorsById.remove(repo.repoId);
+          } catch (error) {
+            huggingFaceErrorsById[manifest.source.repo] = '$error';
+          }
+        }),
+      );
+      if (customHfRepoId.trim().isNotEmpty) {
+        await loadCustomHuggingFaceRepo(customHfRepoId);
+      }
+    } catch (error) {
+      sourceErrorMessage = '$error';
+    } finally {
+      loadingSources = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadCustomHuggingFaceRepo(String repoId) async {
+    customHfRepoId = repoId.trim();
+    customHfRepoDetails = null;
+    customHfErrorMessage = null;
+    notifyListeners();
+    if (customHfRepoId.isEmpty) {
+      return;
+    }
+    try {
+      customHfRepoDetails = await apiClient.fetchHuggingFaceRepo(
+        customHfRepoId,
+        token: hfTokenOrNull,
+      );
+    } catch (error) {
+      customHfErrorMessage = '$error';
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  void updateHfToken(String value) {
+    hfToken = value.trim();
+    notifyListeners();
+  }
+
+  String? get hfTokenOrNull => hfToken.trim().isEmpty ? null : hfToken.trim();
+
+  GitHubReleaseRecord? releaseForManifest(LocalModelManifest manifest) {
+    return _firstWhereOrNull(
+      githubReleases,
+      (release) => release.tagName == manifest.packaging.releaseTag,
+    );
+  }
+
+  bool isManifestInstalled(LocalModelManifest manifest) {
+    return installedModels.any((model) => model.manifest.id == manifest.id);
+  }
+
+  InstalledModel? installedModelForManifest(LocalModelManifest manifest) {
+    return _firstWhereOrNull(
+      installedModels,
+      (model) => model.manifest.id == manifest.id,
+    );
+  }
+
+  Future<void> startManifestHuggingFaceDownload(
+    LocalModelManifest manifest,
+  ) async {
+    final rawDetails =
+        huggingFaceReposById[manifest.source.repo] ??
+        await apiClient.fetchHuggingFaceRepo(
+          manifest.source.repo,
+          revision: manifest.source.revision,
+          token: hfTokenOrNull,
+        );
+    huggingFaceReposById[rawDetails.repoId] = rawDetails;
+    final files = await apiClient.hydrateHuggingFaceFiles(
+      rawDetails,
+      token: hfTokenOrNull,
+    );
+    final payloadDir = Directory(
+      p.join(
+        paths.downloadsDirectory.path,
+        'hf-${manifest.id}-${DateTime.now().millisecondsSinceEpoch}',
+        manifest.id,
+      ),
+    );
+    final record = DownloadTaskRecord(
+      id: 'hf-${manifest.id}-${DateTime.now().microsecondsSinceEpoch}',
+      title: manifest.displayName,
+      sourceKind: DownloadSourceKind.huggingFace,
+      modelId: manifest.id,
+      sourceLabel: 'Hugging Face',
+      stageDirectory: payloadDir,
+      files: files,
+      installer: (task) async {
+        final installDir = Directory(
+          p.join(paths.modelsDirectory.path, manifest.id),
+        );
+        if (installDir.existsSync()) {
+          await installDir.delete(recursive: true);
+        }
+        await payloadDir.rename(installDir.path);
+        await _writeInstallMetadata(
+          installDir,
+          manifest,
+          sourceLabel: 'Hugging Face',
+        );
+        return InstalledModel(
+          manifest: manifest,
+          directory: installDir,
+          sourceLabel: 'Hugging Face',
+          installedAt: DateTime.now(),
+        );
+      },
+    );
+    await _startDownloadTask(record);
+  }
+
+  Future<void> startCustomHuggingFaceDownload() async {
+    final details = customHfRepoDetails;
+    if (details == null) {
+      throw StateError('Load a Hugging Face repo first.');
+    }
+    final manifest = _derivedManifestForRepo(details);
+    final files = await apiClient.hydrateHuggingFaceFiles(
+      details,
+      token: hfTokenOrNull,
+    );
+    final payloadDir = Directory(
+      p.join(
+        paths.downloadsDirectory.path,
+        'hf-${manifest.id}-${DateTime.now().millisecondsSinceEpoch}',
+        manifest.id,
+      ),
+    );
+    final record = DownloadTaskRecord(
+      id: 'hf-${manifest.id}-${DateTime.now().microsecondsSinceEpoch}',
+      title: manifest.displayName,
+      sourceKind: DownloadSourceKind.huggingFace,
+      modelId: manifest.id,
+      sourceLabel: 'Hugging Face',
+      stageDirectory: payloadDir,
+      files: files,
+      installer: (task) async {
+        final installDir = Directory(
+          p.join(paths.modelsDirectory.path, manifest.id),
+        );
+        if (installDir.existsSync()) {
+          await installDir.delete(recursive: true);
+        }
+        await payloadDir.rename(installDir.path);
+        await _writeInstallMetadata(
+          installDir,
+          manifest,
+          sourceLabel: 'Hugging Face',
+        );
+        return InstalledModel(
+          manifest: manifest,
+          directory: installDir,
+          sourceLabel: 'Hugging Face',
+          installedAt: DateTime.now(),
+        );
+      },
+    );
+    await _startDownloadTask(record);
+  }
+
+  Future<void> startGitHubReleaseDownload(GitHubReleaseRecord release) async {
+    final releaseManifest =
+        release.manifest ?? _fallbackManifestForRelease(release);
+    final stageDir = Directory(
+      p.join(
+        paths.downloadsDirectory.path,
+        'gh-${release.tagName}-${DateTime.now().millisecondsSinceEpoch}',
+      ),
+    );
+    final files = release.assets
+        .map(
+          (asset) => RemoteFileDescriptor(
+            relativePath: asset.name,
+            downloadUri: asset.downloadUri,
+            sizeBytes: asset.sizeBytes,
+            sha256: asset.sha256,
+          ),
+        )
+        .toList(growable: false);
+    final record = DownloadTaskRecord(
+      id: 'gh-${release.tagName}-${DateTime.now().microsecondsSinceEpoch}',
+      title: release.title,
+      sourceKind: DownloadSourceKind.githubRelease,
+      modelId: releaseManifest.id,
+      sourceLabel: 'GitHub Release',
+      stageDirectory: stageDir,
+      files: files,
+      installer: (task) async {
+        final metadataFile = File(
+          p.join(stageDir.path, 'release_metadata.json'),
+        );
+        final manifestFile = File(
+          p.join(stageDir.path, 'manifest.source.yaml'),
+        );
+        LocalModelManifest manifest = releaseManifest;
+        if (manifestFile.existsSync()) {
+          manifest = LocalModelManifest.fromYaml(
+            await manifestFile.readAsString(),
+          );
+        }
+        final metadata =
+            jsonDecode(await metadataFile.readAsString())
+                as Map<String, dynamic>;
+        final partNames =
+            ((metadata['parts'] as List<dynamic>? ?? const [])
+                    .cast<Map<String, dynamic>>())
+                .map((part) => part['file_name'] as String)
+                .toList(growable: false);
+        final archivePath = p.join(
+          stageDir.path,
+          metadata['archive_name'] as String,
+        );
+        await _concatenateFiles(
+          partNames.map((name) => File(p.join(stageDir.path, name))).toList(),
+          File(archivePath),
+        );
+        final installDir = Directory(
+          p.join(paths.modelsDirectory.path, manifest.id),
+        );
+        if (installDir.existsSync()) {
+          await installDir.delete(recursive: true);
+        }
+        final result = await Process.run('tar', <String>[
+          '-xf',
+          archivePath,
+          '-C',
+          paths.modelsDirectory.path,
+        ]);
+        if (result.exitCode != 0) {
+          throw StateError(
+            'Failed to extract release archive: ${result.stderr}',
+          );
+        }
+        await _writeInstallMetadata(
+          installDir,
+          manifest,
+          sourceLabel: 'GitHub Release',
+        );
+        return InstalledModel(
+          manifest: manifest,
+          directory: installDir,
+          sourceLabel: 'GitHub Release',
+          installedAt: DateTime.now(),
+        );
+      },
+    );
+    await _startDownloadTask(record);
+  }
+
+  Future<void> reloadInstalledModels() async {
+    await _ensureDirectories();
+    final discovered = <InstalledModel>[];
+    await for (final entity in paths.modelsDirectory.list()) {
+      if (entity is! Directory) {
+        continue;
+      }
+      final metadataFile = File(p.join(entity.path, _installMetadataFileName));
+      if (metadataFile.existsSync()) {
+        final decoded =
+            jsonDecode(await metadataFile.readAsString())
+                as Map<String, dynamic>;
+        final manifest = LocalModelManifest.fromJsonMap(
+          Map<String, Object?>.from(decoded['manifest'] as Map),
+        );
+        discovered.add(
+          InstalledModel(
+            manifest: manifest,
+            directory: entity,
+            sourceLabel: decoded['sourceLabel'] as String? ?? 'Unknown',
+            installedAt:
+                DateTime.tryParse(decoded['installedAt'] as String? ?? '') ??
+                DateTime.now(),
+          ),
+        );
+        continue;
+      }
+      final manifest = _firstWhereOrNull(
+        registry.manifests,
+        (item) => item.id == p.basename(entity.path),
+      );
+      if (manifest != null) {
+        discovered.add(
+          InstalledModel(
+            manifest: manifest,
+            directory: entity,
+            sourceLabel: 'Unknown',
+            installedAt: (await entity.stat()).modified,
+          ),
+        );
+      }
+    }
+    discovered.sort(
+      (left, right) =>
+          left.manifest.displayName.compareTo(right.manifest.displayName),
+    );
+    installedModels = List<InstalledModel>.unmodifiable(discovered);
+    if (selectedChatModel != null) {
+      selectedChatModel = _firstWhereOrNull(
+        installedModels,
+        (model) => model.directory.path == selectedChatModel!.directory.path,
+      );
+    }
+    notifyListeners();
+  }
+
+  Future<void> deleteInstalledModel(InstalledModel model) async {
+    if (model.directory.existsSync()) {
+      await model.directory.delete(recursive: true);
+    }
+    if (selectedChatModel?.directory.path == model.directory.path) {
+      selectedChatModel = null;
+      chatTurns.clear();
+      chatErrorMessage = null;
+    }
+    await reloadInstalledModels();
+  }
+
+  void selectChatModel(InstalledModel? model) {
+    selectedChatModel = model;
+    notifyListeners();
+  }
+
+  Future<void> sendChatPrompt(String prompt) async {
+    final model = selectedChatModel;
+    final trimmedPrompt = prompt.trim();
+    if (model == null || trimmedPrompt.isEmpty) {
+      return;
+    }
+    chatErrorMessage = null;
+    chatBusy = true;
+    chatTurns.add(ChatTurn.user(trimmedPrompt));
+    notifyListeners();
+    try {
+      final response = await chatRunner.generateResponse(
+        model: model,
+        prompt: trimmedPrompt,
+      );
+      chatTurns.add(ChatTurn.assistant(response));
+    } catch (error) {
+      chatErrorMessage = '$error';
+    } finally {
+      chatBusy = false;
+      notifyListeners();
+    }
+  }
+
+  void clearChat() {
+    chatTurns.clear();
+    chatErrorMessage = null;
+    notifyListeners();
+  }
+
+  void pauseDownload(DownloadTaskRecord record) {
+    record.pauseRequested = true;
+    notifyListeners();
+  }
+
+  Future<void> resumeDownload(DownloadTaskRecord record) async {
+    if (!record.canResume) {
+      return;
+    }
+    record.pauseRequested = false;
+    record.cancelRequested = false;
+    record.errorMessage = null;
+    notifyListeners();
+    unawaited(_runDownload(record));
+  }
+
+  Future<void> cancelDownload(DownloadTaskRecord record) async {
+    record.cancelRequested = true;
+    if (record.status == DownloadTaskStatus.paused ||
+        record.status == DownloadTaskStatus.queued ||
+        record.status == DownloadTaskStatus.failed) {
+      await _cleanupCanceledTask(record);
+    }
+    notifyListeners();
+  }
+
+  Future<void> clearDownload(DownloadTaskRecord record) async {
+    if (record.stageDirectory.existsSync()) {
+      await record.stageDirectory.delete(recursive: true);
+    }
+    downloads.remove(record);
+    notifyListeners();
+  }
+
+  Future<void> _startDownloadTask(DownloadTaskRecord record) async {
+    final duplicate = _firstWhereOrNull(
+      downloads,
+      (task) =>
+          task.modelId == record.modelId &&
+          task.sourceKind == record.sourceKind &&
+          !task.canClear,
+    );
+    if (duplicate != null) {
+      throw StateError('A download for ${record.title} is already active.');
+    }
+    downloads.insert(0, record);
+    notifyListeners();
+    unawaited(_runDownload(record));
+  }
+
+  Future<void> _runDownload(DownloadTaskRecord record) async {
+    await _ensureDirectories();
+    record.status = DownloadTaskStatus.running;
+    record.pauseRequested = false;
+    record.cancelRequested = false;
+    record.errorMessage = null;
+    await record.stageDirectory.create(recursive: true);
+    record.totalBytes = record.files.fold<int>(
+      0,
+      (sum, file) => sum + (file.sizeBytes ?? 0),
+    );
+    record.downloadedBytes = await _existingByteCount(record);
+    notifyListeners();
+    try {
+      for (final file in record.files) {
+        await _downloadFile(record, file);
+      }
+      if (record.cancelRequested) {
+        throw _CanceledDownload();
+      }
+      if (record.pauseRequested) {
+        throw _PausedDownload();
+      }
+      record.status = DownloadTaskStatus.installing;
+      notifyListeners();
+      final installedModel = await record.installer(record);
+      record.status = DownloadTaskStatus.completed;
+      record.installedPath = installedModel.directory.path;
+      if (record.stageDirectory.existsSync()) {
+        await record.stageDirectory.delete(recursive: true);
+      }
+      await reloadInstalledModels();
+    } on _PausedDownload {
+      record.status = DownloadTaskStatus.paused;
+    } on _CanceledDownload {
+      await _cleanupCanceledTask(record);
+    } catch (error) {
+      record.status = DownloadTaskStatus.failed;
+      record.errorMessage = '$error';
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> _cleanupCanceledTask(DownloadTaskRecord record) async {
+    record.status = DownloadTaskStatus.canceled;
+    record.downloadedBytes = 0;
+    if (record.stageDirectory.existsSync()) {
+      await record.stageDirectory.delete(recursive: true);
+    }
+  }
+
+  Future<void> _downloadFile(
+    DownloadTaskRecord record,
+    RemoteFileDescriptor file,
+  ) async {
+    if (record.cancelRequested) {
+      throw _CanceledDownload();
+    }
+    if (record.pauseRequested) {
+      throw _PausedDownload();
+    }
+
+    final destination = File(
+      p.join(record.stageDirectory.path, file.relativePath),
+    );
+    await destination.parent.create(recursive: true);
+    final expectedSize = file.sizeBytes;
+    final alreadyWritten = destination.existsSync()
+        ? await destination.length()
+        : 0;
+    if (expectedSize != null && alreadyWritten == expectedSize) {
+      return;
+    }
+
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(file.downloadUri);
+      _authorizationHeaders(
+        record.sourceKind == DownloadSourceKind.huggingFace
+            ? hfTokenOrNull
+            : null,
+      ).forEach(request.headers.add);
+      if (alreadyWritten > 0) {
+        request.headers.set(HttpHeaders.rangeHeader, 'bytes=$alreadyWritten-');
+      }
+      final response = await request.close();
+      if (response.statusCode >= 400) {
+        final body = await utf8.decoder.bind(response).join();
+        throw HttpException(
+          'Download failed for ${file.relativePath}: ${response.statusCode} $body',
+        );
+      }
+
+      final appendMode =
+          alreadyWritten > 0 &&
+          response.statusCode == HttpStatus.partialContent;
+      if (alreadyWritten > 0 && !appendMode) {
+        await destination.writeAsBytes(const <int>[]);
+        record.downloadedBytes -= alreadyWritten;
+      }
+
+      final output = destination.openWrite(
+        mode: appendMode ? FileMode.append : FileMode.writeOnly,
+      );
+      late final StreamSubscription<List<int>> subscription;
+      final completer = Completer<void>();
+      subscription = response.listen(
+        (chunk) async {
+          output.add(chunk);
+          record.downloadedBytes += chunk.length;
+          notifyListeners();
+          if (record.cancelRequested) {
+            await subscription.cancel();
+            if (!completer.isCompleted) {
+              completer.completeError(_CanceledDownload());
+            }
+            return;
+          }
+          if (record.pauseRequested) {
+            await subscription.cancel();
+            if (!completer.isCompleted) {
+              completer.completeError(_PausedDownload());
+            }
+          }
+        },
+        onDone: () {
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (!completer.isCompleted) {
+            completer.completeError(error, stackTrace);
+          }
+        },
+        cancelOnError: true,
+      );
+      await completer.future;
+      await output.flush();
+      await output.close();
+      if (expectedSize != null && await destination.length() != expectedSize) {
+        throw StateError('Unexpected file size for ${file.relativePath}.');
+      }
+      if (file.sha256 != null) {
+        final digest = await _computeFileSha256(destination);
+        if (digest != file.sha256) {
+          throw StateError('Checksum mismatch for ${file.relativePath}.');
+        }
+      }
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<int> _existingByteCount(DownloadTaskRecord record) async {
+    var total = 0;
+    for (final file in record.files) {
+      final target = File(
+        p.join(record.stageDirectory.path, file.relativePath),
+      );
+      if (target.existsSync()) {
+        total += await target.length();
+      }
+    }
+    return total;
+  }
+
+  Future<void> _ensureDirectories() async {
+    await paths.baseDirectory.create(recursive: true);
+    await paths.downloadsDirectory.create(recursive: true);
+    await paths.modelsDirectory.create(recursive: true);
+  }
+
+  Future<void> _writeInstallMetadata(
+    Directory modelDirectory,
+    LocalModelManifest manifest, {
+    required String sourceLabel,
+  }) async {
+    final metadataFile = File(
+      p.join(modelDirectory.path, _installMetadataFileName),
+    );
+    final payload = <String, Object?>{
+      'sourceLabel': sourceLabel,
+      'installedAt': DateTime.now().toIso8601String(),
+      'manifest': manifest.toJson(),
+    };
+    await metadataFile.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(payload),
+    );
+  }
+
+  Future<void> _concatenateFiles(List<File> parts, File destination) async {
+    if (destination.existsSync()) {
+      await destination.delete();
+    }
+    final sink = destination.openWrite();
+    for (final part in parts) {
+      await sink.addStream(part.openRead());
+    }
+    await sink.flush();
+    await sink.close();
+  }
+
+  LocalModelManifest _fallbackManifestForRelease(GitHubReleaseRecord release) {
+    return LocalModelManifest(
+      id: sanitizeId(release.tagName.replaceFirst('model-', '')),
+      displayName: release.title,
+      description: 'Imported model release ${release.tagName}.',
+      runtimeAdapter: RuntimeAdapter.nativeBridge,
+      tasks: const <ModelTask>[ModelTask.chat],
+      source: const ModelSource(
+        provider: 'github',
+        repo: 'IstiN/flutter_local_models',
+        revision: 'main',
+        license: 'mit',
+      ),
+      packaging: PackagingSpec(
+        releaseTag: release.tagName,
+        archiveName: '${sanitizeId(release.tagName)}.tar',
+        chunkSizeBytes: 0,
+        assetPrefix: sanitizeId(release.tagName),
+      ),
+      requirements: const SystemRequirements(
+        platform: 'macos-apple-silicon',
+        minMemoryGb: 0,
+        recommendedMemoryGb: 0,
+        notes: <String>['Imported from GitHub release'],
+      ),
+      capabilities: const CapabilitySpec(
+        audioInput: false,
+        audioOutput: false,
+        toolCalling: false,
+      ),
+    );
+  }
+
+  LocalModelManifest _derivedManifestForRepo(HuggingFaceRepoDetails repo) {
+    final knownManifest = _firstWhereOrNull(
+      registry.manifests,
+      (manifest) => manifest.source.repo == repo.repoId,
+    );
+    if (knownManifest != null) {
+      return knownManifest;
+    }
+    final pipelineTag = repo.pipelineTag ?? 'text-generation';
+    final runtimeAdapter = switch (pipelineTag) {
+      'image-text-to-text' => RuntimeAdapter.mlxVlm,
+      'text-to-speech' => RuntimeAdapter.mlxAudio,
+      'audio-text-to-text' => RuntimeAdapter.mlxAudio,
+      'automatic-speech-recognition' => RuntimeAdapter.mlxAudio,
+      'any-to-any' => RuntimeAdapter.mlxAudio,
+      _ => RuntimeAdapter.mlxLm,
+    };
+    final tasks = switch (pipelineTag) {
+      'image-text-to-text' => const <ModelTask>[
+        ModelTask.chat,
+        ModelTask.vision,
+      ],
+      'text-to-speech' => const <ModelTask>[
+        ModelTask.textToSpeech,
+        ModelTask.audioOutput,
+      ],
+      'audio-text-to-text' => const <ModelTask>[
+        ModelTask.chat,
+        ModelTask.audioInput,
+      ],
+      'automatic-speech-recognition' => const <ModelTask>[
+        ModelTask.speechToText,
+      ],
+      'any-to-any' => const <ModelTask>[ModelTask.chat, ModelTask.audioInput],
+      _ => const <ModelTask>[ModelTask.chat],
+    };
+    final repoName = repo.repoId.split('/').last;
+    return LocalModelManifest(
+      id: sanitizeId(repoName),
+      displayName: repoName.replaceAll('-', ' '),
+      description: 'Custom Hugging Face import from ${repo.repoId}.',
+      runtimeAdapter: runtimeAdapter,
+      tasks: tasks,
+      source: ModelSource(
+        provider: 'huggingface',
+        repo: repo.repoId,
+        revision: repo.revision,
+        license: 'unknown',
+      ),
+      packaging: PackagingSpec(
+        releaseTag: 'direct-${sanitizeId(repoName)}',
+        archiveName: '${sanitizeId(repoName)}.tar',
+        chunkSizeBytes: 0,
+        assetPrefix: sanitizeId(repoName),
+      ),
+      requirements: const SystemRequirements(
+        platform: 'macos-apple-silicon',
+        minMemoryGb: 0,
+        recommendedMemoryGb: 0,
+        notes: <String>['Custom Hugging Face import'],
+      ),
+      capabilities: CapabilitySpec(
+        audioInput:
+            tasks.contains(ModelTask.audioInput) ||
+            tasks.contains(ModelTask.speechToText),
+        audioOutput:
+            tasks.contains(ModelTask.audioOutput) ||
+            tasks.contains(ModelTask.textToSpeech),
+        toolCalling: false,
+      ),
+    );
+  }
+}
+
+Future<String> _computeFileSha256(File file) async {
+  final digest = await sha256.bind(file.openRead()).first;
+  return digest.toString();
+}
+
+String sanitizeId(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9._-]+'), '-')
+      .replaceAll(RegExp(r'-{2,}'), '-')
+      .replaceAll(RegExp(r'^-|-$'), '');
+}
+
+String formatBytes(int bytes) {
+  if (bytes <= 0) {
+    return '0 B';
+  }
+  const units = <String>['B', 'KB', 'MB', 'GB', 'TB'];
+  var value = bytes.toDouble();
+  var unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  final precision = value >= 10 || unitIndex == 0 ? 0 : 1;
+  var formatted = value.toStringAsFixed(precision);
+  if (formatted.endsWith('.0')) {
+    formatted = formatted.substring(0, formatted.length - 2);
+  }
+  return '$formatted ${units[unitIndex]}';
+}
+
+T? _firstWhereOrNull<T>(Iterable<T> items, bool Function(T item) test) {
+  for (final item in items) {
+    if (test(item)) {
+      return item;
+    }
+  }
+  return null;
+}
+
+String? _stripShaPrefix(String? value) {
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  return value.startsWith('sha256:') ? value.substring(7) : value;
+}
+
+Map<String, String> _authorizationHeaders(String? token) {
+  if (token == null || token.isEmpty) {
+    return const <String, String>{};
+  }
+  return <String, String>{HttpHeaders.authorizationHeader: 'Bearer $token'};
+}
+
+class _PausedDownload implements Exception {}
+
+class _CanceledDownload implements Exception {}

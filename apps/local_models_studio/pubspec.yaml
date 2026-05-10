@@ -9,11 +9,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  crypto: ^3.0.7
   cupertino_icons: ^1.0.8
   local_models_core:
     path: ../../packages/local_models_core
   local_models_flutter:
     path: ../../packages/local_models_flutter
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
