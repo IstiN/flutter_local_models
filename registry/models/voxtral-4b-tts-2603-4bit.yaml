@@ -1,0 +1,163 @@
+id: voxtral-4b-tts-2603-4bit
+display_name: Voxtral 4B TTS 2603 4bit
+description: Multilingual Voxtral TTS model with 20 built-in voice presets and faster-than-real-time MLX output.
+runtime_adapter: mlx_audio
+tasks:
+- text_to_speech
+- audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/Voxtral-4B-TTS-2603-mlx-4bit
+  revision: main
+  license: cc-by-nc-4.0
+packaging:
+  release_tag: model-voxtral-4b-tts-2603-4bit
+  archive_name: voxtral-4b-tts-2603-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: voxtral-4b-tts-2603-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 8
+  recommended_memory_gb: 16
+  notes:
+  - MLX-Audio Voxtral TTS runtime
+  - 20 preset voices across 9 languages
+capabilities:
+  audio_input: false
+  audio_output: true
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    voice: casual_male
+    audio_format: wav
+    sample_rate: 24000
+  parameter_schema:
+    type: object
+    properties:
+      voice:
+        type: string
+        description: Voxtral preset voice.
+        enum:
+        - casual_male
+        - casual_female
+        - cheerful_female
+        - neutral_male
+        - neutral_female
+        - fr_male
+        - fr_female
+        - es_male
+        - es_female
+        - de_male
+        - de_female
+        - it_male
+        - it_female
+        - pt_male
+        - pt_female
+        - nl_male
+        - nl_female
+        - ar_male
+        - hi_male
+        - hi_female
+  voices:
+  - id: casual_male
+    display_name: Casual Male
+    locale: English
+  - id: casual_female
+    display_name: Casual Female
+    locale: English
+  - id: cheerful_female
+    display_name: Cheerful Female
+    locale: English
+  - id: neutral_male
+    display_name: Neutral Male
+    locale: English
+  - id: neutral_female
+    display_name: Neutral Female
+    locale: English
+  - id: fr_male
+    display_name: French Male
+    locale: French
+  - id: fr_female
+    display_name: French Female
+    locale: French
+  - id: es_male
+    display_name: Spanish Male
+    locale: Spanish
+  - id: es_female
+    display_name: Spanish Female
+    locale: Spanish
+  - id: de_male
+    display_name: German Male
+    locale: German
+  - id: de_female
+    display_name: German Female
+    locale: German
+  - id: it_male
+    display_name: Italian Male
+    locale: Italian
+  - id: it_female
+    display_name: Italian Female
+    locale: Italian
+  - id: pt_male
+    display_name: Portuguese Male
+    locale: Portuguese
+  - id: pt_female
+    display_name: Portuguese Female
+    locale: Portuguese
+  - id: nl_male
+    display_name: Dutch Male
+    locale: Dutch
+  - id: nl_female
+    display_name: Dutch Female
+    locale: Dutch
+  - id: ar_male
+    display_name: Arabic Male
+    locale: Arabic
+  - id: hi_male
+    display_name: Hindi Male
+    locale: Hindi
+  - id: hi_female
+    display_name: Hindi Female
+    locale: Hindi
+  extra:
+    model_type: voxtral_tts
+    context_length: 128000
+    real_time_factor_short: 0.97
+    real_time_factor_long: 0.74
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    hf_downloads_last_month: 2519
+    hf_size_bytes: 2542800411
+  output:
+    media_type: audio/wav
+    extension: wav
+    sample_rate_hz: 24000
+    supports_inline_playback: true
+model_card:
+  summary: Multilingual Voxtral TTS model with 20 built-in voice presets and faster-than-real-time MLX output.
+  use_cases:
+  - Stable preset TTS voices for voice-to-voice pipeline output
+  - Multilingual assistant speech playback
+  - Comparing Qwen3-TTS and Voxtral voice quality
+  limitations:
+  - Non-commercial source license
+  - Text-to-speech only; pair with ASR or STS for full voice workflows
+  languages:
+  - English
+  - French
+  - Spanish
+  - German
+  - Italian
+  - Portuguese
+  - Dutch
+  - Arabic
+  - Hindi
+  tags:
+  - tts
+  - speech
+  - voice-presets
+  - mlx-audio
+  links:
+    huggingface: https://huggingface.co/mlx-community/Voxtral-4B-TTS-2603-mlx-4bit

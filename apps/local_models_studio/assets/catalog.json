@@ -673,6 +673,728 @@
     }
   },
   {
+    "id": "lfm2.5-1.2b-instruct-4bit",
+    "displayName": "LFM2.5 1.2B Instruct 4bit",
+    "description": "Very compact LiquidAI instruct model for edge chat and low-memory local assistants.",
+    "runtimeAdapter": "mlx_lm",
+    "tasks": [
+      "chat"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/LFM2.5-1.2B-Instruct-4bit",
+      "revision": "main",
+      "license": "lfm1.0"
+    },
+    "packaging": {
+      "releaseTag": "model-lfm2.5-1.2b-instruct-4bit",
+      "archiveName": "lfm2.5-1.2b-instruct-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "lfm2.5-1.2b-instruct-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 4,
+      "recommendedMemoryGb": 8,
+      "notes": [
+        "MLX text runtime",
+        "Edge-focused compact conversational model"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Very compact LiquidAI instruct model for edge chat and low-memory local assistants.",
+      "useCases": [
+        "Fast edge chat",
+        "SDK demos on small memory budgets",
+        "Offline lightweight assistant UX"
+      ],
+      "limitations": [
+        "LFM license terms apply",
+        "Tool calling is not enabled in this manifest"
+      ],
+      "languages": [
+        "English",
+        "Spanish",
+        "French",
+        "German",
+        "Italian",
+        "Portuguese",
+        "Hindi",
+        "Arabic"
+      ],
+      "tags": [
+        "llm",
+        "chat",
+        "lfm",
+        "mlx",
+        "compact"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/LFM2.5-1.2B-Instruct-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 512,
+        "temperature": 0.7,
+        "top_p": 0.95
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        }
+      },
+      "extra": {
+        "model_type": "lfm2",
+        "architecture": "Lfm2ForCausalLM",
+        "context_length": 128000,
+        "tokenizer_model_max_length": 1e+30,
+        "quantization": {
+          "bits": 4,
+          "group_size": 64,
+          "mode": "affine"
+        },
+        "generation_config": {
+          "eos_token_id": 7,
+          "pad_token_id": 0
+        },
+        "hf_downloads_last_month": 53419,
+        "hf_size_bytes": 663395735,
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temp",
+          "top_p": "--top-p"
+        }
+      }
+    }
+  },
+  {
+    "id": "lfm2.5-audio-1.5b-8bit",
+    "displayName": "LFM2.5 Audio 1.5B 8bit",
+    "description": "Compact MLX-Audio speech-to-speech model with text, audio, and interleaved streaming output.",
+    "runtimeAdapter": "mlx_audio",
+    "tasks": [
+      "chat",
+      "audio_input",
+      "audio_output",
+      "speech_to_text",
+      "text_to_speech"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/LFM2.5-Audio-1.5B-8bit",
+      "revision": "main",
+      "license": "lfm1.0"
+    },
+    "packaging": {
+      "releaseTag": "model-lfm2.5-audio-1.5b-8bit",
+      "archiveName": "lfm2.5-audio-1.5b-8bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "lfm2.5-audio-1.5b-8bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 8,
+      "recommendedMemoryGb": 16,
+      "notes": [
+        "MLX-Audio STS runtime",
+        "Audio input should be 24 kHz for direct speech-to-speech examples"
+      ]
+    },
+    "capabilities": {
+      "audioInput": true,
+      "audioOutput": true,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Compact MLX-Audio speech-to-speech model with text, audio, and interleaved streaming output.",
+      "useCases": [
+        "Single-model voice-to-voice experiments",
+        "ASR, TTS, and interleaved audio/text assistant demos",
+        "Low-latency streaming voice UX prototypes"
+      ],
+      "limitations": [
+        "Current app adapter must implement LFM2Audio STS calls before direct use",
+        "Source model card documents English support",
+        "LFM license terms apply"
+      ],
+      "languages": [
+        "English"
+      ],
+      "tags": [
+        "voice-to-voice",
+        "speech-to-speech",
+        "audio-to-audio",
+        "mlx-audio",
+        "streaming"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/LFM2.5-Audio-1.5B-8bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 2048,
+        "temperature": 0.9,
+        "top_k": 50,
+        "top_p": 1.0,
+        "audio_temperature": 0.7,
+        "audio_top_k": 30,
+        "response_modality": "text_audio",
+        "sample_rate": 24000,
+        "frames_per_chunk": 10
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "top_k": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "audio_temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "audio_top_k": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "response_modality": {
+            "type": "string",
+            "enum": [
+              "text",
+              "audio",
+              "text_audio"
+            ]
+          },
+          "frames_per_chunk": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          }
+        }
+      },
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "sample_rate_hz": 24000,
+        "supports_inline_playback": true,
+        "supports_streaming_chunks": true
+      },
+      "extra": {
+        "model_type": "lfm_audio",
+        "architecture": "Lfm2AudioForConditionalGeneration",
+        "speech_to_speech": true,
+        "streaming_generation": true,
+        "input_sample_rate_hz": 24000,
+        "output_sample_rate_hz": 24000,
+        "audio_codebooks": 8,
+        "quantization": {
+          "bits": 8,
+          "group_size": 64,
+          "mode": "affine"
+        },
+        "hf_downloads_last_month": 116,
+        "hf_size_bytes": 2441391357,
+        "mlx_audio_module": "mlx_audio.sts.models.lfm_audio"
+      }
+    }
+  },
+  {
+    "id": "llama-3.2-1b-instruct-4bit",
+    "displayName": "Llama 3.2 1B Instruct 4bit",
+    "description": "Popular tiny Llama instruct model for fast local English-centric chat.",
+    "runtimeAdapter": "mlx_lm",
+    "tasks": [
+      "chat"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Llama-3.2-1B-Instruct-4bit",
+      "revision": "main",
+      "license": "llama3.2"
+    },
+    "packaging": {
+      "releaseTag": "model-llama-3.2-1b-instruct-4bit",
+      "archiveName": "llama-3.2-1b-instruct-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "llama-3.2-1b-instruct-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 4,
+      "recommendedMemoryGb": 8,
+      "notes": [
+        "MLX text runtime",
+        "Tiny Meta Llama instruct baseline"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": true
+    },
+    "modelCard": {
+      "summary": "Popular tiny Llama instruct model for fast local English-centric chat.",
+      "useCases": [
+        "Baseline local chat",
+        "Fast UI and SDK regression testing",
+        "Lightweight offline assistants"
+      ],
+      "limitations": [
+        "Smaller model can hallucinate and struggle with complex reasoning",
+        "Llama license terms apply"
+      ],
+      "languages": [
+        "English",
+        "German",
+        "French",
+        "Italian",
+        "Portuguese",
+        "Hindi",
+        "Spanish",
+        "Thai"
+      ],
+      "tags": [
+        "llm",
+        "chat",
+        "llama",
+        "mlx",
+        "compact"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Llama-3.2-1B-Instruct-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 512,
+        "temperature": 0.6,
+        "top_p": 0.9
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        }
+      },
+      "extra": {
+        "model_type": "llama",
+        "architecture": "LlamaForCausalLM",
+        "context_length": 131072,
+        "tokenizer_model_max_length": 131072,
+        "quantization": {
+          "bits": 4,
+          "group_size": 64
+        },
+        "hf_downloads_last_month": 66891,
+        "hf_size_bytes": 712593855,
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temp",
+          "top_p": "--top-p"
+        }
+      }
+    }
+  },
+  {
+    "id": "llama-3.2-3b-instruct-4bit",
+    "displayName": "Llama 3.2 3B Instruct 4bit",
+    "description": "Small Llama instruct model with better answer quality while staying under 2 GB on disk.",
+    "runtimeAdapter": "mlx_lm",
+    "tasks": [
+      "chat",
+      "code"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Llama-3.2-3B-Instruct-4bit",
+      "revision": "main",
+      "license": "llama3.2"
+    },
+    "packaging": {
+      "releaseTag": "model-llama-3.2-3b-instruct-4bit",
+      "archiveName": "llama-3.2-3b-instruct-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "llama-3.2-3b-instruct-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 8,
+      "recommendedMemoryGb": 12,
+      "notes": [
+        "MLX text runtime",
+        "Higher quality than 1B while still compact"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": true
+    },
+    "modelCard": {
+      "summary": "Small Llama instruct model with better answer quality while staying under 2 GB on disk.",
+      "useCases": [
+        "Local assistant chat",
+        "Offline app demos",
+        "Lightweight coding and summarization tests"
+      ],
+      "limitations": [
+        "Llama license terms apply",
+        "Larger prompts require enough unified memory"
+      ],
+      "languages": [
+        "English",
+        "German",
+        "French",
+        "Italian",
+        "Portuguese",
+        "Hindi",
+        "Spanish",
+        "Thai"
+      ],
+      "tags": [
+        "llm",
+        "chat",
+        "llama",
+        "mlx"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Llama-3.2-3B-Instruct-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 768,
+        "temperature": 0.6,
+        "top_p": 0.9
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8192
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        }
+      },
+      "extra": {
+        "model_type": "llama",
+        "architecture": "LlamaForCausalLM",
+        "context_length": 131072,
+        "tokenizer_model_max_length": 131072,
+        "quantization": {
+          "bits": 4,
+          "group_size": 64
+        },
+        "hf_downloads_last_month": 40250,
+        "hf_size_bytes": 1824825759,
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temp",
+          "top_p": "--top-p"
+        }
+      }
+    }
+  },
+  {
+    "id": "minicpm-o-4_5-4bit",
+    "displayName": "MiniCPM-o 4.5 4bit",
+    "description": "Compact any-to-any MiniCPM-o model for multimodal voice, image, and chat experiments.",
+    "runtimeAdapter": "mlx_vlm",
+    "tasks": [
+      "chat",
+      "vision",
+      "audio_input",
+      "audio_output"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/MiniCPM-o-4_5-4bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-minicpm-o-4_5-4bit",
+      "archiveName": "minicpm-o-4_5-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "minicpm-o-4_5-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 16,
+      "recommendedMemoryGb": 24,
+      "notes": [
+        "MLX-VLM conversion from openbmb/MiniCPM-o-4_5",
+        "Any-to-any and full-duplex metadata are exposed for adapter development"
+      ]
+    },
+    "capabilities": {
+      "audioInput": true,
+      "audioOutput": true,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Compact any-to-any MiniCPM-o model for multimodal voice, image, and chat experiments.",
+      "useCases": [
+        "Any-to-any voice and vision adapter experiments",
+        "Single-model multimodal chat tests",
+        "Full-duplex voice UX research"
+      ],
+      "limitations": [
+        "Current app adapter must implement MiniCPM-o direct audio output before voice-to-voice use",
+        "MLX-VLM example in the model card focuses on image prompting"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "any-to-any",
+        "voice-to-voice",
+        "multimodal",
+        "vision",
+        "mlx-vlm"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/MiniCPM-o-4_5-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 512,
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "top_k": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "output": {
+        "supports_inline_playback": true,
+        "supports_streaming_chunks": true
+      },
+      "extra": {
+        "model_type": "minicpmo",
+        "architecture": "MiniCPMO",
+        "context_length": 40960,
+        "tokenizer_model_max_length": 131072,
+        "any_to_any": true,
+        "full_duplex": true,
+        "trust_remote_code": true,
+        "quantization": {
+          "bits": 4,
+          "group_size": 64,
+          "mode": "affine"
+        },
+        "generation_config": {
+          "do_sample": true,
+          "eos_token_id": [
+            151645,
+            151643
+          ],
+          "pad_token_id": 151643
+        },
+        "hf_downloads_last_month": 214,
+        "hf_size_bytes": 6158400830,
+        "mlx_vlm_example": {
+          "max_tokens": 100,
+          "temperature": 0.0
+        }
+      }
+    }
+  },
+  {
+    "id": "phi-4-mini-instruct-4bit",
+    "displayName": "Phi 4 Mini Instruct 4bit",
+    "description": "Compact Microsoft Phi instruct model for multilingual chat, reasoning, and code experiments.",
+    "runtimeAdapter": "mlx_lm",
+    "tasks": [
+      "chat",
+      "code"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Phi-4-mini-instruct-4bit",
+      "revision": "main",
+      "license": "mit"
+    },
+    "packaging": {
+      "releaseTag": "model-phi-4-mini-instruct-4bit",
+      "archiveName": "phi-4-mini-instruct-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "phi-4-mini-instruct-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 8,
+      "recommendedMemoryGb": 16,
+      "notes": [
+        "MLX text runtime",
+        "Uses custom Phi3 modeling files bundled with the release"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Compact Microsoft Phi instruct model for multilingual chat, reasoning, and code experiments.",
+      "useCases": [
+        "Local chat and reasoning comparisons",
+        "Code and text generation benchmarks",
+        "Offline SDK demos"
+      ],
+      "limitations": [
+        "Runtime must support the bundled Phi3 custom model files",
+        "Tool calling is not enabled in this manifest"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "llm",
+        "chat",
+        "code",
+        "phi",
+        "mlx"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Phi-4-mini-instruct-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 768,
+        "temperature": 0.7,
+        "top_p": 0.9
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8192
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        }
+      },
+      "extra": {
+        "model_type": "phi3",
+        "architecture": "Phi3ForCausalLM",
+        "context_length": 131072,
+        "tokenizer_model_max_length": 131072,
+        "quantization": {
+          "bits": 4,
+          "group_size": 64
+        },
+        "trust_remote_code": true,
+        "hf_downloads_last_month": 13084,
+        "hf_size_bytes": 2180067259,
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temp",
+          "top_p": "--top-p"
+        }
+      }
+    }
+  },
+  {
     "id": "qwen-image-2512-3bit",
     "displayName": "Qwen Image 2512 3bit",
     "description": "Smaller mflux Qwen Image bundle for local text-to-image generation on Apple Silicon.",
@@ -916,6 +1638,229 @@
       ],
       "links": {
         "huggingface": "https://huggingface.co/mlx-community/Qwen2-Audio-7B-Instruct-4bit"
+      }
+    }
+  },
+  {
+    "id": "qwen3-0.6b-4bit",
+    "displayName": "Qwen3 0.6B 4bit",
+    "description": "Tiny Qwen3 chat model for very fast local assistant tests on Apple Silicon.",
+    "runtimeAdapter": "mlx_lm",
+    "tasks": [
+      "chat"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Qwen3-0.6B-4bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-qwen3-0.6b-4bit",
+      "archiveName": "qwen3-0.6b-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "qwen3-0.6b-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 4,
+      "recommendedMemoryGb": 8,
+      "notes": [
+        "MLX text runtime",
+        "Very small model for smoke tests and low-latency chat"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": true
+    },
+    "modelCard": {
+      "summary": "Tiny Qwen3 chat model for very fast local assistant tests on Apple Silicon.",
+      "useCases": [
+        "Smoke tests for the Flutter SDK chat API",
+        "Fast local assistant chat on low-memory Macs",
+        "Offline command and routing experiments"
+      ],
+      "limitations": [
+        "Lower reasoning and coding quality than larger Qwen variants",
+        "Tool calling requires compatible prompt template and parser support"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "llm",
+        "chat",
+        "mlx",
+        "qwen3",
+        "compact"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen3-0.6B-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 512,
+        "temperature": 0.7,
+        "top_p": 0.95
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        }
+      },
+      "extra": {
+        "model_type": "qwen3",
+        "architecture": "Qwen3ForCausalLM",
+        "context_length": 40960,
+        "tokenizer_model_max_length": 131072,
+        "quantization": {
+          "bits": 4,
+          "group_size": 64
+        },
+        "hf_downloads_last_month": 15882,
+        "hf_size_bytes": 351386061,
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temp",
+          "top_p": "--top-p"
+        }
+      }
+    }
+  },
+  {
+    "id": "qwen3-4b-instruct-2507-4bit",
+    "displayName": "Qwen3 4B Instruct 2507 4bit",
+    "description": "Compact Qwen3 instruct model with long-context chat defaults for local apps.",
+    "runtimeAdapter": "mlx_lm",
+    "tasks": [
+      "chat",
+      "code"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+      "revision": "main",
+      "license": "apache-2.0"
+    },
+    "packaging": {
+      "releaseTag": "model-qwen3-4b-instruct-2507-4bit",
+      "archiveName": "qwen3-4b-instruct-2507-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "qwen3-4b-instruct-2507-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 8,
+      "recommendedMemoryGb": 16,
+      "notes": [
+        "MLX text runtime",
+        "Stronger compact Qwen option than 0.6B or 1.7B"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": false,
+      "toolCalling": true
+    },
+    "modelCard": {
+      "summary": "Compact Qwen3 instruct model with long-context chat defaults for local apps.",
+      "useCases": [
+        "Local assistant chat",
+        "Coding and automation",
+        "Tool-enabled Flutter app experiments"
+      ],
+      "limitations": [
+        "Long contexts need enough unified memory",
+        "Tool calling requires compatible runtime parser"
+      ],
+      "languages": [
+        "multilingual"
+      ],
+      "tags": [
+        "llm",
+        "chat",
+        "coding",
+        "mlx",
+        "qwen3"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Qwen3-4B-Instruct-2507-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "max_tokens": 1024,
+        "temperature": 0.7,
+        "top_p": 0.8,
+        "top_k": 20
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8192
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 2.0
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "top_k": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "extra": {
+        "model_type": "qwen3",
+        "architecture": "Qwen3ForCausalLM",
+        "context_length": 262144,
+        "quantization": {
+          "bits": 4,
+          "group_size": 64
+        },
+        "generation_config": {
+          "do_sample": true,
+          "eos_token_id": [
+            151645,
+            151643
+          ],
+          "pad_token_id": 151643
+        },
+        "hf_downloads_last_month": 15793,
+        "hf_size_bytes": 2278972236,
+        "cli_flags": {
+          "max_tokens": "--max-tokens",
+          "temperature": "--temp",
+          "top_p": "--top-p",
+          "top_k": "--top-k"
+        }
       }
     }
   },
@@ -2018,6 +2963,233 @@
         "media_type": "audio/wav",
         "extension": "wav",
         "supports_inline_playback": true
+      }
+    }
+  },
+  {
+    "id": "voxtral-4b-tts-2603-4bit",
+    "displayName": "Voxtral 4B TTS 2603 4bit",
+    "description": "Multilingual Voxtral TTS model with 20 built-in voice presets and faster-than-real-time MLX output.",
+    "runtimeAdapter": "mlx_audio",
+    "tasks": [
+      "text_to_speech",
+      "audio_output"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/Voxtral-4B-TTS-2603-mlx-4bit",
+      "revision": "main",
+      "license": "cc-by-nc-4.0"
+    },
+    "packaging": {
+      "releaseTag": "model-voxtral-4b-tts-2603-4bit",
+      "archiveName": "voxtral-4b-tts-2603-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "voxtral-4b-tts-2603-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 8,
+      "recommendedMemoryGb": 16,
+      "notes": [
+        "MLX-Audio Voxtral TTS runtime",
+        "20 preset voices across 9 languages"
+      ]
+    },
+    "capabilities": {
+      "audioInput": false,
+      "audioOutput": true,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "Multilingual Voxtral TTS model with 20 built-in voice presets and faster-than-real-time MLX output.",
+      "useCases": [
+        "Stable preset TTS voices for voice-to-voice pipeline output",
+        "Multilingual assistant speech playback",
+        "Comparing Qwen3-TTS and Voxtral voice quality"
+      ],
+      "limitations": [
+        "Non-commercial source license",
+        "Text-to-speech only; pair with ASR or STS for full voice workflows"
+      ],
+      "languages": [
+        "English",
+        "French",
+        "Spanish",
+        "German",
+        "Italian",
+        "Portuguese",
+        "Dutch",
+        "Arabic",
+        "Hindi"
+      ],
+      "tags": [
+        "tts",
+        "speech",
+        "voice-presets",
+        "mlx-audio"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/Voxtral-4B-TTS-2603-mlx-4bit"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "voice": "casual_male",
+        "audio_format": "wav",
+        "sample_rate": 24000
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string",
+            "description": "Voxtral preset voice.",
+            "enum": [
+              "casual_male",
+              "casual_female",
+              "cheerful_female",
+              "neutral_male",
+              "neutral_female",
+              "fr_male",
+              "fr_female",
+              "es_male",
+              "es_female",
+              "de_male",
+              "de_female",
+              "it_male",
+              "it_female",
+              "pt_male",
+              "pt_female",
+              "nl_male",
+              "nl_female",
+              "ar_male",
+              "hi_male",
+              "hi_female"
+            ]
+          }
+        }
+      },
+      "voices": [
+        {
+          "id": "casual_male",
+          "displayName": "Casual Male",
+          "locale": "English"
+        },
+        {
+          "id": "casual_female",
+          "displayName": "Casual Female",
+          "locale": "English"
+        },
+        {
+          "id": "cheerful_female",
+          "displayName": "Cheerful Female",
+          "locale": "English"
+        },
+        {
+          "id": "neutral_male",
+          "displayName": "Neutral Male",
+          "locale": "English"
+        },
+        {
+          "id": "neutral_female",
+          "displayName": "Neutral Female",
+          "locale": "English"
+        },
+        {
+          "id": "fr_male",
+          "displayName": "French Male",
+          "locale": "French"
+        },
+        {
+          "id": "fr_female",
+          "displayName": "French Female",
+          "locale": "French"
+        },
+        {
+          "id": "es_male",
+          "displayName": "Spanish Male",
+          "locale": "Spanish"
+        },
+        {
+          "id": "es_female",
+          "displayName": "Spanish Female",
+          "locale": "Spanish"
+        },
+        {
+          "id": "de_male",
+          "displayName": "German Male",
+          "locale": "German"
+        },
+        {
+          "id": "de_female",
+          "displayName": "German Female",
+          "locale": "German"
+        },
+        {
+          "id": "it_male",
+          "displayName": "Italian Male",
+          "locale": "Italian"
+        },
+        {
+          "id": "it_female",
+          "displayName": "Italian Female",
+          "locale": "Italian"
+        },
+        {
+          "id": "pt_male",
+          "displayName": "Portuguese Male",
+          "locale": "Portuguese"
+        },
+        {
+          "id": "pt_female",
+          "displayName": "Portuguese Female",
+          "locale": "Portuguese"
+        },
+        {
+          "id": "nl_male",
+          "displayName": "Dutch Male",
+          "locale": "Dutch"
+        },
+        {
+          "id": "nl_female",
+          "displayName": "Dutch Female",
+          "locale": "Dutch"
+        },
+        {
+          "id": "ar_male",
+          "displayName": "Arabic Male",
+          "locale": "Arabic"
+        },
+        {
+          "id": "hi_male",
+          "displayName": "Hindi Male",
+          "locale": "Hindi"
+        },
+        {
+          "id": "hi_female",
+          "displayName": "Hindi Female",
+          "locale": "Hindi"
+        }
+      ],
+      "output": {
+        "media_type": "audio/wav",
+        "extension": "wav",
+        "sample_rate_hz": 24000,
+        "supports_inline_playback": true
+      },
+      "extra": {
+        "model_type": "voxtral_tts",
+        "context_length": 128000,
+        "real_time_factor_short": 0.97,
+        "real_time_factor_long": 0.74,
+        "quantization": {
+          "bits": 4,
+          "group_size": 64,
+          "mode": "affine"
+        },
+        "hf_downloads_last_month": 2519,
+        "hf_size_bytes": 2542800411
       }
     }
   },

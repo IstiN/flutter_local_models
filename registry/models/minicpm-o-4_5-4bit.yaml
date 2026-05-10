@@ -1,0 +1,101 @@
+id: minicpm-o-4_5-4bit
+display_name: MiniCPM-o 4.5 4bit
+description: Compact any-to-any MiniCPM-o model for multimodal voice, image, and chat experiments.
+runtime_adapter: mlx_vlm
+tasks:
+- chat
+- vision
+- audio_input
+- audio_output
+source:
+  provider: huggingface
+  repo: mlx-community/MiniCPM-o-4_5-4bit
+  revision: main
+  license: apache-2.0
+packaging:
+  release_tag: model-minicpm-o-4_5-4bit
+  archive_name: minicpm-o-4_5-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: minicpm-o-4_5-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 16
+  recommended_memory_gb: 24
+  notes:
+  - MLX-VLM conversion from openbmb/MiniCPM-o-4_5
+  - Any-to-any and full-duplex metadata are exposed for adapter development
+capabilities:
+  audio_input: true
+  audio_output: true
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    max_tokens: 512
+    temperature: 0.6
+    top_p: 0.95
+    top_k: 20
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 4096
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      top_p:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      top_k:
+        type: integer
+        minimum: 1
+        maximum: 100
+  extra:
+    model_type: minicpmo
+    architecture: MiniCPMO
+    context_length: 40960
+    tokenizer_model_max_length: 131072
+    any_to_any: true
+    full_duplex: true
+    trust_remote_code: true
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    generation_config:
+      do_sample: true
+      eos_token_id:
+      - 151645
+      - 151643
+      pad_token_id: 151643
+    hf_downloads_last_month: 214
+    hf_size_bytes: 6158400830
+    mlx_vlm_example:
+      max_tokens: 100
+      temperature: 0.0
+  output:
+    supports_inline_playback: true
+    supports_streaming_chunks: true
+model_card:
+  summary: Compact any-to-any MiniCPM-o model for multimodal voice, image, and chat experiments.
+  use_cases:
+  - Any-to-any voice and vision adapter experiments
+  - Single-model multimodal chat tests
+  - Full-duplex voice UX research
+  limitations:
+  - Current app adapter must implement MiniCPM-o direct audio output before voice-to-voice use
+  - MLX-VLM example in the model card focuses on image prompting
+  languages:
+  - multilingual
+  tags:
+  - any-to-any
+  - voice-to-voice
+  - multimodal
+  - vision
+  - mlx-vlm
+  links:
+    huggingface: https://huggingface.co/mlx-community/MiniCPM-o-4_5-4bit
+

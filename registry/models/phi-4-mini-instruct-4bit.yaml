@@ -1,0 +1,83 @@
+id: phi-4-mini-instruct-4bit
+display_name: Phi 4 Mini Instruct 4bit
+description: Compact Microsoft Phi instruct model for multilingual chat, reasoning, and code experiments.
+runtime_adapter: mlx_lm
+tasks:
+- chat
+- code
+source:
+  provider: huggingface
+  repo: mlx-community/Phi-4-mini-instruct-4bit
+  revision: main
+  license: mit
+packaging:
+  release_tag: model-phi-4-mini-instruct-4bit
+  archive_name: phi-4-mini-instruct-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: phi-4-mini-instruct-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 8
+  recommended_memory_gb: 16
+  notes:
+  - MLX text runtime
+  - Uses custom Phi3 modeling files bundled with the release
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    max_tokens: 768
+    temperature: 0.7
+    top_p: 0.9
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 8192
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      top_p:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+  extra:
+    model_type: phi3
+    architecture: Phi3ForCausalLM
+    context_length: 131072
+    tokenizer_model_max_length: 131072
+    quantization:
+      bits: 4
+      group_size: 64
+    trust_remote_code: true
+    hf_downloads_last_month: 13084
+    hf_size_bytes: 2180067259
+    cli_flags:
+      max_tokens: --max-tokens
+      temperature: --temp
+      top_p: --top-p
+model_card:
+  summary: Compact Microsoft Phi instruct model for multilingual chat, reasoning, and code experiments.
+  use_cases:
+  - Local chat and reasoning comparisons
+  - Code and text generation benchmarks
+  - Offline SDK demos
+  limitations:
+  - Runtime must support the bundled Phi3 custom model files
+  - Tool calling is not enabled in this manifest
+  languages:
+  - multilingual
+  tags:
+  - llm
+  - chat
+  - code
+  - phi
+  - mlx
+  links:
+    huggingface: https://huggingface.co/mlx-community/Phi-4-mini-instruct-4bit
+

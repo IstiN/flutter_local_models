@@ -1,0 +1,92 @@
+id: lfm2.5-1.2b-instruct-4bit
+display_name: LFM2.5 1.2B Instruct 4bit
+description: Very compact LiquidAI instruct model for edge chat and low-memory local assistants.
+runtime_adapter: mlx_lm
+tasks:
+- chat
+source:
+  provider: huggingface
+  repo: mlx-community/LFM2.5-1.2B-Instruct-4bit
+  revision: main
+  license: lfm1.0
+packaging:
+  release_tag: model-lfm2.5-1.2b-instruct-4bit
+  archive_name: lfm2.5-1.2b-instruct-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: lfm2.5-1.2b-instruct-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX text runtime
+  - Edge-focused compact conversational model
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    max_tokens: 512
+    temperature: 0.7
+    top_p: 0.95
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 4096
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      top_p:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+  extra:
+    model_type: lfm2
+    architecture: Lfm2ForCausalLM
+    context_length: 128000
+    tokenizer_model_max_length: 1000000000000000019884624838656
+    quantization:
+      bits: 4
+      group_size: 64
+      mode: affine
+    generation_config:
+      eos_token_id: 7
+      pad_token_id: 0
+    hf_downloads_last_month: 53419
+    hf_size_bytes: 663395735
+    cli_flags:
+      max_tokens: --max-tokens
+      temperature: --temp
+      top_p: --top-p
+model_card:
+  summary: Very compact LiquidAI instruct model for edge chat and low-memory local assistants.
+  use_cases:
+  - Fast edge chat
+  - SDK demos on small memory budgets
+  - Offline lightweight assistant UX
+  limitations:
+  - LFM license terms apply
+  - Tool calling is not enabled in this manifest
+  languages:
+  - English
+  - Spanish
+  - French
+  - German
+  - Italian
+  - Portuguese
+  - Hindi
+  - Arabic
+  tags:
+  - llm
+  - chat
+  - lfm
+  - mlx
+  - compact
+  links:
+    huggingface: https://huggingface.co/mlx-community/LFM2.5-1.2B-Instruct-4bit
+

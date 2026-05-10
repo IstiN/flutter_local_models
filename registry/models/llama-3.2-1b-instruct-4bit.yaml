@@ -1,0 +1,88 @@
+id: llama-3.2-1b-instruct-4bit
+display_name: Llama 3.2 1B Instruct 4bit
+description: Popular tiny Llama instruct model for fast local English-centric chat.
+runtime_adapter: mlx_lm
+tasks:
+- chat
+source:
+  provider: huggingface
+  repo: mlx-community/Llama-3.2-1B-Instruct-4bit
+  revision: main
+  license: llama3.2
+packaging:
+  release_tag: model-llama-3.2-1b-instruct-4bit
+  archive_name: llama-3.2-1b-instruct-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: llama-3.2-1b-instruct-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 4
+  recommended_memory_gb: 8
+  notes:
+  - MLX text runtime
+  - Tiny Meta Llama instruct baseline
+capabilities:
+  audio_input: false
+  audio_output: false
+  tool_calling: true
+runtime_config:
+  default_parameters:
+    max_tokens: 512
+    temperature: 0.6
+    top_p: 0.9
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 4096
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      top_p:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+  extra:
+    model_type: llama
+    architecture: LlamaForCausalLM
+    context_length: 131072
+    tokenizer_model_max_length: 131072
+    quantization:
+      bits: 4
+      group_size: 64
+    hf_downloads_last_month: 66891
+    hf_size_bytes: 712593855
+    cli_flags:
+      max_tokens: --max-tokens
+      temperature: --temp
+      top_p: --top-p
+model_card:
+  summary: Popular tiny Llama instruct model for fast local English-centric chat.
+  use_cases:
+  - Baseline local chat
+  - Fast UI and SDK regression testing
+  - Lightweight offline assistants
+  limitations:
+  - Smaller model can hallucinate and struggle with complex reasoning
+  - Llama license terms apply
+  languages:
+  - English
+  - German
+  - French
+  - Italian
+  - Portuguese
+  - Hindi
+  - Spanish
+  - Thai
+  tags:
+  - llm
+  - chat
+  - llama
+  - mlx
+  - compact
+  links:
+    huggingface: https://huggingface.co/mlx-community/Llama-3.2-1B-Instruct-4bit
+

@@ -56,6 +56,17 @@ runtime_config:
     format: text
 ''';
 
+Directory _findRepoRoot() {
+  var current = Directory.current;
+  for (var i = 0; i < 6; i++) {
+    if (Directory(p.join(current.path, 'registry', 'models')).existsSync()) {
+      return current;
+    }
+    current = current.parent;
+  }
+  throw StateError('Could not locate repo root from ${Directory.current.path}');
+}
+
 void main() {
   test('parses yaml manifests', () {
     final manifest = LocalModelManifest.fromYaml(_sampleManifest);
@@ -103,6 +114,40 @@ void main() {
     expect(
       registry.byId('qwen3-asr-0.6b-4bit').source.repo,
       'mlx-community/Qwen3-ASR-0.6B-4bit',
+    );
+  });
+
+  test('loads repo registry manifests with rich runtime metadata', () async {
+    final repoRoot = _findRepoRoot();
+    final registry = await ModelRegistry.loadDirectory(
+      p.join(repoRoot.path, 'registry', 'models'),
+    );
+
+    expect(registry.manifests.length, greaterThanOrEqualTo(20));
+
+    final qwen = registry.byId('qwen3-4b-instruct-2507-4bit');
+    expect(qwen.runtimeAdapter, RuntimeAdapter.mlxLm);
+    expect(qwen.runtimeConfig.defaultParameters['top_k'], 20);
+    expect(qwen.runtimeConfig.extra['context_length'], 262144);
+    expect(qwen.modelCard.tags, contains('qwen3'));
+
+    final speechToSpeech = registry.byId('lfm2.5-audio-1.5b-8bit');
+    expect(speechToSpeech.tasks, contains(ModelTask.audioInput));
+    expect(speechToSpeech.tasks, contains(ModelTask.audioOutput));
+    expect(
+      speechToSpeech.runtimeConfig.defaultParameters['audio_temperature'],
+      0.7,
+    );
+    expect(
+      speechToSpeech.runtimeConfig.output['supports_streaming_chunks'],
+      isTrue,
+    );
+
+    final voxtral = registry.byId('voxtral-4b-tts-2603-4bit');
+    expect(voxtral.runtimeConfig.voices.length, 20);
+    expect(
+      voxtral.runtimeConfig.parameterSchema['properties'],
+      containsPair('voice', isA<Map<Object?, Object?>>()),
     );
   });
 

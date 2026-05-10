@@ -62,9 +62,15 @@ class FakeChatRuntime implements LocalChatRuntime {
     LocalChatParams params = const LocalChatParams(),
   }) async* {
     expect(messages.single.role, LocalChatRole.user);
+    expect(messages.single.attachments.single.type, LocalAttachmentType.audio);
+    expect(messages.single.attachments.single.mimeType, 'audio/wav');
     expect(params.modelId, 'fake-model');
     expect(params.maxTokens, 12);
+    expect(params.temperature, 0.2);
+    expect(params.topP, 0.8);
+    expect(params.stop, ['</tool_call>']);
     expect(params.tools.single.name, 'get_weather');
+    expect(params.extra['voice'], 'Ryan');
     yield const LocalChatDelta(content: 'hel');
     yield const LocalChatDelta(
       content: 'lo',
@@ -100,13 +106,28 @@ void main() {
     final plugin = LocalModelsFlutter(chatRuntime: FakeChatRuntime());
     final models = await plugin.getModels();
     final response = await plugin.chat(
-      messages: const [LocalChatMessage.user('hi')],
+      messages: [
+        LocalChatMessage.user(
+          'hi',
+          attachments: [
+            LocalMessageAttachment.file(
+              type: LocalAttachmentType.audio,
+              path: '/tmp/input.wav',
+              mimeType: 'audio/wav',
+            ),
+          ],
+        ),
+      ],
       params: const LocalChatParams(
         modelId: 'fake-model',
         maxTokens: 12,
+        temperature: 0.2,
+        topP: 0.8,
+        stop: ['</tool_call>'],
         tools: [
           LocalTool.function(name: 'get_weather', description: 'Get weather.'),
         ],
+        extra: {'voice': 'Ryan'},
       ),
     );
 
@@ -115,5 +136,14 @@ void main() {
     expect(response.message.content, 'hello');
     expect(response.message.toolCalls.single.name, 'get_weather');
     expect(response.metadata['finishReason'], 'tool_calls');
+  });
+
+  test('chatStream reports a clear error without a runtime adapter', () async {
+    final plugin = LocalModelsFlutter();
+
+    expect(
+      plugin.chatStream(messages: const [LocalChatMessage.user('hi')]).first,
+      throwsA(isA<UnsupportedError>()),
+    );
   });
 }

@@ -1,0 +1,118 @@
+id: lfm2.5-audio-1.5b-8bit
+display_name: LFM2.5 Audio 1.5B 8bit
+description: Compact MLX-Audio speech-to-speech model with text, audio, and interleaved streaming output.
+runtime_adapter: mlx_audio
+tasks:
+- chat
+- audio_input
+- audio_output
+- speech_to_text
+- text_to_speech
+source:
+  provider: huggingface
+  repo: mlx-community/LFM2.5-Audio-1.5B-8bit
+  revision: main
+  license: lfm1.0
+packaging:
+  release_tag: model-lfm2.5-audio-1.5b-8bit
+  archive_name: lfm2.5-audio-1.5b-8bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: lfm2.5-audio-1.5b-8bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 8
+  recommended_memory_gb: 16
+  notes:
+  - MLX-Audio STS runtime
+  - Audio input should be 24 kHz for direct speech-to-speech examples
+capabilities:
+  audio_input: true
+  audio_output: true
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    max_tokens: 2048
+    temperature: 0.9
+    top_k: 50
+    top_p: 1.0
+    audio_temperature: 0.7
+    audio_top_k: 30
+    response_modality: text_audio
+    sample_rate: 24000
+    frames_per_chunk: 10
+  parameter_schema:
+    type: object
+    properties:
+      max_tokens:
+        type: integer
+        minimum: 1
+        maximum: 4096
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      top_k:
+        type: integer
+        minimum: 1
+        maximum: 200
+      top_p:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      audio_temperature:
+        type: number
+        minimum: 0.0
+        maximum: 2.0
+      audio_top_k:
+        type: integer
+        minimum: 1
+        maximum: 200
+      response_modality:
+        type: string
+        enum: [text, audio, text_audio]
+      frames_per_chunk:
+        type: integer
+        minimum: 1
+        maximum: 60
+  extra:
+    model_type: lfm_audio
+    architecture: Lfm2AudioForConditionalGeneration
+    speech_to_speech: true
+    streaming_generation: true
+    input_sample_rate_hz: 24000
+    output_sample_rate_hz: 24000
+    audio_codebooks: 8
+    quantization:
+      bits: 8
+      group_size: 64
+      mode: affine
+    hf_downloads_last_month: 116
+    hf_size_bytes: 2441391357
+    mlx_audio_module: mlx_audio.sts.models.lfm_audio
+  output:
+    media_type: audio/wav
+    extension: wav
+    sample_rate_hz: 24000
+    supports_inline_playback: true
+    supports_streaming_chunks: true
+model_card:
+  summary: Compact MLX-Audio speech-to-speech model with text, audio, and interleaved streaming output.
+  use_cases:
+  - Single-model voice-to-voice experiments
+  - ASR, TTS, and interleaved audio/text assistant demos
+  - Low-latency streaming voice UX prototypes
+  limitations:
+  - Current app adapter must implement LFM2Audio STS calls before direct use
+  - Source model card documents English support
+  - LFM license terms apply
+  languages:
+  - English
+  tags:
+  - voice-to-voice
+  - speech-to-speech
+  - audio-to-audio
+  - mlx-audio
+  - streaming
+  links:
+    huggingface: https://huggingface.co/mlx-community/LFM2.5-Audio-1.5B-8bit
+
