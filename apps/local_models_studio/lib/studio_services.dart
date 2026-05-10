@@ -1300,6 +1300,7 @@ Future<String> _runCurl(
 }
 
 int? _parseContentLength(String headers) {
+  int? parsedLength;
   for (final line in const LineSplitter().convert(headers)) {
     final separatorIndex = line.indexOf(':');
     if (separatorIndex == -1) {
@@ -1309,12 +1310,13 @@ int? _parseContentLength(String headers) {
     if (name != 'content-length') {
       continue;
     }
-    return int.tryParse(line.substring(separatorIndex + 1).trim());
+    parsedLength = int.tryParse(line.substring(separatorIndex + 1).trim());
   }
-  return null;
+  return parsedLength;
 }
 
 int? _parseContentRangeLength(String headers) {
+  int? parsedLength;
   for (final line in const LineSplitter().convert(headers)) {
     final separatorIndex = line.indexOf(':');
     if (separatorIndex == -1) {
@@ -1327,11 +1329,11 @@ int? _parseContentRangeLength(String headers) {
     final value = line.substring(separatorIndex + 1).trim();
     final slashIndex = value.lastIndexOf('/');
     if (slashIndex == -1) {
-      return null;
+      continue;
     }
-    return int.tryParse(value.substring(slashIndex + 1).trim());
+    parsedLength = int.tryParse(value.substring(slashIndex + 1).trim());
   }
-  return null;
+  return parsedLength;
 }
 
 String get _curlExecutable =>
