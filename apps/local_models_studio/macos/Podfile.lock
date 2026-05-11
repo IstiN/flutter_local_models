@@ -1,41 +1,22 @@
 PODS:
-  - audioplayers_darwin (0.0.1):
-    - Flutter
-    - FlutterMacOS
-  - file_selector_macos (0.0.1):
-    - FlutterMacOS
   - FlutterMacOS (1.0.0)
   - local_models_flutter (0.1.0):
     - FlutterMacOS
-  - record_macos (1.2.0):
-    - FlutterMacOS
 
 DEPENDENCIES:
-  - audioplayers_darwin (from `Flutter/ephemeral/.symlinks/plugins/audioplayers_darwin/darwin`)
-  - file_selector_macos (from `Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - local_models_flutter (from `Flutter/ephemeral/.symlinks/plugins/local_models_flutter/macos`)
-  - record_macos (from `Flutter/ephemeral/.symlinks/plugins/record_macos/macos`)
 
 EXTERNAL SOURCES:
-  audioplayers_darwin:
-    :path: Flutter/ephemeral/.symlinks/plugins/audioplayers_darwin/darwin
-  file_selector_macos:
-    :path: Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
   local_models_flutter:
     :path: Flutter/ephemeral/.symlinks/plugins/local_models_flutter/macos
-  record_macos:
-    :path: Flutter/ephemeral/.symlinks/plugins/record_macos/macos
 
 SPEC CHECKSUMS:
-  audioplayers_darwin: 835ced6edd4c9fc8ebb0a7cc9e294a91d99917d5
-  file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  local_models_flutter: dfc9ccfb65e02fec958d81190086a6508ced197a
-  record_macos: 7f227161b93c49e7e34fe681c5891c8622c8cc8b
+  local_models_flutter: 3a2c7d78352240f9963c727e91b9cf9e11eb4cc4
 
-PODFILE CHECKSUM: 89c84cf5c2351c1e554c6dea18d31a879fc3a19e
+PODFILE CHECKSUM: d16f5e5d196d1ca9863d7a71d5885cad7ffa7d2d
 
 COCOAPODS: 1.16.2

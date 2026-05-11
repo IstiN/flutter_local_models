@@ -4,8 +4,11 @@ export 'package:local_models_core/local_models_core.dart';
 
 export 'model_runtime_preferences_store.dart';
 export 'openai_audio_speech_client.dart';
+export 'runtime/fallback_dispatch.dart';
 export 'runtime/native_dispatch.dart';
 export 'runtime/native_engines.dart';
+export 'runtime/process_mlx_dispatch.dart';
+export 'runtime/runtime_policy.dart';
 export 'studio_services.dart';
 export 'voice2_voice_pipeline.dart'
     show

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:local_models_core/local_models_core.dart';
 
 import 'native_dispatch.dart';
+import 'runtime_policy.dart';
 
 class LmCompletionRequest {
   const LmCompletionRequest({
@@ -45,7 +46,7 @@ bool manifestSupportsTextPrompt(LocalModelManifest manifest) {
 
 final class NativeLmEngine implements LmEngine {
   NativeLmEngine({FlmDispatching? dispatch})
-    : _dispatch = dispatch ?? FlmNativeDispatcher();
+    : _dispatch = dispatch ?? defaultFlmDispatching();
 
   final FlmDispatching _dispatch;
 
@@ -110,7 +111,7 @@ bool manifestSupportsTts(LocalModelManifest manifest) {
 
 final class NativeAudioEngine implements AudioEngine {
   NativeAudioEngine({FlmDispatching? dispatch})
-    : _dispatch = dispatch ?? FlmNativeDispatcher();
+    : _dispatch = dispatch ?? defaultFlmDispatching();
 
   final FlmDispatching _dispatch;
 
@@ -192,7 +193,7 @@ bool manifestSupportsImageGen(LocalModelManifest manifest) {
 
 final class NativeImageEngine implements ImageEngine {
   NativeImageEngine({FlmDispatching? dispatch})
-    : _dispatch = dispatch ?? FlmNativeDispatcher();
+    : _dispatch = dispatch ?? defaultFlmDispatching();
 
   final FlmDispatching _dispatch;
 

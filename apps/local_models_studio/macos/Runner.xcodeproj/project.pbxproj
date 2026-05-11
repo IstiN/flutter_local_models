@@ -29,6 +29,8 @@
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
 		5E4FFAD1D454F65F4A1EC6FE /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B548EA0C3AE085772C04534D /* Pods_Runner.framework */; };
 		A1D909226037C7279C3DF042 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7EB9DE8B381507ECC324DA99 /* Pods_RunnerTests.framework */; };
+		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		F1A0032B33823900A9FFBC1 /* FlmMLXRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = F1A0022B33823900A9FFBC1 /* FlmMLXRuntime */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -88,6 +90,8 @@
 		97652044D9ACCDBFAFD7496A /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		9F8E4144772B7768EF9BF2F1 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		B548EA0C3AE085772C04534D /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
+		F1A0042B33823900A9FFBC1 /* FlmMLXRuntime */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlmMLXRuntime; path = ../../../packages/local_models_flutter/macos/FlmMLXRuntime; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -103,6 +107,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */,
+				F1A0032B33823900A9FFBC1 /* FlmMLXRuntime in Frameworks */,
 				5E4FFAD1D454F65F4A1EC6FE /* Pods_Runner.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -164,6 +170,8 @@
 		33CEB47122A05771004F2AC0 /* Flutter */ = {
 			isa = PBXGroup;
 			children = (
+				F1A0042B33823900A9FFBC1 /* FlmMLXRuntime */,
+				78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */,
 				335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */,
 				33CEB47222A05771004F2AC0 /* Flutter-Debug.xcconfig */,
 				33CEB47422A05771004F2AC0 /* Flutter-Release.xcconfig */,
@@ -231,6 +239,10 @@
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		33CC10EC2044A3C60003C045 /* Runner */ = {
+			packageProductDependencies = (
+				78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */,
+				F1A0022B33823900A9FFBC1 /* FlmMLXRuntime */,
+			);
 			isa = PBXNativeTarget;
 			buildConfigurationList = 33CC10FB2044A3C60003C045 /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
@@ -256,6 +268,10 @@
 
 /* Begin PBXProject section */
 		33CC10E52044A3C60003C045 /* Project object */ = {
+			packageReferences = (
+				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
+				F1A0012B33823900A9FFBC1 /* XCLocalSwiftPackageReference "FlmMLXRuntime" */,
+			);
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
@@ -557,7 +573,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -639,7 +655,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
@@ -689,7 +705,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -796,6 +812,27 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+/* Begin XCLocalSwiftPackageReference section */
+		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
+		};
+		F1A0012B33823900A9FFBC1 /* XCLocalSwiftPackageReference "FlmMLXRuntime" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../../packages/local_models_flutter/macos/FlmMLXRuntime;
+		};
+/* End XCLocalSwiftPackageReference section */
+/* Begin XCSwiftPackageProductDependency section */
+		78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FlutterGeneratedPluginSwiftPackage;
+		};
+		F1A0022B33823900A9FFBC1 /* FlmMLXRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F1A0012B33823900A9FFBC1 /* XCLocalSwiftPackageReference "FlmMLXRuntime" */;
+			productName = FlmMLXRuntime;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 33CC10E52044A3C60003C045 /* Project object */;
 }
