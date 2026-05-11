@@ -542,29 +542,36 @@ class _StudioShellState extends State<StudioShell> {
                     ],
                   ),
                 ),
-                Expanded(
-                  child: IndexedStack(
-                    index: selectedPageIndex,
-                    children: [
-                      _buildCatalogTab(context),
-                      _buildDownloadsTab(context),
-                      _buildTestTab(context),
-                      _buildE2eBenchmarkTab(
-                        context,
-                        installedModels: controller.installedModels,
-                        showModeSwitch: false,
-                      ),
-                      _buildVoicesTab(context),
-                      _buildSettingsTab(context),
-                    ],
-                  ),
-                ),
+                Expanded(child: _buildActivePage(context)),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildActivePage(BuildContext context) {
+    switch (selectedPageIndex) {
+      case 0:
+        return _buildCatalogTab(context);
+      case 1:
+        return _buildDownloadsTab(context);
+      case 2:
+        return _buildTestTab(context);
+      case 3:
+        return _buildE2eBenchmarkTab(
+          context,
+          installedModels: controller.installedModels,
+          showModeSwitch: false,
+        );
+      case 4:
+        return _buildVoicesTab(context);
+      case 5:
+        return _buildSettingsTab(context);
+      default:
+        return _buildCatalogTab(context);
+    }
   }
 
   Widget _buildCatalogTab(BuildContext context) {
@@ -1082,12 +1089,12 @@ class _StudioShellState extends State<StudioShell> {
                     FilledButton.tonalIcon(
                       onPressed: selectedPath == null
                           ? null
-                          : () {
-                              setState(() => selectedPageIndex = 2);
-                              unawaited(
-                                _setTtsReferenceAudioPath(selectedPath),
-                              );
-                            },
+                          : () => unawaited(
+                              _selectVoiceReference(
+                                selectedPath,
+                                openTest: true,
+                              ),
+                            ),
                       icon: const StudioSvgIcon('mic', size: 20),
                       label: const Text('Use in Test'),
                     ),
@@ -1153,10 +1160,7 @@ class _StudioShellState extends State<StudioShell> {
             ),
             const SizedBox(width: 8),
             FilledButton.tonalIcon(
-              onPressed: () => setState(() {
-                myVoiceReferencePath = file.path;
-                ttsReferenceAudioPath = file.path;
-              }),
+              onPressed: () => unawaited(_selectVoiceReference(file.path)),
               icon: const StudioSvgIcon('mic', size: 20),
               label: const Text('Use Voice'),
             ),
@@ -3555,6 +3559,31 @@ class _StudioShellState extends State<StudioShell> {
     }
   }
 
+  Future<void> _selectVoiceReference(
+    String path, {
+    bool openTest = false,
+  }) async {
+    if (!File(path).existsSync()) {
+      if (!mounted) {
+        return;
+      }
+      setState(
+        () => testErrorMessage = 'Voice reference file no longer exists: $path',
+      );
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      myVoiceReferencePath = path;
+      if (openTest) {
+        selectedPageIndex = 2;
+      }
+    });
+    await _setTtsReferenceAudioPath(path);
+  }
+
   Future<void> _setTtsReferenceAudioPath(String path) async {
     final changed = ttsReferenceAudioPath != path;
     if (!mounted) {
@@ -3567,27 +3596,37 @@ class _StudioShellState extends State<StudioShell> {
         ttsReferenceTextController.clear();
       }
     });
-    await _loadOrTranscribeReferenceTranscript(path);
+    try {
+      await _loadOrTranscribeReferenceTranscript(path);
+    } catch (error) {
+      if (!mounted || ttsReferenceAudioPath != path) {
+        return;
+      }
+      setState(
+        () => testErrorMessage =
+            'Could not select the reference voice. Try importing the audio again.\n$error',
+      );
+    }
   }
 
   Future<void> _loadOrTranscribeReferenceTranscript(String audioPath) async {
-    final sidecar = File(p.setExtension(audioPath, '.txt'));
-    if (await sidecar.exists()) {
-      final cachedTranscript = (await sidecar.readAsString()).trim();
-      if (cachedTranscript.isNotEmpty && mounted) {
-        setState(() => ttsReferenceTextController.text = cachedTranscript);
+    try {
+      final sidecar = File(p.setExtension(audioPath, '.txt'));
+      if (await sidecar.exists()) {
+        final cachedTranscript = (await sidecar.readAsString()).trim();
+        if (cachedTranscript.isNotEmpty && mounted) {
+          setState(() => ttsReferenceTextController.text = cachedTranscript);
+          return;
+        }
+      }
+      if (ttsReferenceTextController.text.trim().isNotEmpty) {
         return;
       }
-    }
-    if (ttsReferenceTextController.text.trim().isNotEmpty) {
-      return;
-    }
-    final asrModel = _referenceTranscriptModel();
-    if (asrModel == null) {
-      return;
-    }
-    setState(() => transcribingReferenceVoice = true);
-    try {
+      final asrModel = _referenceTranscriptModel();
+      if (asrModel == null || !mounted) {
+        return;
+      }
+      setState(() => transcribingReferenceVoice = true);
       final transcript = await controller.transcribeAudio(
         model: asrModel,
         audioPath: audioPath,
@@ -4462,17 +4501,27 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Future<void> _toggleAudioPlayback(String path) async {
-    if (playingAudioPath == path) {
-      await audioPlayer.stop();
-      if (mounted) {
-        setState(() => playingAudioPath = null);
+    try {
+      if (playingAudioPath == path) {
+        await audioPlayer.stop();
+        if (mounted) {
+          setState(() => playingAudioPath = null);
+        }
+        return;
       }
-      return;
+      await _playAudioPath(path);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => testErrorMessage = 'Could not play audio file.\n$error');
     }
-    await _playAudioPath(path);
   }
 
   Future<void> _playAudioPath(String path) async {
+    if (!File(path).existsSync()) {
+      throw StateError('Audio file no longer exists: $path');
+    }
     await audioPlayer.stop();
     await audioPlayer.play(DeviceFileSource(path));
     if (!mounted) {
@@ -4487,8 +4536,15 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Future<Duration?> _probeAudioDuration(String path) async {
-    await audioPlayer.setSource(DeviceFileSource(path));
-    return audioPlayer.getDuration();
+    try {
+      if (!File(path).existsSync()) {
+        return null;
+      }
+      await audioPlayer.setSource(DeviceFileSource(path));
+      return audioPlayer.getDuration();
+    } catch (_) {
+      return null;
+    }
   }
 
   String _formatDuration(Duration duration) {
