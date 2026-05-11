@@ -7,6 +7,9 @@ import 'package:flutter/foundation.dart';
 import 'package:local_models_core/local_models_core.dart';
 import 'package:path/path.dart' as p;
 
+import 'openai_audio_speech_client.dart';
+import 'runtime/native_engines.dart';
+
 const _installMetadataFileName = '.flutter_local_model.json';
 const _downloadQueueFileName = 'download_queue.json';
 const _settingsFileName = 'settings.json';
@@ -621,72 +624,14 @@ class StudioApiClient {
 }
 
 class LocalChatRunner {
-  LocalChatRunner({String? pythonExecutable})
-    : pythonExecutable = pythonExecutable ?? _resolveMlxPythonExecutable();
+  LocalChatRunner({LmEngine? engine}) : _engine = engine ?? defaultLmEngine();
 
-  final String pythonExecutable;
-
-  List<String> _buildGenerateArgs({
-    required InstalledModel model,
-    required String prompt,
-    String? audioPath,
-    String? imagePath,
-    int maxTokens = 256,
-    double? temperature,
-    double? topP,
-    bool? enableThinking,
-  }) {
-    final chatTemplateConfig = enableThinking == null
-        ? null
-        : jsonEncode({'enable_thinking': enableThinking});
-    return switch (model.manifest.runtimeAdapter) {
-      RuntimeAdapter.mlxLm => <String>[
-        '-m',
-        'mlx_lm',
-        'generate',
-        '--model',
-        model.directory.path,
-        '--prompt',
-        prompt,
-        '--max-tokens',
-        '$maxTokens',
-        if (temperature != null) ...<String>['--temp', '$temperature'],
-        if (topP != null) ...<String>['--top-p', '$topP'],
-        if (chatTemplateConfig != null) ...<String>[
-          '--chat-template-config',
-          chatTemplateConfig,
-        ],
-        '--verbose',
-        'false',
-      ],
-      RuntimeAdapter.mlxVlm => <String>[
-        '-m',
-        'mlx_vlm',
-        'generate',
-        '--model',
-        model.directory.path,
-        if (audioPath != null) ...<String>['--audio', audioPath],
-        if (imagePath != null) ...<String>['--image', imagePath],
-        '--prompt',
-        prompt,
-        '--max-tokens',
-        '$maxTokens',
-        if (temperature != null) ...<String>['--temperature', '$temperature'],
-      ],
-      _ => throw StateError('Unsupported text runtime.'),
-    };
-  }
+  final LmEngine _engine;
 
   void _checkRuntime(InstalledModel model) {
     if (!model.textPromptSupported) {
       throw StateError(
         'Chat verification currently supports installed mlx_lm and mlx_vlm chat models.',
-      );
-    }
-    final executableFile = File(pythonExecutable);
-    if (!executableFile.existsSync()) {
-      throw StateError(
-        'MLX Python runtime not found at $pythonExecutable. Set up ~/.venvs/mlx first.',
       );
     }
   }
@@ -702,24 +647,20 @@ class LocalChatRunner {
     bool? enableThinking,
   }) async {
     _checkRuntime(model);
-    final args = _buildGenerateArgs(
-      model: model,
-      prompt: prompt,
-      audioPath: audioPath,
-      imagePath: imagePath,
-      maxTokens: maxTokens,
-      temperature: temperature,
-      topP: topP,
-      enableThinking: enableThinking,
+    final raw = await _engine.complete(
+      LmCompletionRequest(
+        modelPath: model.directory.path,
+        manifest: model.manifest,
+        prompt: prompt,
+        audioPath: audioPath,
+        imagePath: imagePath,
+        maxTokens: maxTokens,
+        temperature: temperature,
+        topP: topP,
+        enableThinking: enableThinking,
+      ),
     );
-
-    final result = await Process.run(pythonExecutable, args);
-    if (result.exitCode != 0) {
-      throw StateError(
-        'Local generation failed: ${(result.stderr as String).trim()}',
-      );
-    }
-    final output = _cleanGeneratedText(result.stdout as String).trim();
+    final output = _cleanGeneratedText(raw).trim();
     if (output.isEmpty) {
       throw StateError('Local generation returned an empty response.');
     }
@@ -737,8 +678,7 @@ class LocalChatRunner {
     double? topP,
     bool? enableThinking,
   }) async {
-    _checkRuntime(model);
-    final args = _buildGenerateArgs(
+    final output = await generateResponse(
       model: model,
       prompt: prompt,
       audioPath: audioPath,
@@ -748,33 +688,6 @@ class LocalChatRunner {
       topP: topP,
       enableThinking: enableThinking,
     );
-    final process = await Process.start(pythonExecutable, args);
-    final stdoutBuffer = StringBuffer();
-    final stderrBuffer = StringBuffer();
-    final stdoutDone = process.stdout.transform(utf8.decoder).listen((chunk) {
-      stdoutBuffer.write(chunk);
-      final cleaned = _cleanGeneratedText(stdoutBuffer.toString()).trim();
-      if (cleaned.isNotEmpty) {
-        onText(cleaned);
-      }
-    }).asFuture<void>();
-    final stderrDone = process.stderr
-        .transform(utf8.decoder)
-        .listen(stderrBuffer.write)
-        .asFuture<void>();
-    final exitCode = await process.exitCode;
-    await stdoutDone;
-    await stderrDone;
-    if (exitCode != 0) {
-      final stderr = stderrBuffer.toString().trim();
-      throw StateError(
-        'Local generation failed: ${stderr.isEmpty ? 'exit code $exitCode' : stderr}',
-      );
-    }
-    final output = _cleanGeneratedText(stdoutBuffer.toString()).trim();
-    if (output.isEmpty) {
-      throw StateError('Local generation returned an empty response.');
-    }
     onText(output);
     return output;
   }
@@ -893,93 +806,29 @@ String _stripThinkingBlocks(String text) {
 }
 
 class LocalAudioRunner {
-  LocalAudioRunner({String? pythonExecutable})
-    : pythonExecutable = pythonExecutable ?? _resolveMlxPythonExecutable();
+  LocalAudioRunner({AudioEngine? engine})
+    : _engine = engine ?? defaultAudioEngine();
 
-  final String pythonExecutable;
-
-  void _checkRuntime() {
-    final executableFile = File(pythonExecutable);
-    if (!executableFile.existsSync()) {
-      throw StateError(
-        'MLX Python runtime not found at $pythonExecutable. Set up ~/.venvs/mlx first.',
-      );
-    }
-  }
+  final AudioEngine _engine;
 
   Future<String> transcribeAudio({
     required InstalledModel model,
     required String audioPath,
     String? language,
-  }) async {
-    if (!model.speechToTextSupported) {
-      throw StateError(
-        'Audio verification currently supports only installed mlx_audio speech-to-text models.',
-      );
-    }
-
-    _checkRuntime();
-
-    final tempDirectory = await Directory.systemTemp.createTemp(
-      'flm-stt-${sanitizeId(model.manifest.id)}-',
+  }) {
+    return _engine.transcribe(
+      modelPath: model.directory.path,
+      manifest: model.manifest,
+      audioPath: audioPath,
+      language: language,
     );
-    final outputStem = p.join(tempDirectory.path, 'transcript');
-
-    try {
-      final result = await Process.run(pythonExecutable, <String>[
-        '-m',
-        'mlx_audio.stt.generate',
-        '--model',
-        model.directory.path,
-        '--audio',
-        audioPath,
-        '--output-path',
-        outputStem,
-        '--format',
-        'txt',
-        if (language != null && language.trim().isNotEmpty) ...<String>[
-          '--language',
-          language.trim(),
-        ],
-      ]);
-      if (result.exitCode != 0) {
-        final stderr = (result.stderr as String).trim();
-        throw StateError(
-          'Local transcription failed: ${stderr.isEmpty ? result.stdout : stderr}',
-        );
-      }
-
-      final outputFile = File('$outputStem.txt');
-      if (!outputFile.existsSync()) {
-        throw StateError('Transcription finished without producing output.');
-      }
-
-      final transcript = (await outputFile.readAsString()).trim();
-      if (transcript.isEmpty) {
-        throw StateError('Transcription returned an empty result.');
-      }
-      return transcript;
-    } finally {
-      if (tempDirectory.existsSync()) {
-        await tempDirectory.delete(recursive: true);
-      }
-    }
   }
 
   Future<File> synthesizeSpeech({
     required InstalledModel model,
     required String text,
     SpeechSynthesisOptions options = const SpeechSynthesisOptions(),
-  }) async {
-    if (!model.textToSpeechSupported) {
-      throw StateError(
-        'Speech generation currently supports installed mlx_audio text-to-speech models.',
-      );
-    }
-    _checkRuntime();
-    final tempDirectory = await Directory.systemTemp.createTemp(
-      'flm-tts-${sanitizeId(model.manifest.id)}-',
-    );
+  }) {
     final runtimeDefaults = model.manifest.runtimeConfig.defaultParameters;
     final audioFormat = runtimeDefaults['audio_format'] as String? ?? 'wav';
     final joinAudio = runtimeDefaults['join_audio'] as bool? ?? true;
@@ -989,441 +838,136 @@ class LocalAudioRunner {
         _intParameter(runtimeDefaults['max_tokens']) ??
         _intParameter(runtimeDefaults['maxTokens']);
     final temperature = _numberParameter(runtimeDefaults['temperature']);
-    final result = await Process.run(pythonExecutable, <String>[
-      '-m',
-      'mlx_audio.tts.generate',
-      '--model',
-      model.directory.path,
-      '--text',
-      text,
-      '--output_path',
-      tempDirectory.path,
-      '--file_prefix',
-      'speech-${DateTime.now().millisecondsSinceEpoch}',
-      '--audio_format',
-      audioFormat,
-      if (options.voice.trim().isNotEmpty) ...<String>[
-        '--voice',
-        options.voice.trim(),
-      ],
-      if (options.instruct.trim().isNotEmpty) ...<String>[
-        '--instruct',
-        options.instruct.trim(),
-      ],
-      if (options.languageCode.trim().isNotEmpty) ...<String>[
-        '--lang_code',
-        options.languageCode.trim(),
-      ],
-      if (options.referenceAudioPath?.trim().isNotEmpty == true) ...<String>[
-        '--ref_audio',
-        options.referenceAudioPath!.trim(),
-      ],
-      if (options.referenceText.trim().isNotEmpty) ...<String>[
-        '--ref_text',
-        options.referenceText.trim(),
-      ],
-      if (options.speed != null) ...<String>['--speed', '${options.speed}'],
-      if (cfgScale != null) ...<String>['--cfg_scale', '$cfgScale'],
-      if (ddpmSteps != null) ...<String>['--ddpm_steps', '$ddpmSteps'],
-      if (maxTokens != null) ...<String>['--max_tokens', '$maxTokens'],
-      if (temperature != null) ...<String>['--temperature', '$temperature'],
-      if (joinAudio) '--join_audio',
-    ], workingDirectory: tempDirectory.path);
-    final stdout = (result.stdout as String).trim();
-    final stderr = (result.stderr as String).trim();
-    if (result.exitCode != 0) {
-      throw StateError(
-        _formatSpeechGenerationFailure(
-          title: 'Local speech generation failed',
-          stdout: stdout,
-          stderr: stderr,
-          outputDirectory: tempDirectory,
-        ),
-      );
-    }
-    final audioFiles = _findGeneratedAudioFiles(
-      tempDirectory,
-      preferredExtension: audioFormat,
+    final fields = <String, Object?>{
+      'runtimeDefaults': runtimeDefaults,
+      'audio_format': audioFormat,
+      'join_audio': joinAudio,
+      'cfg_scale': ?cfgScale,
+      'ddpm_steps': ?ddpmSteps,
+      'max_tokens': ?maxTokens,
+      'temperature': ?temperature,
+      'voice': options.voice,
+      'instruct': options.instruct,
+      'languageCode': options.languageCode,
+      'referenceAudioPath': options.referenceAudioPath,
+      'referenceText': options.referenceText,
+      'speed': options.speed,
+    };
+    return _engine.synthesizeToFile(
+      modelPath: model.directory.path,
+      manifest: model.manifest,
+      text: text,
+      synthesizeFields: fields,
     );
-    if (audioFiles.isEmpty) {
-      throw StateError(
-        _formatSpeechGenerationFailure(
-          title: 'Local speech generation finished without producing audio',
-          stdout: stdout,
-          stderr: stderr,
-          outputDirectory: tempDirectory,
-        ),
-      );
-    }
-    return audioFiles.first;
   }
 
-  List<File> _findGeneratedAudioFiles(
-    Directory directory, {
-    required String preferredExtension,
-  }) {
-    final preferred = preferredExtension
+  Stream<TtsAudioChunk> synthesizeSpeechStream({
+    required InstalledModel model,
+    required String text,
+    SpeechSynthesisOptions options = const SpeechSynthesisOptions(),
+  }) async* {
+    if (!model.textToSpeechSupported) {
+      throw StateError(
+        'Speech generation currently supports installed mlx_audio text-to-speech models.',
+      );
+    }
+    final endpoint = options.openAiCompatibleSpeechEndpoint;
+    if (endpoint != null && options.streamSpeech) {
+      final client = OpenAiAudioSpeechClient(apiKey: options.speechApiKey);
+      final speechModel = options.openAiSpeechModelId?.trim().isNotEmpty == true
+          ? options.openAiSpeechModelId!.trim()
+          : model.manifest.id;
+      try {
+        await for (final chunk in client.streamSpeech(
+          endpoint: endpoint,
+          model: speechModel,
+          input: text,
+          voice: options.voice,
+          responseFormat: options.speechResponseFormat,
+        )) {
+          if (chunk.isNotEmpty) {
+            yield TtsAudioChunk(
+              bytes: chunk,
+              isFinal: false,
+              mediaType: options.speechResponseFormat == 'opus'
+                  ? 'audio/opus'
+                  : null,
+            );
+          }
+        }
+      } finally {
+        client.close();
+      }
+      yield TtsAudioChunk(
+        bytes: Uint8List(0),
+        isFinal: true,
+        mediaType: null,
+      );
+      return;
+    }
+
+    final file = await synthesizeSpeech(
+      model: model,
+      text: text,
+      options: options,
+    );
+    final ext = p
+        .extension(file.path)
         .replaceFirst('.', '')
         .trim()
         .toLowerCase();
-    const audioExtensions = <String>{
-      'wav',
-      'mp3',
-      'm4a',
-      'aac',
-      'flac',
-      'ogg',
-      'aif',
-      'aiff',
-      'caf',
-    };
-    final extensions = <String>{
-      ...audioExtensions,
-      if (preferred.isNotEmpty) preferred,
-    };
-    final files = directory
-        .listSync(recursive: true, followLinks: false)
-        .whereType<File>()
-        .where((file) {
-          final extension = p
-              .extension(file.path)
-              .replaceFirst('.', '')
-              .toLowerCase();
-          if (!extensions.contains(extension)) {
-            return false;
-          }
-          try {
-            return file.lengthSync() > 0;
-          } on FileSystemException {
-            return false;
-          }
-        })
-        .toList(growable: false);
-    files.sort((left, right) {
-      final leftExtension = p
-          .extension(left.path)
-          .replaceFirst('.', '')
-          .toLowerCase();
-      final rightExtension = p
-          .extension(right.path)
-          .replaceFirst('.', '')
-          .toLowerCase();
-      final leftPreferred = leftExtension == preferred ? 0 : 1;
-      final rightPreferred = rightExtension == preferred ? 0 : 1;
-      if (leftPreferred != rightPreferred) {
-        return leftPreferred.compareTo(rightPreferred);
-      }
-      return right.statSync().modified.compareTo(left.statSync().modified);
-    });
-    return files;
+    final bytes = await file.readAsBytes();
+    yield TtsAudioChunk(
+      bytes: bytes,
+      isFinal: false,
+      mediaType: _ttsMimeForExtension(ext),
+    );
+    yield TtsAudioChunk(
+      bytes: Uint8List(0),
+      isFinal: true,
+      mediaType: null,
+    );
   }
+}
 
-  String _formatSpeechGenerationFailure({
-    required String title,
-    required String stdout,
-    required String stderr,
-    required Directory outputDirectory,
-  }) {
-    final buffer = StringBuffer(title);
-    if (_looksLikeMissingKokoroDependency(stdout) ||
-        _looksLikeMissingKokoroDependency(stderr)) {
-      buffer.writeln(
-        '\nMissing Kokoro dependency: install misaki in the MLX runtime with `$pythonExecutable -m pip install misaki`.',
-      );
-    }
-    if (_looksLikeMissingSpacyModel(stdout) ||
-        _looksLikeMissingSpacyModel(stderr)) {
-      buffer.writeln(
-        '\nMissing Kokoro English tokenizer model: install it with `$pythonExecutable -m pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl`.',
-      );
-    }
-    if (_looksLikeMissingEspeak(stdout) || _looksLikeMissingEspeak(stderr)) {
-      buffer.writeln(
-        '\nMissing Kokoro phoneme fallback: install espeak-ng with `brew install espeak-ng`.',
-      );
-    }
-    if (_looksLikeUnsupportedVoxCpm2(stdout) ||
-        _looksLikeUnsupportedVoxCpm2(stderr)) {
-      buffer.writeln(
-        '\nVoxCPM2 runtime mismatch: PyPI `mlx-audio 0.4.3` does not include the `voxcpm2` backend yet. Install the tested GitHub build in the MLX runtime with `$pythonExecutable -m pip install -U git+https://github.com/Blaizzy/mlx-audio.git@f7c11556eda88731be5cc75ddbdf4a4cb9eeaafc`.',
-      );
-    }
-    buffer.writeln('\nOutput directory: ${outputDirectory.path}');
-    if (stdout.isNotEmpty) {
-      buffer.writeln('\nstdout:\n${_trimProcessLog(stdout)}');
-    }
-    if (stderr.isNotEmpty) {
-      buffer.writeln('\nstderr:\n${_trimProcessLog(stderr)}');
-    }
-    final files = _describeDirectoryFiles(outputDirectory);
-    if (files.isNotEmpty) {
-      buffer.writeln('\nGenerated files:\n$files');
-    }
-    return buffer.toString().trim();
-  }
-
-  bool _looksLikeMissingKokoroDependency(String output) {
-    final lower = output.toLowerCase();
-    return lower.contains('kokoro requires') && lower.contains('misaki');
-  }
-
-  bool _looksLikeMissingSpacyModel(String output) {
-    final lower = output.toLowerCase();
-    return lower.contains("can't find model 'en_core_web_sm'") ||
-        lower.contains('can\'t find model "en_core_web_sm"');
-  }
-
-  bool _looksLikeMissingEspeak(String output) {
-    return output.toLowerCase().contains('espeak not installed');
-  }
-
-  bool _looksLikeUnsupportedVoxCpm2(String output) {
-    final lower = output.toLowerCase();
-    return lower.contains('model type voxcpm2 not supported') ||
-        lower.contains("no module named 'mlx_audio.tts.models.voxcpm2'") ||
-        lower.contains('no module named "mlx_audio.tts.models.voxcpm2"');
-  }
-
-  String _trimProcessLog(String text) {
-    const maxLines = 80;
-    const maxCharacters = 6000;
-    final lines = const LineSplitter().convert(text);
-    final trimmedLines = lines.length > maxLines
-        ? <String>[
-            ...lines.take(maxLines),
-            '… (${lines.length - maxLines} more lines)',
-          ]
-        : lines;
-    final joined = trimmedLines.join('\n');
-    if (joined.length <= maxCharacters) {
-      return joined;
-    }
-    return '${joined.substring(0, maxCharacters)}\n… (${joined.length - maxCharacters} more characters)';
-  }
-
-  String _describeDirectoryFiles(Directory directory) {
-    if (!directory.existsSync()) {
-      return '';
-    }
-    final files =
-        directory
-            .listSync(recursive: true, followLinks: false)
-            .whereType<File>()
-            .toList(growable: false)
-          ..sort((left, right) => left.path.compareTo(right.path));
-    if (files.isEmpty) {
-      return '';
-    }
-    final lines = files
-        .take(24)
-        .map((file) {
-          final relativePath = p.relative(file.path, from: directory.path);
-          int sizeBytes = 0;
-          try {
-            sizeBytes = file.lengthSync();
-          } on FileSystemException {
-            sizeBytes = 0;
-          }
-          return '- $relativePath (${formatBytes(sizeBytes)})';
-        })
-        .toList(growable: false);
-    if (files.length > lines.length) {
-      lines.add('- … (${files.length - lines.length} more files)');
-    }
-    return lines.join('\n');
+String? _ttsMimeForExtension(String extension) {
+  switch (extension.toLowerCase()) {
+    case 'wav':
+      return 'audio/wav';
+    case 'mp3':
+      return 'audio/mpeg';
+    case 'm4a':
+    case 'aac':
+      return 'audio/mp4';
+    case 'opus':
+      return 'audio/opus';
+    case 'flac':
+      return 'audio/flac';
+    case 'ogg':
+      return 'audio/ogg';
+    default:
+      return null;
   }
 }
 
 class LocalImageRunner {
-  LocalImageRunner({String? mfluxExecutable})
-    : mfluxExecutable = mfluxExecutable ?? _resolveMfluxExecutable();
+  LocalImageRunner({ImageEngine? engine})
+    : _engine = engine ?? defaultImageEngine();
 
-  final String mfluxExecutable;
+  final ImageEngine _engine;
 
   Future<File> generateImage({
     required InstalledModel model,
     required String prompt,
     ValueChanged<double>? onProgress,
-  }) async {
-    if (!model.imageGenerationSupported) {
-      throw StateError(
-        'Image generation currently supports installed mflux text-to-image models.',
-      );
-    }
-    final executable = _mfluxExecutableFor(model);
-    final executableFile = File(executable);
-    if (executable.contains(p.separator) && !executableFile.existsSync()) {
-      throw StateError(
-        'mflux image generator not found at $executable. Install/update mflux first.',
-      );
-    }
-
-    final defaults = model.manifest.runtimeConfig.defaultParameters;
-    final width = _intParameter(defaults['width']);
-    final height = _intParameter(defaults['height']);
-    final steps = _intParameter(defaults['steps']);
-    final guidance = _numberParameter(defaults['guidance']);
-    final seed = _intParameter(defaults['seed']);
-    final outputDir = await Directory.systemTemp.createTemp(
-      'flm-image-${sanitizeId(model.manifest.id)}-',
+  }) {
+    return _engine.generate(
+      modelPath: model.directory.path,
+      manifest: model.manifest,
+      prompt: prompt,
+      onProgress: onProgress,
     );
-    final outputPath = p.join(
-      outputDir.path,
-      'image-${DateTime.now().millisecondsSinceEpoch}.png',
-    );
-    final args = <String>[
-      '--model',
-      model.directory.path,
-      '--prompt',
-      prompt,
-      '--output',
-      outputPath,
-      if (width != null) ...<String>['--width', '$width'],
-      if (height != null) ...<String>['--height', '$height'],
-      if (steps != null) ...<String>['--steps', '$steps'],
-      if (guidance != null) ...<String>['--guidance', '$guidance'],
-      if (seed != null) ...<String>['--seed', '$seed'],
-    ];
-    final baseModel = _mfluxBaseModelFor(model);
-    if (baseModel != null &&
-        (executable.endsWith('mflux-generate') ||
-            executable.endsWith('mflux-generate-qwen'))) {
-      args.insertAll(2, <String>['--base-model', baseModel]);
-    }
-    final process = await Process.start(executable, args);
-    final stdoutBuffer = StringBuffer();
-    final stderrBuffer = StringBuffer();
-    final stdoutDone = process.stdout
-        .transform(utf8.decoder)
-        .listen(stdoutBuffer.write)
-        .asFuture<void>();
-    final stderrDone = process.stderr.transform(utf8.decoder).listen((chunk) {
-      stderrBuffer.write(chunk);
-      final progress = _parseMfluxProgress(stderrBuffer.toString());
-      if (progress != null) {
-        onProgress?.call(progress);
-      }
-    }).asFuture<void>();
-    final exitCode = await process.exitCode;
-    await stdoutDone;
-    await stderrDone;
-    if (exitCode != 0) {
-      final stderr = stderrBuffer.toString().trim();
-      throw StateError(
-        'Local image generation failed using $executable: ${stderr.isEmpty ? stdoutBuffer.toString().trim() : stderr}',
-      );
-    }
-    final outputFile = File(outputPath);
-    if (!outputFile.existsSync()) {
-      throw StateError('Image generation finished without producing output.');
-    }
-    onProgress?.call(1);
-    return outputFile;
   }
-
-  double? _parseMfluxProgress(String chunk) {
-    final percentMatches = RegExp(r'(\d{1,3})%').allMatches(chunk).toList();
-    if (percentMatches.isNotEmpty) {
-      final percent = int.tryParse(percentMatches.last.group(1)!);
-      if (percent != null) {
-        return percent.clamp(0, 100).toDouble() / 100;
-      }
-    }
-    final stepMatches = RegExp(r'(\d+)\s*/\s*(\d+)').allMatches(chunk).toList();
-    if (stepMatches.isNotEmpty) {
-      final current = int.tryParse(stepMatches.last.group(1)!);
-      final total = int.tryParse(stepMatches.last.group(2)!);
-      if (current != null && total != null && total > 0) {
-        return (current / total).clamp(0, 1).toDouble();
-      }
-    }
-    return null;
-  }
-
-  String _mfluxExecutableFor(InstalledModel model) {
-    final configuredRunner =
-        model.manifest.runtimeConfig.extra['mflux_runner'] as String?;
-    final identity = [
-      configuredRunner ?? '',
-      model.manifest.id,
-      model.manifest.source.repo,
-      model.manifest.displayName,
-      p.basename(model.directory.path),
-    ].join(' ').toLowerCase();
-    final command = identity.contains('qwen')
-        ? 'mflux-generate-qwen'
-        : identity.contains('z-image-turbo')
-        ? 'mflux-generate-z-image-turbo'
-        : identity.contains('z-image')
-        ? 'mflux-generate-z-image'
-        : mfluxExecutable;
-    if (command.contains(p.separator)) {
-      return command;
-    }
-    final home = Platform.environment['HOME'] ?? '';
-    final candidates = <String>[
-      if (home.isNotEmpty) p.join(home, '.local', 'bin', command),
-      '/opt/homebrew/bin/$command',
-      '/usr/local/bin/$command',
-      command,
-    ];
-    for (final candidate in candidates) {
-      if (!candidate.contains(p.separator) || File(candidate).existsSync()) {
-        return candidate;
-      }
-    }
-    return command;
-  }
-
-  static String? _mfluxBaseModelFor(InstalledModel model) {
-    final configuredBaseModel =
-        model.manifest.runtimeConfig.extra['mflux_base_model'] as String?;
-    if (configuredBaseModel != null && configuredBaseModel.trim().isNotEmpty) {
-      return configuredBaseModel.trim();
-    }
-    final identity = [
-      model.manifest.id,
-      model.manifest.source.repo,
-      model.manifest.displayName,
-    ].join(' ').toLowerCase();
-    if (identity.contains('schnell')) {
-      return 'schnell';
-    }
-    if (identity.contains('qwen')) {
-      return 'qwen';
-    }
-    if (identity.contains('flux2-klein-9b')) {
-      return 'flux2-klein-9b';
-    }
-    if (identity.contains('flux2-klein-4b')) {
-      return 'flux2-klein-4b';
-    }
-    if (identity.contains('z-image-turbo')) {
-      return 'z-image-turbo';
-    }
-    if (identity.contains('z-image')) {
-      return 'z-image';
-    }
-    return null;
-  }
-}
-
-String _resolveMfluxExecutable() {
-  final home = Platform.environment['HOME'] ?? '';
-  final candidates = <String>[
-    if ((Platform.environment['MFLUX_GENERATE'] ?? '').isNotEmpty)
-      Platform.environment['MFLUX_GENERATE']!,
-    if (home.isNotEmpty) p.join(home, '.local', 'bin', 'mflux-generate'),
-    '/opt/homebrew/bin/mflux-generate',
-    '/usr/local/bin/mflux-generate',
-    'mflux-generate',
-  ];
-  for (final candidate in candidates) {
-    if (!candidate.contains(p.separator) || File(candidate).existsSync()) {
-      return candidate;
-    }
-  }
-  return candidates.last;
 }
 
 int? _intParameter(Object? value) {
@@ -1449,6 +993,19 @@ double? _numberParameter(Object? value) {
   return null;
 }
 
+@immutable
+class TtsAudioChunk {
+  const TtsAudioChunk({
+    required this.bytes,
+    required this.isFinal,
+    this.mediaType,
+  });
+
+  final Uint8List bytes;
+  final bool isFinal;
+  final String? mediaType;
+}
+
 class SpeechSynthesisOptions {
   const SpeechSynthesisOptions({
     this.voice = '',
@@ -1457,6 +1014,11 @@ class SpeechSynthesisOptions {
     this.referenceAudioPath,
     this.referenceText = '',
     this.speed,
+    this.openAiCompatibleSpeechEndpoint,
+    this.speechApiKey,
+    this.openAiSpeechModelId,
+    this.speechResponseFormat = 'opus',
+    this.streamSpeech = false,
   });
 
   final String voice;
@@ -1465,6 +1027,49 @@ class SpeechSynthesisOptions {
   final String? referenceAudioPath;
   final String referenceText;
   final double? speed;
+
+  /// When set with [streamSpeech] `true`, synthesized audio is read from an
+  /// OpenAI-compatible `POST /v1/audio/speech` endpoint using `stream: true`.
+  final Uri? openAiCompatibleSpeechEndpoint;
+
+  final String? speechApiKey;
+
+  /// Overrides the `model` field in the JSON body (defaults to the installed manifest id).
+  final String? openAiSpeechModelId;
+
+  /// For example `opus`, `pcm`, `wav` — depends on the server implementation.
+  final String speechResponseFormat;
+
+  final bool streamSpeech;
+
+  SpeechSynthesisOptions copyWith({
+    String? voice,
+    String? instruct,
+    String? languageCode,
+    String? referenceAudioPath,
+    String? referenceText,
+    double? speed,
+    Uri? openAiCompatibleSpeechEndpoint,
+    String? speechApiKey,
+    String? openAiSpeechModelId,
+    String? speechResponseFormat,
+    bool? streamSpeech,
+  }) {
+    return SpeechSynthesisOptions(
+      voice: voice ?? this.voice,
+      instruct: instruct ?? this.instruct,
+      languageCode: languageCode ?? this.languageCode,
+      referenceAudioPath: referenceAudioPath ?? this.referenceAudioPath,
+      referenceText: referenceText ?? this.referenceText,
+      speed: speed ?? this.speed,
+      openAiCompatibleSpeechEndpoint:
+          openAiCompatibleSpeechEndpoint ?? this.openAiCompatibleSpeechEndpoint,
+      speechApiKey: speechApiKey ?? this.speechApiKey,
+      openAiSpeechModelId: openAiSpeechModelId ?? this.openAiSpeechModelId,
+      speechResponseFormat: speechResponseFormat ?? this.speechResponseFormat,
+      streamSpeech: streamSpeech ?? this.streamSpeech,
+    );
+  }
 }
 
 class StudioController extends ChangeNotifier {
@@ -2749,53 +2354,6 @@ Map<String, String> _authorizationHeaders(String? token) {
     return const <String, String>{};
   }
   return <String, String>{HttpHeaders.authorizationHeader: 'Bearer $token'};
-}
-
-String _resolveMlxPythonExecutable() {
-  final configured = Platform.environment['FLM_MLX_PYTHON'];
-  if (configured != null && configured.isNotEmpty) {
-    return configured;
-  }
-
-  for (final home in _candidateHomeDirectories()) {
-    final candidate = p.join(home, '.venvs', 'mlx', 'bin', 'python');
-    if (File(candidate).existsSync()) {
-      return candidate;
-    }
-  }
-
-  final fallbackHome = _candidateHomeDirectories().isEmpty
-      ? '~'
-      : _candidateHomeDirectories().first;
-  return p.join(fallbackHome, '.venvs', 'mlx', 'bin', 'python');
-}
-
-List<String> _candidateHomeDirectories() {
-  final homes = <String>[
-    Platform.environment['HOME'] ?? '',
-    ..._homeDirectoriesFromProcess(),
-  ];
-  final seen = <String>{};
-  return homes
-      .where((home) => home.isNotEmpty)
-      .where((home) => seen.add(home))
-      .toList(growable: false);
-}
-
-List<String> _homeDirectoriesFromProcess() {
-  try {
-    final result = Process.runSync('/usr/bin/id', const <String>['-un']);
-    if (result.exitCode != 0) {
-      return const <String>[];
-    }
-    final username = (result.stdout as String).trim();
-    if (username.isEmpty) {
-      return const <String>[];
-    }
-    return <String>['/Users/$username'];
-  } catch (_) {
-    return const <String>[];
-  }
 }
 
 List<String> _curlHeaderArgs(Map<String, String> headers) {

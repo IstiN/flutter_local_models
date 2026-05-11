@@ -20,6 +20,7 @@ dependencies:
   path: ^1.9.1
   record: ^6.1.2
   audioplayers: ^6.6.0
+  flutter_bloc: ^9.1.1
 
 dev_dependencies:
   flutter_test:

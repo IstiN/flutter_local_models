@@ -2,8 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:local_models_core/local_models_core.dart';
-import 'package:local_models_studio/studio_services.dart';
+import 'package:local_models_flutter/local_models_flutter.dart';
 
 const _manifest = LocalModelManifest(
   id: 'qwen3-8b-4bit',
@@ -243,7 +242,7 @@ void main() {
     expect(sanitizeId('mlx-community/Qwen3 8B!'), 'mlx-community-qwen3-8b');
   });
 
-  test('LocalAudioRunner discovers nested generated audio files', () async {
+  test('LocalAudioRunner returns nested audio path from native bridge', () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
       'local-models-studio-tts-test',
     );
@@ -253,26 +252,40 @@ void main() {
       }
     });
 
-    final fakePython = File('${tempDirectory.path}/fake-python.sh');
-    await fakePython.writeAsString('''
-#!/bin/sh
-output=""
-while [ "\$#" -gt 0 ]; do
-  if [ "\$1" = "--output_path" ]; then
-    shift
-    output="\$1"
-  fi
-  shift
-done
-mkdir -p "\$output/nested"
-printf 'RIFF____WAVEfmt ' > "\$output/nested/generated.wav"
-echo "generated nested audio"
-''');
-    await Process.run('chmod', ['+x', fakePython.path]);
+    final nested = File(
+      '${tempDirectory.path}/work/nested/generated.wav',
+    );
+    await nested.parent.create(recursive: true);
+    await nested.writeAsBytes([
+      0x52,
+      0x49,
+      0x46,
+      0x46,
+      0,
+      0,
+      0,
+      0,
+      0x57,
+      0x41,
+      0x56,
+      0x45,
+    ]);
+
+    final dispatch = RecordingFlmDispatcher()
+      ..onInvoke = (op, payload) {
+        expect(op, 'audio.synthesize');
+        expect(payload['text'], 'hello');
+        return <String, Object?>{
+          'ok': true,
+          'outputAudioPath': nested.path,
+        };
+      };
 
     final modelDirectory = Directory('${tempDirectory.path}/model');
     await modelDirectory.create();
-    final runner = LocalAudioRunner(pythonExecutable: fakePython.path);
+    final runner = LocalAudioRunner(
+      engine: NativeAudioEngine(dispatch: dispatch),
+    );
     final file = await runner.synthesizeSpeech(
       model: InstalledModel(
         manifest: _ttsManifest,
@@ -284,11 +297,12 @@ echo "generated nested audio"
       text: 'hello',
     );
 
-    expect(file.path, endsWith('nested/generated.wav'));
+    expect(file.path, nested.path);
     expect(await file.exists(), isTrue);
+    expect(dispatch.calls.single.op, 'audio.synthesize');
   });
 
-  test('LocalAudioRunner reports stdout when no audio is produced', () async {
+  test('LocalAudioRunner surfaces native TTS errors', () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
       'local-models-studio-tts-error-test',
     );
@@ -298,26 +312,21 @@ echo "generated nested audio"
       }
     });
 
-    final fakePython = File('${tempDirectory.path}/fake-python.sh');
-    await fakePython.writeAsString('''
-#!/bin/sh
-output=""
-while [ "\$#" -gt 0 ]; do
-  if [ "\$1" = "--output_path" ]; then
-    shift
-    output="\$1"
-  fi
-  shift
-done
-mkdir -p "\$output"
-printf 'debug notes' > "\$output/notes.txt"
-echo "Import error: Kokoro requires the optional 'misaki' package for text processing."
-''');
-    await Process.run('chmod', ['+x', fakePython.path]);
+    final dispatch = RecordingFlmDispatcher()
+      ..onInvoke = (String op, Map<String, Object?> payload) {
+        expect(op, 'audio.synthesize');
+        return <String, Object?>{
+          'ok': false,
+          'error':
+              "Native TTS failed: Import error: Kokoro requires the optional 'misaki' package.",
+        };
+      };
 
     final modelDirectory = Directory('${tempDirectory.path}/model');
     await modelDirectory.create();
-    final runner = LocalAudioRunner(pythonExecutable: fakePython.path);
+    final runner = LocalAudioRunner(
+      engine: NativeAudioEngine(dispatch: dispatch),
+    );
 
     await expectLater(
       runner.synthesizeSpeech(
@@ -335,16 +344,15 @@ echo "Import error: Kokoro requires the optional 'misaki' package for text proce
             .having(
               (error) => error.message,
               'message',
-              contains('Missing Kokoro dependency'),
-            )
-            .having((error) => error.message, 'message', contains('notes.txt')),
+              contains('misaki'),
+            ),
       ),
     );
   });
 
-  test('LocalAudioRunner passes VoxCPM2 diffusion defaults', () async {
+  test('LocalAudioRunner passes VoxCPM2 options to native bridge', () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
-      'local-models-studio-voxcpm2-args-test',
+      'local-models-studio-voxcpm2-payload-test',
     );
     addTearDown(() async {
       if (tempDirectory.existsSync()) {
@@ -352,27 +360,42 @@ echo "Import error: Kokoro requires the optional 'misaki' package for text proce
       }
     });
 
-    final fakePython = File('${tempDirectory.path}/fake-python.sh');
-    await fakePython.writeAsString('''
-#!/bin/sh
-output=""
-while [ "\$#" -gt 0 ]; do
-  echo "\$1" >> "${tempDirectory.path}/args.txt"
-  if [ "\$1" = "--output_path" ]; then
-    shift
-    output="\$1"
-    echo "\$1" >> "${tempDirectory.path}/args.txt"
-  fi
-  shift
-done
-mkdir -p "\$output"
-printf 'RIFF____WAVEfmt ' > "\$output/generated.wav"
-''');
-    await Process.run('chmod', ['+x', fakePython.path]);
+    final outFile = File('${tempDirectory.path}/generated.wav');
+    await outFile.writeAsBytes([
+      0x52,
+      0x49,
+      0x46,
+      0x46,
+      0,
+      0,
+      0,
+      0,
+      0x57,
+      0x41,
+      0x56,
+      0x45,
+    ]);
+
+    final dispatch = RecordingFlmDispatcher()
+      ..onInvoke = (op, payload) {
+        expect(op, 'audio.synthesize');
+        expect(payload['languageCode'], 'ru');
+        expect(payload['referenceAudioPath'], '/tmp/reference.wav');
+        expect(payload['referenceText'], 'reference words');
+        expect(payload['cfg_scale'], 2.0);
+        expect(payload['ddpm_steps'], 7);
+        expect(payload['max_tokens'], 2000);
+        return <String, Object?>{
+          'ok': true,
+          'outputAudioPath': outFile.path,
+        };
+      };
 
     final modelDirectory = Directory('${tempDirectory.path}/model');
     await modelDirectory.create();
-    final runner = LocalAudioRunner(pythonExecutable: fakePython.path);
+    final runner = LocalAudioRunner(
+      engine: NativeAudioEngine(dispatch: dispatch),
+    );
     await runner.synthesizeSpeech(
       model: InstalledModel(
         manifest: _voxcpm2Manifest,
@@ -389,18 +412,12 @@ printf 'RIFF____WAVEfmt ' > "\$output/generated.wav"
       ),
     );
 
-    final args = await File('${tempDirectory.path}/args.txt').readAsLines();
-    expect(args, containsAll(['--lang_code', 'ru']));
-    expect(args, containsAll(['--ref_audio', '/tmp/reference.wav']));
-    expect(args, containsAll(['--ref_text', 'reference words']));
-    expect(args, containsAll(['--cfg_scale', '2.0']));
-    expect(args, containsAll(['--ddpm_steps', '7']));
-    expect(args, containsAll(['--max_tokens', '2000']));
+    expect(dispatch.calls, hasLength(1));
   });
 
-  test('LocalChatRunner passes Qwen thinking chat template config', () async {
+  test('LocalChatRunner passes thinking flag to native LM bridge', () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
-      'local-models-studio-thinking-args-test',
+      'local-models-studio-thinking-payload-test',
     );
     addTearDown(() async {
       if (tempDirectory.existsSync()) {
@@ -408,20 +425,22 @@ printf 'RIFF____WAVEfmt ' > "\$output/generated.wav"
       }
     });
 
-    final fakePython = File('${tempDirectory.path}/fake-python.sh');
-    await fakePython.writeAsString('''
-#!/bin/sh
-while [ "\$#" -gt 0 ]; do
-  echo "\$1" >> "${tempDirectory.path}/args.txt"
-  shift
-done
-echo "<think>hidden</think>hello"
-''');
-    await Process.run('chmod', ['+x', fakePython.path]);
+    final dispatch = RecordingFlmDispatcher()
+      ..onInvoke = (op, payload) {
+        expect(op, 'lm.generate');
+        expect(payload['enableThinking'], false);
+        return <String, Object?>{
+          'ok': true,
+          'text':
+              '<think>hidden</think>hello',
+        };
+      };
 
     final modelDirectory = Directory('${tempDirectory.path}/model');
     await modelDirectory.create();
-    final runner = LocalChatRunner(pythonExecutable: fakePython.path);
+    final runner = LocalChatRunner(
+      engine: NativeLmEngine(dispatch: dispatch),
+    );
     final response = await runner.chatStream(
       model: InstalledModel(
         manifest: _manifest,
@@ -435,13 +454,11 @@ echo "<think>hidden</think>hello"
       params: const LocalChatParams(enableThinking: false),
     );
 
-    final args = await File('${tempDirectory.path}/args.txt').readAsLines();
-    expect(args, contains('--chat-template-config'));
-    expect(args, contains('{"enable_thinking":false}'));
     expect(response, 'hello');
+    expect(dispatch.calls.single.op, 'lm.generate');
   });
 
-  test('LocalAudioRunner explains unsupported VoxCPM2 runtime', () async {
+  test('LocalAudioRunner surfaces VoxCPM2 backend errors from bridge', () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
       'local-models-studio-voxcpm2-error-test',
     );
@@ -451,25 +468,22 @@ echo "<think>hidden</think>hello"
       }
     });
 
-    final fakePython = File('${tempDirectory.path}/fake-python.sh');
-    await fakePython.writeAsString('''
-#!/bin/sh
-output=""
-while [ "\$#" -gt 0 ]; do
-  if [ "\$1" = "--output_path" ]; then
-    shift
-    output="\$1"
-  fi
-  shift
-done
-mkdir -p "\$output"
-echo "Error loading model: Model type voxcpm2 not supported for tts."
-''');
-    await Process.run('chmod', ['+x', fakePython.path]);
+    final dispatch = RecordingFlmDispatcher()
+      ..onInvoke = (String op, Map<String, Object?> payload) {
+        expect(op, 'audio.synthesize');
+        expect(payload['text'], 'hello');
+        return <String, Object?>{
+          'ok': false,
+          'error':
+              'Error loading model: Model type voxcpm2 not supported for tts.',
+        };
+      };
 
     final modelDirectory = Directory('${tempDirectory.path}/model');
     await modelDirectory.create();
-    final runner = LocalAudioRunner(pythonExecutable: fakePython.path);
+    final runner = LocalAudioRunner(
+      engine: NativeAudioEngine(dispatch: dispatch),
+    );
 
     await expectLater(
       runner.synthesizeSpeech(
@@ -483,17 +497,11 @@ echo "Error loading model: Model type voxcpm2 not supported for tts."
         text: 'hello',
       ),
       throwsA(
-        isA<StateError>()
-            .having(
-              (error) => error.message,
-              'message',
-              contains('VoxCPM2 runtime mismatch'),
-            )
-            .having(
-              (error) => error.message,
-              'message',
-              contains('git+https://github.com/Blaizzy/mlx-audio.git'),
-            ),
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('voxcpm2'),
+        ),
       ),
     );
   });

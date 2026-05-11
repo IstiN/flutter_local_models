@@ -6,11 +6,12 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:local_models_flutter/local_models_flutter.dart';
 import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 
-import 'studio_services.dart';
+import 'voice_pipeline_cubit.dart';
 
 void main() {
   runApp(const StudioApp());
@@ -316,7 +317,10 @@ class _StudioShellState extends State<StudioShell> {
   bool recordingAudio = false;
   bool recordingReferenceVoice = false;
   bool transcribingReferenceVoice = false;
-  bool showVoicePipelineSettings = false;
+  late final ModelRuntimePreferencesStore _prefsStore;
+  late final TextEditingController streamingTtsEndpointController;
+  late final TextEditingController streamingTtsModelIdController;
+  bool streamSpeechEnabled = false;
   bool showTtsVoiceSettings = false;
   bool generationThinkingEnabled = false;
   bool testBusy = false;
@@ -339,6 +343,7 @@ class _StudioShellState extends State<StudioShell> {
           registry: widget.snapshot.registry,
           runtimeSummary: widget.snapshot.runtimeSummary,
         );
+    _prefsStore = ModelRuntimePreferencesStore(paths: controller.paths);
     hfTokenController = TextEditingController(text: controller.hfToken);
     githubRepoController = TextEditingController(
       text: controller.githubRepoPath,
@@ -362,6 +367,8 @@ class _StudioShellState extends State<StudioShell> {
     generationTemperatureController = TextEditingController(text: '0.7');
     generationTopPController = TextEditingController(text: '0.95');
     chatScrollController = ScrollController();
+    streamingTtsEndpointController = TextEditingController();
+    streamingTtsModelIdController = TextEditingController();
     audioRecorder = AudioRecorder();
     audioPlayer = AudioPlayer();
     controller.addListener(_handleControllerUpdate);
@@ -387,6 +394,8 @@ class _StudioShellState extends State<StudioShell> {
     generationTemperatureController.dispose();
     generationTopPController.dispose();
     chatScrollController.dispose();
+    streamingTtsEndpointController.dispose();
+    streamingTtsModelIdController.dispose();
     audioRecorder.dispose();
     audioPlayer.dispose();
     super.dispose();
@@ -487,8 +496,10 @@ class _StudioShellState extends State<StudioShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Row(
+    return BlocProvider(
+      create: (_) => VoicePipelineCubit(),
+      child: Scaffold(
+        body: Row(
         children: [
           NavigationRail(
             backgroundColor: const Color(0xFF11162B),
@@ -580,6 +591,7 @@ class _StudioShellState extends State<StudioShell> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -1786,44 +1798,41 @@ class _StudioShellState extends State<StudioShell> {
                         ),
                       ),
                       IconButton.filledTonal(
-                        tooltip: showVoicePipelineSettings
-                            ? 'Hide voice settings'
-                            : 'Voice settings',
+                        tooltip: 'Generation, TTS & streaming parameters',
                         onPressed:
                             testBusy ||
                                 recordingAudio ||
                                 recordingReferenceVoice
                             ? null
-                            : () => setState(
-                                () => showVoicePipelineSettings =
-                                    !showVoicePipelineSettings,
-                              ),
+                            : () => _openVoicePipelineSettingsDialog(
+                                  context,
+                                  chatModel: chatModel,
+                                  ttsModel: ttsModel,
+                                ),
                         icon: const StudioSvgIcon('settings', size: 22),
                       ),
                     ],
                   ),
-                  if (!showVoicePipelineSettings) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Settings hidden. Use the gear for params, or open My Voices to record/select your voice reference.',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Use the gear for LLM / TTS parameters and optional OpenAI-compatible streaming TTS. Record your reference under My Voices.',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.outline,
                           ),
                         ),
-                        OutlinedButton.icon(
-                          onPressed: testBusy || recordingAudio
-                              ? null
-                              : () => setState(() => selectedPageIndex = 4),
-                          icon: const StudioSvgIcon('mic', size: 20),
-                          label: const Text('My Voices'),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: testBusy || recordingAudio
+                            ? null
+                            : () => setState(() => selectedPageIndex = 4),
+                        icon: const StudioSvgIcon('mic', size: 20),
+                        label: const Text('My Voices'),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -1850,6 +1859,7 @@ class _StudioShellState extends State<StudioShell> {
                             setState(() {
                               selectedVoiceChatModel = value;
                               _applyGenerationDefaultsForModel(value);
+                              _applyStoredPrefsForChatModel(value);
                             });
                           },
                         ),
@@ -1866,18 +1876,13 @@ class _StudioShellState extends State<StudioShell> {
                             setState(() {
                               selectedTtsModel = value;
                               _applyTtsDefaultsForModel(value);
+                              _applyStoredPrefsForTtsModel(value);
                             });
                           },
                         ),
                       ),
                     ],
                   ),
-                  if (showVoicePipelineSettings) ...[
-                    const SizedBox(height: 14),
-                    _buildGenerationControls(chatModel),
-                    const SizedBox(height: 14),
-                    _buildTtsVoiceControls(ttsModel),
-                  ],
                   const SizedBox(height: 14),
                   TextField(
                     controller: chatPromptController,
@@ -3488,6 +3493,194 @@ class _StudioShellState extends State<StudioShell> {
     controller.clearChat();
   }
 
+  Future<void> _openVoicePipelineSettingsDialog(
+    BuildContext context, {
+    required InstalledModel? chatModel,
+    required InstalledModel? ttsModel,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Voice pipeline parameters'),
+              content: SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (chatModel != null) ...[
+                        _buildGenerationControls(chatModel),
+                        const SizedBox(height: 16),
+                      ],
+                      if (ttsModel != null) ...[
+                        _buildTtsVoiceControls(ttsModel),
+                        const SizedBox(height: 16),
+                      ],
+                      const Divider(),
+                      SwitchListTile(
+                        title: const Text('Stream TTS (OpenAI-compatible)'),
+                        subtitle: const Text(
+                          'Server must implement POST /v1/audio/speech with stream: true.',
+                        ),
+                        value: streamSpeechEnabled,
+                        onChanged: testBusy
+                            ? null
+                            : (value) {
+                                setState(() => streamSpeechEnabled = value);
+                                setDialogState(() {});
+                              },
+                      ),
+                      TextField(
+                        controller: streamingTtsEndpointController,
+                        enabled: !testBusy,
+                        decoration: const InputDecoration(
+                          labelText: 'Speech URL',
+                          hintText: 'http://127.0.0.1:8000/v1/audio/speech',
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: streamingTtsModelIdController,
+                        enabled: !testBusy,
+                        decoration: const InputDecoration(
+                          labelText: 'Remote speech model id (optional)',
+                          hintText: 'Overrides manifest id in the JSON body',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    _persistVoicePipelinePrefs(
+                      chatModel: chatModel,
+                      ttsModel: ttsModel,
+                    );
+                  },
+                  child: const Text('Done'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _applyStoredPrefsForChatModel(InstalledModel? model) {
+    if (model == null) {
+      return;
+    }
+    final prefs = _prefsStore.prefsForModel(model.manifest.id);
+    if (prefs == null) {
+      return;
+    }
+    final gen = prefs['generation'];
+    if (gen is! Map) {
+      return;
+    }
+    final maxTokens = gen['maxTokens'];
+    final temperature = gen['temperature'];
+    final topP = gen['topP'];
+    final thinking = gen['thinking'];
+    if (maxTokens != null) {
+      generationMaxTokensController.text = '$maxTokens';
+    }
+    if (temperature != null) {
+      generationTemperatureController.text = '$temperature';
+    }
+    if (topP != null) {
+      generationTopPController.text = '$topP';
+    }
+    if (thinking is bool) {
+      generationThinkingEnabled = thinking;
+    }
+  }
+
+  void _applyStoredPrefsForTtsModel(InstalledModel? model) {
+    if (model == null) {
+      return;
+    }
+    final prefs = _prefsStore.prefsForModel(model.manifest.id);
+    if (prefs == null) {
+      return;
+    }
+    final tts = prefs['tts'];
+    if (tts is Map) {
+      final voice = tts['voice'] as String?;
+      final instruct = tts['instruct'] as String?;
+      final lang = tts['lang'] as String?;
+      final speed = tts['speed'] as String?;
+      if (voice != null && voice.isNotEmpty) {
+        ttsVoiceController.text = voice;
+      }
+      if (instruct != null) {
+        ttsInstructController.text = instruct;
+      }
+      if (lang != null && lang.isNotEmpty) {
+        ttsLanguageController.text = lang;
+      }
+      if (speed != null && speed.isNotEmpty) {
+        ttsSpeedController.text = speed;
+      }
+    }
+    final stream = prefs['streamingSpeech'];
+    if (stream is bool) {
+      streamSpeechEnabled = stream;
+    }
+    final endpoint = prefs['streamingSpeechEndpoint'] as String?;
+    if (endpoint != null && endpoint.isNotEmpty) {
+      streamingTtsEndpointController.text = endpoint;
+    }
+    final speechModel = prefs['streamingSpeechModel'] as String?;
+    if (speechModel != null && speechModel.isNotEmpty) {
+      streamingTtsModelIdController.text = speechModel;
+    }
+  }
+
+  void _persistVoicePipelinePrefs({
+    InstalledModel? chatModel,
+    InstalledModel? ttsModel,
+  }) {
+    if (chatModel != null) {
+      unawaited(
+        _prefsStore.mergeModelPrefs(chatModel.manifest.id, {
+          'generation': <String, Object?>{
+            'maxTokens':
+                int.tryParse(generationMaxTokensController.text.trim()),
+            'temperature':
+                double.tryParse(generationTemperatureController.text.trim()),
+            'topP': double.tryParse(generationTopPController.text.trim()),
+            'thinking': generationThinkingEnabled,
+          },
+        }),
+      );
+    }
+    if (ttsModel != null) {
+      unawaited(
+        _prefsStore.mergeModelPrefs(ttsModel.manifest.id, {
+          'tts': <String, Object?>{
+            'voice': ttsVoiceController.text.trim(),
+            'instruct': ttsInstructController.text.trim(),
+            'lang': ttsLanguageController.text.trim(),
+            'speed': ttsSpeedController.text.trim(),
+          },
+          'streamingSpeech': streamSpeechEnabled,
+          'streamingSpeechEndpoint': streamingTtsEndpointController.text.trim(),
+          'streamingSpeechModel': streamingTtsModelIdController.text.trim(),
+        }),
+      );
+    }
+  }
+
   void _applyTtsDefaultsForModel(InstalledModel? model) {
     if (model == null) {
       return;
@@ -4403,8 +4596,11 @@ class _StudioShellState extends State<StudioShell> {
       testErrorMessage = null;
       generatedAudioPath = null;
     });
+    final voiceCubit = context.read<VoicePipelineCubit>();
+    voiceCubit.setTranscribing();
     final validationError = await _prepareSpeechOptionsForModel(ttsModel);
     if (validationError != null) {
+      voiceCubit.reset();
       setState(() {
         testBusy = false;
         testErrorMessage = validationError;
@@ -4421,53 +4617,80 @@ class _StudioShellState extends State<StudioShell> {
 
     final stopwatch = Stopwatch()..start();
     try {
-      final transcript = await controller.transcribeAudio(
-        model: asrModel,
-        audioPath: audioPath,
+      final instruction = chatPromptController.text.trim();
+      final result = await Voice2VoicePipeline.run(
+        audioRunner: controller.audioRunner,
+        chatRunner: controller.chatRunner,
+        asrModel: asrModel,
+        chatModel: chatModel,
+        ttsModel: ttsModel,
+        userAudioPath: audioPath,
+        instruction: instruction,
+        chatParams: _chatParamsForModel(chatModel),
+        ttsOptions: _speechOptionsFromUi(),
+        onTranscript: (transcript) {
+          if (!mounted) {
+            return;
+          }
+          voiceCubit.setReplying();
+          setState(() {
+            if (controller.chatTurns.isNotEmpty &&
+                !controller.chatTurns.last.isUser) {
+              controller.chatTurns[controller.chatTurns.length - 1] =
+                  ChatTurn.assistant('Transcript: $transcript');
+            }
+            controller.chatTurns.add(ChatTurn.user(transcript));
+            controller.chatTurns.add(const ChatTurn.assistant(''));
+          });
+          _scrollChatToBottom();
+        },
+        onAssistantText: (partial, done) {
+          if (!mounted) {
+            return;
+          }
+          _replaceStreamingAssistant(partial);
+          if (done) {
+            voiceCubit.setSynthesizing();
+          }
+        },
       );
+      stopwatch.stop();
+
+      String? speechPath;
+      if (result.synthesizedAudio.isNotEmpty) {
+        final ext = result.audioMediaType == 'audio/opus'
+            ? 'opus'
+            : result.audioMediaType == 'audio/mpeg'
+            ? 'mp3'
+            : 'wav';
+        final tmp = await Directory.systemTemp.createTemp('flm-v2v-');
+        final outFile = File(p.join(tmp.path, 'speech.$ext'));
+        await outFile.writeAsBytes(result.synthesizedAudio);
+        speechPath = outFile.path;
+      }
+
+      final duration = speechPath != null
+          ? await _probeAudioDuration(speechPath)
+          : null;
       setState(() {
+        generatedAudioPath = speechPath;
         if (controller.chatTurns.isNotEmpty &&
             !controller.chatTurns.last.isUser) {
           controller.chatTurns[controller.chatTurns.length - 1] =
-              ChatTurn.assistant('Transcript: $transcript');
-        }
-        controller.chatTurns.add(ChatTurn.user(transcript));
-        controller.chatTurns.add(const ChatTurn.assistant(''));
-      });
-      _scrollChatToBottom();
-
-      final instruction = chatPromptController.text.trim();
-      final voicePrompt =
-          '$transcript\n\nInstruction: ${instruction.isEmpty ? 'Answer in the same language as the user. Keep the response concise.' : instruction}';
-      final response = await controller.chatRunner.chatStream(
-        model: chatModel,
-        messages: [LocalChatMessage.user(voicePrompt)],
-        params: _chatParamsForModel(chatModel),
-        onText: _replaceStreamingAssistant,
-      );
-      stopwatch.stop();
-      final speechFile = await controller.synthesizeSpeech(
-        model: ttsModel,
-        text: response,
-        options: _speechOptionsFromUi(),
-      );
-      final duration = await _probeAudioDuration(speechFile.path);
-      setState(() {
-        generatedAudioPath = speechFile.path;
-        final lastIndex = controller.chatTurns.lastIndexWhere(
-          (turn) => !turn.isUser,
-        );
-        if (lastIndex != -1) {
-          controller.chatTurns[lastIndex] = ChatTurn.assistant(
-            response,
-            audioPath: speechFile.path,
+              ChatTurn.assistant(
+            result.assistantText,
+            audioPath: speechPath,
             duration: duration,
             generationDuration: stopwatch.elapsed,
           );
         }
       });
-      await _playAudioPath(speechFile.path);
+      voiceCubit.reset();
+      if (speechPath != null) {
+        await _playAudioPath(speechPath);
+      }
     } catch (error) {
+      voiceCubit.reset();
       setState(() => testErrorMessage = '$error');
     } finally {
       setState(() => testBusy = false);
@@ -4476,6 +4699,9 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   SpeechSynthesisOptions _speechOptionsFromUi() {
+    final endpointText = streamingTtsEndpointController.text.trim();
+    final endpoint = endpointText.isEmpty ? null : Uri.tryParse(endpointText);
+    final modelOverride = streamingTtsModelIdController.text.trim();
     return SpeechSynthesisOptions(
       voice: ttsVoiceController.text.trim(),
       instruct: ttsInstructController.text.trim(),
@@ -4483,6 +4709,11 @@ class _StudioShellState extends State<StudioShell> {
       referenceAudioPath: ttsReferenceAudioPath,
       referenceText: ttsReferenceTextController.text.trim(),
       speed: double.tryParse(ttsSpeedController.text.trim()),
+      openAiCompatibleSpeechEndpoint: endpoint,
+      openAiSpeechModelId: modelOverride.isEmpty ? null : modelOverride,
+      speechResponseFormat: 'opus',
+      streamSpeech:
+          streamSpeechEnabled && endpoint != null && endpoint.hasAuthority,
     );
   }
 

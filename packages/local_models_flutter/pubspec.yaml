@@ -9,11 +9,13 @@ environment:
   flutter: '>=3.3.0'
 
 dependencies:
+  crypto: ^3.0.7
   ffi: ^2.1.4
   flutter:
     sdk: flutter
   local_models_core:
     path: ../local_models_core
+  path: ^1.9.1
   plugin_platform_interface: ^2.0.2
 
 dev_dependencies:
