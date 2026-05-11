@@ -136,6 +136,18 @@ This packaging layer exists to support installation workflows for the Flutter ru
 
 If you need access to gated Hugging Face assets in automation, add `HF_TOKEN` as a repository secret.
 
+## Local benchmarks
+
+Local runtime smoke metrics are kept in `benchmarks/README.md`.
+
+To refresh the report against the models installed by `apps/local_models_studio`, run:
+
+```bash
+python3 tools/benchmark_installed_models.py --chat-max-tokens 32 --image-steps-cap 1
+```
+
+The benchmark writes a human-readable summary plus a timestamped JSON artifact with raw command tails and generated media metadata.
+
 ## Roadmap
 
 ### Near term

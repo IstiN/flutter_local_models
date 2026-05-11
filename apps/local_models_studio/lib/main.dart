@@ -6,7 +6,6 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:local_models_core/local_models_core.dart';
 import 'package:local_models_flutter/local_models_flutter.dart';
 import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
@@ -32,7 +31,28 @@ class StudioSnapshot {
 
 enum _TestInputMode { text, audio, image }
 
-enum _TestWorkspaceMode { single, voicePipeline }
+enum _TestWorkspaceMode { single, voicePipeline, e2eBenchmark }
+
+enum _E2eBenchmarkStatus { running, passed, failed, skipped }
+
+class _BenchmarkRunOutput {
+  const _BenchmarkRunOutput({required this.duration, required this.output});
+
+  final Duration duration;
+  final String output;
+}
+
+class _E2eBenchmarkResult {
+  _E2eBenchmarkResult({required this.modelName, required this.task});
+
+  final String modelName;
+  final String task;
+  _E2eBenchmarkStatus status = _E2eBenchmarkStatus.running;
+  Duration? coldStartDuration;
+  Duration? secondRunDuration;
+  String? output;
+  String? error;
+}
 
 class StudioSvgIcon extends StatelessWidget {
   const StudioSvgIcon(this.name, {super.key, this.size = 24, this.opacity = 1});
@@ -50,6 +70,95 @@ class StudioSvgIcon extends StatelessWidget {
         width: size,
         height: size,
       ),
+    );
+  }
+}
+
+class _ThinkingIndicator extends StatefulWidget {
+  const _ThinkingIndicator();
+
+  @override
+  State<_ThinkingIndicator> createState() => _ThinkingIndicatorState();
+}
+
+class _ThinkingIndicatorState extends State<_ThinkingIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1150),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFC8A7FF), Color(0xFF7AD7FF)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFC8A7FF).withValues(alpha: 0.28),
+                    blurRadius: 18,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: const Center(child: StudioSvgIcon('sparkle', size: 18)),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Thinking',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 10),
+            ...List<Widget>.generate(3, (index) {
+              final phase = (controller.value + index * 0.18) % 1.0;
+              final opacity = 0.35 + 0.65 * (1 - (phase - 0.5).abs() * 2);
+              final scale = 0.72 + 0.36 * opacity;
+              return Padding(
+                padding: const EdgeInsets.only(right: 5),
+                child: Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(
+                        0xFFC8A7FF,
+                      ).withValues(alpha: opacity.clamp(0.35, 1.0)),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
     );
   }
 }
@@ -214,6 +323,7 @@ class _StudioShellState extends State<StudioShell> {
   bool settingsControllersHydrated = false;
   int selectedPageIndex = 0;
   String catalogFilter = 'all';
+  final List<_E2eBenchmarkResult> e2eBenchmarkResults = <_E2eBenchmarkResult>[];
 
   @override
   void initState() {
@@ -375,6 +485,11 @@ class _StudioShellState extends State<StudioShell> {
                 label: Text('Test'),
               ),
               NavigationRailDestination(
+                icon: StudioSvgIcon('sparkle', opacity: 0.6),
+                selectedIcon: StudioSvgIcon('sparkle'),
+                label: Text('E2E'),
+              ),
+              NavigationRailDestination(
                 icon: StudioSvgIcon('mic', opacity: 0.6),
                 selectedIcon: StudioSvgIcon('mic'),
                 label: Text('Voices'),
@@ -433,6 +548,11 @@ class _StudioShellState extends State<StudioShell> {
                       _buildCatalogTab(context),
                       _buildDownloadsTab(context),
                       _buildTestTab(context),
+                      _buildE2eBenchmarkTab(
+                        context,
+                        installedModels: controller.installedModels,
+                        showModeSwitch: false,
+                      ),
                       _buildVoicesTab(context),
                       _buildSettingsTab(context),
                     ],
@@ -1098,6 +1218,10 @@ class _StudioShellState extends State<StudioShell> {
         .where((model) => model.textToSpeechSupported)
         .toList(growable: false);
 
+    if (testWorkspaceMode == _TestWorkspaceMode.e2eBenchmark) {
+      return _buildE2eBenchmarkTab(context, installedModels: installedModels);
+    }
+
     if (testWorkspaceMode == _TestWorkspaceMode.voicePipeline) {
       return _buildVoicePipelineTab(
         context,
@@ -1413,6 +1537,9 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Widget _buildChatTurnBody(ChatTurn turn) {
+    if (_isAssistantThinking(turn)) {
+      return const _ThinkingIndicator();
+    }
     final imagePath = turn.imagePath;
     final audioPath = turn.audioPath;
     if (imagePath == null && audioPath == null) {
@@ -1540,6 +1667,11 @@ class _StudioShellState extends State<StudioShell> {
           icon: StudioSvgIcon('mic', size: 20),
           label: Text('Voice → Voice'),
         ),
+        ButtonSegment<_TestWorkspaceMode>(
+          value: _TestWorkspaceMode.e2eBenchmark,
+          icon: StudioSvgIcon('sparkle', size: 20),
+          label: Text('E2E Bench'),
+        ),
       ],
       selected: <_TestWorkspaceMode>{testWorkspaceMode},
       onSelectionChanged: testBusy || recordingAudio || recordingReferenceVoice
@@ -1648,7 +1780,7 @@ class _StudioShellState extends State<StudioShell> {
                         OutlinedButton.icon(
                           onPressed: testBusy || recordingAudio
                               ? null
-                              : () => setState(() => selectedPageIndex = 3),
+                              : () => setState(() => selectedPageIndex = 4),
                           icon: const StudioSvgIcon('mic', size: 20),
                           label: const Text('My Voices'),
                         ),
@@ -1775,6 +1907,173 @@ class _StudioShellState extends State<StudioShell> {
     );
   }
 
+  Widget _buildE2eBenchmarkTab(
+    BuildContext context, {
+    required List<InstalledModel> installedModels,
+    bool showModeSwitch = true,
+  }) {
+    final candidates = installedModels
+        .where(_isE2eBenchmarkModel)
+        .toList(growable: false);
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showModeSwitch) ...[
+            _buildTestModeSwitch(),
+            const SizedBox(height: 12),
+          ],
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'E2E local benchmark',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Runs prepared prompts 1-by-1 across installed chat/TTS models and records cold start + immediate second run.',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          candidates.isEmpty
+                              ? 'Install at least one chat or text-to-speech model.'
+                              : '${candidates.length} model(s) ready: ${candidates.map((model) => model.manifest.displayName).take(4).join(', ')}${candidates.length > 4 ? '…' : ''}',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  FilledButton.icon(
+                    onPressed: testBusy || candidates.isEmpty
+                        ? null
+                        : () => _runE2eBenchmark(candidates),
+                    icon: testBusy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const StudioSvgIcon('play', size: 22),
+                    label: Text(testBusy ? 'Running...' : 'Run E2E'),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: testBusy || e2eBenchmarkResults.isEmpty
+                        ? null
+                        : () => setState(e2eBenchmarkResults.clear),
+                    icon: const StudioSvgIcon('trash', size: 20),
+                    label: const Text('Clear'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: e2eBenchmarkResults.isEmpty
+                ? Card(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const StudioSvgIcon('sparkle', size: 48),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Press Run E2E to catch runtime issues like missing audio output before you manually test models.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: e2eBenchmarkResults.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) =>
+                        _buildE2eResultCard(e2eBenchmarkResults[index]),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildE2eResultCard(_E2eBenchmarkResult result) {
+    final statusColor = _e2eStatusColor(result.status);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${result.modelName} • ${result.task}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.55),
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  child: Text(
+                    _e2eStatusLabel(result.status),
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              [
+                'Cold: ${_formatOptionalDuration(result.coldStartDuration)}',
+                'Second: ${_formatOptionalDuration(result.secondRunDuration)}',
+              ].join(' • '),
+            ),
+            if (result.output != null && result.output!.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              SelectableText(result.output!),
+            ],
+            if (result.error != null && result.error!.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _buildSelectableError(result.error!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildConversationPane(BuildContext context) {
     if (controller.chatTurns.isEmpty) {
       return Card(
@@ -1808,6 +2107,7 @@ class _StudioShellState extends State<StudioShell> {
         final alignment = turn.isUser
             ? CrossAxisAlignment.end
             : CrossAxisAlignment.start;
+        final isThinking = _isAssistantThinking(turn);
         final color = turn.isUser
             ? const Color(0xFF59447D)
             : const Color(0xFF30334F);
@@ -1822,16 +2122,45 @@ class _StudioShellState extends State<StudioShell> {
             Container(
               constraints: const BoxConstraints(maxWidth: 980),
               decoration: BoxDecoration(
-                color: color,
+                color: isThinking ? null : color,
+                gradient: isThinking
+                    ? const LinearGradient(
+                        colors: [Color(0xFF2B2F52), Color(0xFF252947)],
+                      )
+                    : null,
                 borderRadius: BorderRadius.circular(22),
+                border: isThinking
+                    ? Border.all(color: const Color(0xFF555B86))
+                    : null,
+                boxShadow: isThinking
+                    ? [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF8F6BFF,
+                          ).withValues(alpha: 0.12),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
+                        ),
+                      ]
+                    : null,
               ),
-              padding: const EdgeInsets.all(18),
+              padding: isThinking
+                  ? const EdgeInsets.symmetric(horizontal: 16, vertical: 14)
+                  : const EdgeInsets.all(18),
               child: _buildChatTurnBody(turn),
             ),
           ],
         );
       },
     );
+  }
+
+  bool _isAssistantThinking(ChatTurn turn) {
+    return !turn.isUser &&
+        turn.message.trim().isEmpty &&
+        turn.audioPath == null &&
+        turn.imagePath == null &&
+        turn.progress == null;
   }
 
   Widget _buildModelDropdown({
@@ -1940,7 +2269,7 @@ class _StudioShellState extends State<StudioShell> {
                 OutlinedButton.icon(
                   onPressed: testBusy
                       ? null
-                      : () => setState(() => selectedPageIndex = 3),
+                      : () => setState(() => selectedPageIndex = 4),
                   icon: const StudioSvgIcon('mic', size: 20),
                   label: const Text('My Voices'),
                 ),
@@ -2612,7 +2941,7 @@ class _StudioShellState extends State<StudioShell> {
                   ),
                 ),
                 FilledButton.tonalIcon(
-                  onPressed: () => setState(() => selectedPageIndex = 4),
+                  onPressed: () => setState(() => selectedPageIndex = 5),
                   icon: const StudioSvgIcon('settings', size: 20),
                   label: const Text('Source Settings'),
                 ),
@@ -3320,6 +3649,263 @@ class _StudioShellState extends State<StudioShell> {
     );
   }
 
+  bool _isE2eBenchmarkModel(InstalledModel model) {
+    return model.textPromptSupported || model.textToSpeechSupported;
+  }
+
+  Future<void> _runE2eBenchmark(List<InstalledModel> candidates) async {
+    if (testBusy) {
+      return;
+    }
+    setState(() {
+      testBusy = true;
+      testErrorMessage = null;
+      e2eBenchmarkResults.clear();
+    });
+
+    try {
+      for (final model in candidates) {
+        if (!mounted) {
+          return;
+        }
+        if (model.textPromptSupported) {
+          await _runE2eChatBenchmark(model);
+        }
+        if (!mounted) {
+          return;
+        }
+        if (model.textToSpeechSupported) {
+          await _runE2eSpeechBenchmark(model);
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => testBusy = false);
+      }
+    }
+  }
+
+  Future<void> _runE2eChatBenchmark(InstalledModel model) async {
+    final result = _E2eBenchmarkResult(
+      modelName: model.manifest.displayName,
+      task: 'chat',
+    );
+    setState(() => e2eBenchmarkResults.add(result));
+    try {
+      final cold = await _benchmarkChatPrompt(
+        model,
+        'Reply with exactly one short English sentence: what is this app testing?',
+      );
+      result.coldStartDuration = cold.duration;
+      result.output = 'Cold output: ${cold.output}';
+      if (mounted) {
+        setState(() {});
+      }
+
+      final second = await _benchmarkChatPrompt(
+        model,
+        'Now reply with exactly one short Russian sentence about local AI.',
+      );
+      result.secondRunDuration = second.duration;
+      result.output =
+          'Cold output: ${cold.output}\nSecond output: ${second.output}';
+      result.status = _E2eBenchmarkStatus.passed;
+    } catch (error) {
+      result.status = _E2eBenchmarkStatus.failed;
+      result.error = '$error';
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _runE2eSpeechBenchmark(InstalledModel model) async {
+    final result = _E2eBenchmarkResult(
+      modelName: model.manifest.displayName,
+      task: 'text-to-speech',
+    );
+    setState(() => e2eBenchmarkResults.add(result));
+    final skipReason = _ttsBenchmarkSkipReason(model);
+    if (skipReason != null) {
+      result.status = _E2eBenchmarkStatus.skipped;
+      result.output = skipReason;
+      setState(() {});
+      return;
+    }
+
+    try {
+      final cold = await _benchmarkSpeechPrompt(
+        model,
+        'Hello. This is a local text to speech cold start benchmark.',
+      );
+      result.coldStartDuration = cold.duration;
+      result.output = 'Cold audio: ${cold.output}';
+      if (mounted) {
+        setState(() {});
+      }
+
+      final second = await _benchmarkSpeechPrompt(
+        model,
+        'Second synthesis run for warm timing.',
+      );
+      result.secondRunDuration = second.duration;
+      result.output =
+          'Cold audio: ${cold.output}\nSecond audio: ${second.output}';
+      result.status = _E2eBenchmarkStatus.passed;
+    } catch (error) {
+      result.status = _E2eBenchmarkStatus.failed;
+      result.error = '$error';
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<_BenchmarkRunOutput> _benchmarkChatPrompt(
+    InstalledModel model,
+    String prompt,
+  ) async {
+    final stopwatch = Stopwatch()..start();
+    final response = await controller.chatRunner.chatStream(
+      model: model,
+      messages: [LocalChatMessage.user(prompt)],
+      params: _benchmarkChatParamsForModel(model),
+      onText: (_) {},
+    );
+    stopwatch.stop();
+    return _BenchmarkRunOutput(
+      duration: stopwatch.elapsed,
+      output: response.trim().isEmpty ? '<empty response>' : response.trim(),
+    );
+  }
+
+  Future<_BenchmarkRunOutput> _benchmarkSpeechPrompt(
+    InstalledModel model,
+    String text,
+  ) async {
+    final stopwatch = Stopwatch()..start();
+    final file = await controller.synthesizeSpeech(
+      model: model,
+      text: text,
+      options: _speechOptionsForBenchmarkModel(model),
+    );
+    stopwatch.stop();
+    final duration = await _probeAudioDuration(file.path);
+    final size = await file.length();
+    return _BenchmarkRunOutput(
+      duration: stopwatch.elapsed,
+      output: [
+        p.basename(file.path),
+        formatBytes(size),
+        if (duration != null) 'audio ${_formatDuration(duration)}',
+      ].join(' • '),
+    );
+  }
+
+  LocalChatParams _benchmarkChatParamsForModel(InstalledModel model) {
+    final defaults = model.manifest.runtimeConfig.defaultParameters;
+    return LocalChatParams(
+      modelId: model.manifest.id,
+      maxTokens: _intDefault(defaults, const [
+        'max_tokens',
+        'maxTokens',
+        'max_new_tokens',
+      ], fallback: 128),
+      temperature: _doubleDefault(defaults, const [
+        'temperature',
+        'temp',
+      ], fallback: 0.4),
+      topP: model.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm
+          ? null
+          : _doubleDefault(defaults, const ['top_p', 'topP'], fallback: 0.9),
+    );
+  }
+
+  SpeechSynthesisOptions _speechOptionsForBenchmarkModel(InstalledModel model) {
+    final config = model.manifest.runtimeConfig;
+    final defaults = config.defaultParameters;
+    final mode = config.extra['qwen_tts_mode'] as String? ?? '';
+    var voice = '${defaults['voice'] ?? ''}'.trim();
+    if (voice.isEmpty && mode != 'base' && config.voices.isNotEmpty) {
+      voice = config.voices.first.id;
+    }
+    final instruct = '${defaults['instruct'] ?? defaults['voice_prompt'] ?? ''}'
+        .trim();
+    final language = '${defaults['lang_code'] ?? defaults['language'] ?? ''}'
+        .trim();
+    return SpeechSynthesisOptions(
+      voice: voice,
+      instruct: instruct,
+      languageCode: language.isEmpty ? '' : _normalizeTtsLanguageCode(language),
+      referenceAudioPath: ttsReferenceAudioPath,
+      referenceText: ttsReferenceTextController.text.trim(),
+      speed: _doubleValue(defaults['speed']),
+    );
+  }
+
+  String? _ttsBenchmarkSkipReason(InstalledModel model) {
+    final mode =
+        model.manifest.runtimeConfig.extra['qwen_tts_mode'] as String? ?? '';
+    if (mode != 'base') {
+      return null;
+    }
+    final hasReferenceAudio =
+        ttsReferenceAudioPath != null &&
+        ttsReferenceAudioPath!.trim().isNotEmpty;
+    final hasReferenceText = ttsReferenceTextController.text.trim().isNotEmpty;
+    if (!hasReferenceAudio || !hasReferenceText) {
+      return 'Skipped: Qwen3-TTS Base needs Ref Audio + Reference transcript. Open Voices, record/import a clean 3–10 sec sample, paste its transcript, then rerun E2E.';
+    }
+    return null;
+  }
+
+  int _intDefault(
+    Map<String, Object?> defaults,
+    List<String> keys, {
+    required int fallback,
+  }) {
+    for (final key in keys) {
+      final value = defaults[key];
+      if (value is int) {
+        return value;
+      }
+      if (value is num) {
+        return value.toInt();
+      }
+      if (value is String) {
+        final parsed = int.tryParse(value.trim());
+        if (parsed != null) {
+          return parsed;
+        }
+      }
+    }
+    return fallback;
+  }
+
+  double? _doubleDefault(
+    Map<String, Object?> defaults,
+    List<String> keys, {
+    double? fallback,
+  }) {
+    for (final key in keys) {
+      final parsed = _doubleValue(defaults[key]);
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+    return fallback;
+  }
+
+  double? _doubleValue(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value.trim());
+    }
+    return null;
+  }
+
   Future<void> _sendPromptToSelectedModel(InstalledModel model) async {
     final prompt = chatPromptController.text.trim();
     if (prompt.isEmpty) {
@@ -3829,6 +4415,36 @@ class _StudioShellState extends State<StudioShell> {
     final minutes = duration.inMinutes;
     final remainingSeconds = duration.inSeconds.remainder(60);
     return '${minutes}m ${remainingSeconds}s';
+  }
+
+  String _formatOptionalDuration(Duration? duration) {
+    return duration == null ? '—' : _formatGenerationDuration(duration);
+  }
+
+  String _e2eStatusLabel(_E2eBenchmarkStatus status) {
+    switch (status) {
+      case _E2eBenchmarkStatus.running:
+        return 'Running';
+      case _E2eBenchmarkStatus.passed:
+        return 'Passed';
+      case _E2eBenchmarkStatus.failed:
+        return 'Failed';
+      case _E2eBenchmarkStatus.skipped:
+        return 'Skipped';
+    }
+  }
+
+  Color _e2eStatusColor(_E2eBenchmarkStatus status) {
+    switch (status) {
+      case _E2eBenchmarkStatus.running:
+        return const Color(0xFFBFA5FF);
+      case _E2eBenchmarkStatus.passed:
+        return const Color(0xFF72E0B0);
+      case _E2eBenchmarkStatus.failed:
+        return Theme.of(context).colorScheme.error;
+      case _E2eBenchmarkStatus.skipped:
+        return Theme.of(context).colorScheme.outline;
+    }
   }
 
   String _formatDateTime(DateTime value) {

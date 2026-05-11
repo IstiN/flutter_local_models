@@ -982,24 +982,196 @@ class LocalAudioRunner {
       ],
       if (options.speed != null) ...<String>['--speed', '${options.speed}'],
       if (joinAudio) '--join_audio',
-    ]);
+    ], workingDirectory: tempDirectory.path);
+    final stdout = (result.stdout as String).trim();
+    final stderr = (result.stderr as String).trim();
     if (result.exitCode != 0) {
-      final stderr = (result.stderr as String).trim();
       throw StateError(
-        'Local speech generation failed: ${stderr.isEmpty ? result.stdout : stderr}',
+        _formatSpeechGenerationFailure(
+          title: 'Local speech generation failed',
+          stdout: stdout,
+          stderr: stderr,
+          outputDirectory: tempDirectory,
+        ),
       );
     }
-    final audioFiles =
-        tempDirectory
-            .listSync()
-            .whereType<File>()
-            .where((file) => file.path.endsWith('.$audioFormat'))
-            .toList()
-          ..sort((left, right) => left.path.compareTo(right.path));
+    final audioFiles = _findGeneratedAudioFiles(
+      tempDirectory,
+      preferredExtension: audioFormat,
+    );
     if (audioFiles.isEmpty) {
-      throw StateError('Speech generation finished without producing audio.');
+      throw StateError(
+        _formatSpeechGenerationFailure(
+          title: 'Local speech generation finished without producing audio',
+          stdout: stdout,
+          stderr: stderr,
+          outputDirectory: tempDirectory,
+        ),
+      );
     }
     return audioFiles.first;
+  }
+
+  List<File> _findGeneratedAudioFiles(
+    Directory directory, {
+    required String preferredExtension,
+  }) {
+    final preferred = preferredExtension
+        .replaceFirst('.', '')
+        .trim()
+        .toLowerCase();
+    const audioExtensions = <String>{
+      'wav',
+      'mp3',
+      'm4a',
+      'aac',
+      'flac',
+      'ogg',
+      'aif',
+      'aiff',
+      'caf',
+    };
+    final extensions = <String>{
+      ...audioExtensions,
+      if (preferred.isNotEmpty) preferred,
+    };
+    final files = directory
+        .listSync(recursive: true, followLinks: false)
+        .whereType<File>()
+        .where((file) {
+          final extension = p
+              .extension(file.path)
+              .replaceFirst('.', '')
+              .toLowerCase();
+          if (!extensions.contains(extension)) {
+            return false;
+          }
+          try {
+            return file.lengthSync() > 0;
+          } on FileSystemException {
+            return false;
+          }
+        })
+        .toList(growable: false);
+    files.sort((left, right) {
+      final leftExtension = p
+          .extension(left.path)
+          .replaceFirst('.', '')
+          .toLowerCase();
+      final rightExtension = p
+          .extension(right.path)
+          .replaceFirst('.', '')
+          .toLowerCase();
+      final leftPreferred = leftExtension == preferred ? 0 : 1;
+      final rightPreferred = rightExtension == preferred ? 0 : 1;
+      if (leftPreferred != rightPreferred) {
+        return leftPreferred.compareTo(rightPreferred);
+      }
+      return right.statSync().modified.compareTo(left.statSync().modified);
+    });
+    return files;
+  }
+
+  String _formatSpeechGenerationFailure({
+    required String title,
+    required String stdout,
+    required String stderr,
+    required Directory outputDirectory,
+  }) {
+    final buffer = StringBuffer(title);
+    if (_looksLikeMissingKokoroDependency(stdout) ||
+        _looksLikeMissingKokoroDependency(stderr)) {
+      buffer.writeln(
+        '\nMissing Kokoro dependency: install misaki in the MLX runtime with `$pythonExecutable -m pip install misaki`.',
+      );
+    }
+    if (_looksLikeMissingSpacyModel(stdout) ||
+        _looksLikeMissingSpacyModel(stderr)) {
+      buffer.writeln(
+        '\nMissing Kokoro English tokenizer model: install it with `$pythonExecutable -m pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl`.',
+      );
+    }
+    if (_looksLikeMissingEspeak(stdout) || _looksLikeMissingEspeak(stderr)) {
+      buffer.writeln(
+        '\nMissing Kokoro phoneme fallback: install espeak-ng with `brew install espeak-ng`.',
+      );
+    }
+    buffer.writeln('\nOutput directory: ${outputDirectory.path}');
+    if (stdout.isNotEmpty) {
+      buffer.writeln('\nstdout:\n${_trimProcessLog(stdout)}');
+    }
+    if (stderr.isNotEmpty) {
+      buffer.writeln('\nstderr:\n${_trimProcessLog(stderr)}');
+    }
+    final files = _describeDirectoryFiles(outputDirectory);
+    if (files.isNotEmpty) {
+      buffer.writeln('\nGenerated files:\n$files');
+    }
+    return buffer.toString().trim();
+  }
+
+  bool _looksLikeMissingKokoroDependency(String output) {
+    final lower = output.toLowerCase();
+    return lower.contains('kokoro requires') && lower.contains('misaki');
+  }
+
+  bool _looksLikeMissingSpacyModel(String output) {
+    final lower = output.toLowerCase();
+    return lower.contains("can't find model 'en_core_web_sm'") ||
+        lower.contains('can\'t find model "en_core_web_sm"');
+  }
+
+  bool _looksLikeMissingEspeak(String output) {
+    return output.toLowerCase().contains('espeak not installed');
+  }
+
+  String _trimProcessLog(String text) {
+    const maxLines = 80;
+    const maxCharacters = 6000;
+    final lines = const LineSplitter().convert(text);
+    final trimmedLines = lines.length > maxLines
+        ? <String>[
+            ...lines.take(maxLines),
+            '… (${lines.length - maxLines} more lines)',
+          ]
+        : lines;
+    final joined = trimmedLines.join('\n');
+    if (joined.length <= maxCharacters) {
+      return joined;
+    }
+    return '${joined.substring(0, maxCharacters)}\n… (${joined.length - maxCharacters} more characters)';
+  }
+
+  String _describeDirectoryFiles(Directory directory) {
+    if (!directory.existsSync()) {
+      return '';
+    }
+    final files =
+        directory
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()
+            .toList(growable: false)
+          ..sort((left, right) => left.path.compareTo(right.path));
+    if (files.isEmpty) {
+      return '';
+    }
+    final lines = files
+        .take(24)
+        .map((file) {
+          final relativePath = p.relative(file.path, from: directory.path);
+          int sizeBytes = 0;
+          try {
+            sizeBytes = file.lengthSync();
+          } on FileSystemException {
+            sizeBytes = 0;
+          }
+          return '- $relativePath (${formatBytes(sizeBytes)})';
+        })
+        .toList(growable: false);
+    if (files.length > lines.length) {
+      lines.add('- … (${files.length - lines.length} more files)');
+    }
+    return lines.join('\n');
   }
 }
 

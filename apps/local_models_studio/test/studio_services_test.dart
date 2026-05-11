@@ -36,6 +36,44 @@ const _manifest = LocalModelManifest(
   ),
 );
 
+const _ttsManifest = LocalModelManifest(
+  id: 'kokoro-82m-4bit',
+  displayName: 'Kokoro 82M 4bit',
+  description: 'Compact local TTS model.',
+  runtimeAdapter: RuntimeAdapter.mlxAudio,
+  tasks: [ModelTask.textToSpeech, ModelTask.audioOutput],
+  source: ModelSource(
+    provider: 'huggingface',
+    repo: 'mlx-community/Kokoro-82M-4bit',
+    revision: 'main',
+    license: 'apache-2.0',
+  ),
+  packaging: PackagingSpec(
+    releaseTag: 'model-kokoro-82m-4bit',
+    archiveName: 'kokoro-82m-4bit.tar',
+    chunkSizeBytes: 1900000000,
+    assetPrefix: 'kokoro-82m-4bit',
+  ),
+  requirements: SystemRequirements(
+    platform: 'macos-apple-silicon',
+    minMemoryGb: 4,
+    recommendedMemoryGb: 8,
+    notes: ['Tiny local TTS model'],
+  ),
+  capabilities: CapabilitySpec(
+    audioInput: false,
+    audioOutput: true,
+    toolCalling: false,
+  ),
+  runtimeConfig: ModelRuntimeConfig(
+    defaultParameters: {
+      'audio_format': 'wav',
+      'join_audio': true,
+      'voice': 'af_heart',
+    },
+  ),
+);
+
 class FakeStudioApiClient extends StudioApiClient {
   FakeStudioApiClient(this.details, this.files, {this.releaseManifest});
 
@@ -162,6 +200,105 @@ void main() {
     expect(formatBytes(1024), '1 KB');
     expect(formatBytes(1536), '1.5 KB');
     expect(sanitizeId('mlx-community/Qwen3 8B!'), 'mlx-community-qwen3-8b');
+  });
+
+  test('LocalAudioRunner discovers nested generated audio files', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'local-models-studio-tts-test',
+    );
+    addTearDown(() async {
+      if (tempDirectory.existsSync()) {
+        await tempDirectory.delete(recursive: true);
+      }
+    });
+
+    final fakePython = File('${tempDirectory.path}/fake-python.sh');
+    await fakePython.writeAsString('''
+#!/bin/sh
+output=""
+while [ "\$#" -gt 0 ]; do
+  if [ "\$1" = "--output_path" ]; then
+    shift
+    output="\$1"
+  fi
+  shift
+done
+mkdir -p "\$output/nested"
+printf 'RIFF____WAVEfmt ' > "\$output/nested/generated.wav"
+echo "generated nested audio"
+''');
+    await Process.run('chmod', ['+x', fakePython.path]);
+
+    final modelDirectory = Directory('${tempDirectory.path}/model');
+    await modelDirectory.create();
+    final runner = LocalAudioRunner(pythonExecutable: fakePython.path);
+    final file = await runner.synthesizeSpeech(
+      model: InstalledModel(
+        manifest: _ttsManifest,
+        directory: modelDirectory,
+        sourceLabel: 'test',
+        installedAt: DateTime.utc(2026, 5, 11),
+        sizeBytes: 0,
+      ),
+      text: 'hello',
+    );
+
+    expect(file.path, endsWith('nested/generated.wav'));
+    expect(await file.exists(), isTrue);
+  });
+
+  test('LocalAudioRunner reports stdout when no audio is produced', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'local-models-studio-tts-error-test',
+    );
+    addTearDown(() async {
+      if (tempDirectory.existsSync()) {
+        await tempDirectory.delete(recursive: true);
+      }
+    });
+
+    final fakePython = File('${tempDirectory.path}/fake-python.sh');
+    await fakePython.writeAsString('''
+#!/bin/sh
+output=""
+while [ "\$#" -gt 0 ]; do
+  if [ "\$1" = "--output_path" ]; then
+    shift
+    output="\$1"
+  fi
+  shift
+done
+mkdir -p "\$output"
+printf 'debug notes' > "\$output/notes.txt"
+echo "Import error: Kokoro requires the optional 'misaki' package for text processing."
+''');
+    await Process.run('chmod', ['+x', fakePython.path]);
+
+    final modelDirectory = Directory('${tempDirectory.path}/model');
+    await modelDirectory.create();
+    final runner = LocalAudioRunner(pythonExecutable: fakePython.path);
+
+    await expectLater(
+      runner.synthesizeSpeech(
+        model: InstalledModel(
+          manifest: _ttsManifest,
+          directory: modelDirectory,
+          sourceLabel: 'test',
+          installedAt: DateTime.utc(2026, 5, 11),
+          sizeBytes: 0,
+        ),
+        text: 'hello',
+      ),
+      throwsA(
+        isA<StateError>()
+            .having(
+              (error) => error.message,
+              'message',
+              contains('Missing Kokoro dependency'),
+            )
+            .having((error) => error.message, 'message', contains('notes.txt')),
+      ),
+    );
   });
 
   test('settings persist source configuration', () async {

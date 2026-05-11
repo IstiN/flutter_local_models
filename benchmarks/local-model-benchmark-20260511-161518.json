@@ -1,0 +1,944 @@
+{
+  "system": {
+    "timestamp_utc": "2026-05-11T13:15:18.114767+00:00",
+    "platform": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+    "macos": "26.3.1",
+    "cpu": "Apple M5",
+    "memory_bytes": 25769803776,
+    "python": "3.14.4",
+    "mlx_python": "/Users/uladzimir_klyshevich/.venvs/mlx/bin/python"
+  },
+  "models_dir": "/Users/uladzimir_klyshevich/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models",
+  "reference_audio": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-reference-audio-8eer25cu/speech-1778504601710.wav",
+  "image_steps_cap": 1,
+  "results": [
+    {
+      "model_id": "dia-1.6b-4bit",
+      "model_name": "Dia 1.6B 4bit",
+      "runtime": "mlx_audio",
+      "task": "text_to_speech",
+      "status": "passed",
+      "size_bytes": 3222474109,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 27.366,
+          "output": "speech-1778504606115.wav (258.2 KB, 3.0s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-dia-1.6b-4bit-zha9fe8i/speech-1778504606115.wav",
+          "artifact_bytes": 264386,
+          "error": null,
+          "speed": "RTF 9.13",
+          "metrics": {
+            "audio_duration_seconds": 2.997,
+            "realtime_factor": 9.131
+          },
+          "stdout_tail": "\u001b[94mText:\u001b[0m Hello, this is a cold start speech benchmark.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m en\nEOS detected at step 260 for channel 0",
+          "stderr_tail": "…4<01:08, 14.45it/s]\n 17%|█▋        | 208/1200 [00:14<01:09, 14.21it/s]\n 18%|█▊        | 210/1200 [00:15<01:10, 14.00it/s]\n 18%|█▊        | 212/1200 [00:15<01:09, 14.24it/s]\n 18%|█▊        | 214/1200 [00:15<01:08, 14.39it/s]\n 18%|█▊        | 216/1200 [00:15<01:07, 14.59it/s]\n 18%|█▊        | 218/1200 [00:15<01:07, 14.65it/s]\n 18%|█▊        | 220/1200 [00:15<01:06, 14.81it/s]\n 18%|█▊        | 222/1200 [00:15<01:05, 15.01it/s]\n 19%|█▊        | 224/1200 [00:16<01:04, 15.22it/s]\n 19%|█▉        | 226/1200 [00:16<01:05, 14.76it/s]\n 19%|█▉        | 228/1200 [00:16<01:05, 14.81it/s]\n 19%|█▉        | 230/1200 [00:16<01:04, 14.99it/s]\n 19%|█▉        | 232/1200 [00:16<01:03, 15.23it/s]\n 20%|█▉        | 234/1200 [00:16<01:03, 15.27it/s]\n 20%|█▉        | 236/1200 [00:16<01:03, 15.28it/s]\n 20%|█▉        | 238/1200 [00:16<01:04, 14.93it/s]\n 20%|██        | 240/1200 [00:17<01:04, 14.99it/s]\n 20%|██        | 242/1200 [00:17<01:04, 14.77it/s]\n 20%|██        | 244/1200 [00:17<01:04, 14.81it/s]\n 20%|██        | 246/1200 [00:17<01:08, 14.01it/s]\n 21%|██        | 248/1200 [00:17<01:20, 11.83it/s]\n 21%|██        | 250/1200 [00:18<01:38,  9.63it/s]\n 21%|██        | 252/1200 [00:18<01:44,  9.06it/s]\n 21%|██        | 253/1200 [00:18<01:50,  8.56it/s]\n 21%|██▏       | 255/1200 [00:18<01:35,  9.87it/s]\n 21%|██▏       | 257/1200 [00:18<01:33, 10.06it/s]\n 22%|██▏       | 259/1200 [00:19<01:38,  9.59it/s]\n 22%|██▏       | 260/1200 [00:19<01:38,  9.55it/s]\n 22%|██▏       | 261/1200 [00:19<01:40,  9.33it/s]\n 24%|██▎       | 283/1200 [00:19<00:16, 55.05it/s]\n 24%|██▍       | 289/1200 [00:19<01:00, 14.94it/s]",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/dia-1.6b-4bit",
+            "--text",
+            "Hello, this is a cold start speech benchmark.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-dia-1.6b-4bit-zha9fe8i",
+            "--file_prefix",
+            "speech-1778504606115",
+            "--audio_format",
+            "wav",
+            "--join_audio"
+          ]
+        },
+        {
+          "status": "passed",
+          "duration_seconds": 72.424,
+          "output": "speech-1778504633483.wav (805.2 KB, 9.3s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-dia-1.6b-4bit-fy23fyhq/speech-1778504633483.wav",
+          "artifact_bytes": 824514,
+          "error": null,
+          "speed": "RTF 7.75",
+          "metrics": {
+            "audio_duration_seconds": 9.348,
+            "realtime_factor": 7.748
+          },
+          "stdout_tail": "\u001b[94mText:\u001b[0m Second local speech synthesis run.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m en\nEOS detected at step 807 for channel 0",
+          "stderr_tail": "…7<00:35, 12.61it/s]\n 63%|██████▎   | 751/1200 [00:57<00:34, 12.96it/s]\n 63%|██████▎   | 753/1200 [00:58<00:34, 13.08it/s]\n 63%|██████▎   | 755/1200 [00:58<00:33, 13.41it/s]\n 63%|██████▎   | 757/1200 [00:58<00:32, 13.61it/s]\n 63%|██████▎   | 759/1200 [00:58<00:32, 13.65it/s]\n 63%|██████▎   | 761/1200 [00:58<00:31, 13.78it/s]\n 64%|██████▎   | 763/1200 [00:58<00:31, 13.95it/s]\n 64%|██████▍   | 765/1200 [00:59<00:31, 13.72it/s]\n 64%|██████▍   | 767/1200 [00:59<00:32, 13.31it/s]\n 64%|██████▍   | 769/1200 [00:59<00:32, 13.40it/s]\n 64%|██████▍   | 771/1200 [00:59<00:31, 13.63it/s]\n 64%|██████▍   | 773/1200 [00:59<00:31, 13.48it/s]\n 65%|██████▍   | 775/1200 [00:59<00:32, 13.16it/s]\n 65%|██████▍   | 777/1200 [00:59<00:31, 13.34it/s]\n 65%|██████▍   | 779/1200 [01:00<00:31, 13.54it/s]\n 65%|██████▌   | 781/1200 [01:00<00:30, 13.71it/s]\n 65%|██████▌   | 783/1200 [01:00<00:30, 13.70it/s]\n 65%|██████▌   | 785/1200 [01:00<00:32, 12.79it/s]\n 66%|██████▌   | 787/1200 [01:00<00:31, 13.05it/s]\n 66%|██████▌   | 789/1200 [01:00<00:31, 12.99it/s]\n 66%|██████▌   | 791/1200 [01:00<00:31, 12.93it/s]\n 66%|██████▌   | 793/1200 [01:01<00:31, 12.92it/s]\n 66%|██████▋   | 795/1200 [01:01<00:31, 12.79it/s]\n 66%|██████▋   | 797/1200 [01:01<00:31, 12.87it/s]\n 67%|██████▋   | 799/1200 [01:01<00:31, 12.92it/s]\n 67%|██████▋   | 801/1200 [01:01<00:30, 13.03it/s]\n 67%|██████▋   | 803/1200 [01:01<00:30, 13.12it/s]\n 67%|██████▋   | 805/1200 [01:02<00:30, 13.14it/s]\n 67%|██████▋   | 807/1200 [01:02<00:29, 13.16it/s]\n 68%|██████▊   | 814/1200 [01:02<00:15, 25.66it/s]\n 70%|██████▉   | 836/1200 [01:02<00:27, 13.41it/s]",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/dia-1.6b-4bit",
+            "--text",
+            "Second local speech synthesis run.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-dia-1.6b-4bit-fy23fyhq",
+            "--file_prefix",
+            "speech-1778504633483",
+            "--audio_format",
+            "wav",
+            "--join_audio"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "flux1-schnell-mflux-4bit",
+      "model_name": "FLUX.1 Schnell mflux 4bit",
+      "runtime": "mflux",
+      "task": "image_generation",
+      "status": "failed",
+      "size_bytes": 9615589348,
+      "error": null,
+      "runs": [
+        {
+          "status": "failed",
+          "duration_seconds": 4.041,
+          "output": "",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": "exit code 1",
+          "speed": "",
+          "metrics": {},
+          "stdout_tail": "",
+          "stderr_tail": "…^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/uladzimir_klyshevich/.local/share/uv/tools/mflux/lib/python3.11/site-packages/transformers/tokenization_utils_tokenizers.py\", line 248, in convert_to_native_format\n    local_kwargs[\"tokenizer_object\"] = converter.converted()\n                                       ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/uladzimir_klyshevich/.local/share/uv/tools/mflux/lib/python3.11/site-packages/transformers/convert_slow_tokenizer.py\", line 1935, in converted\n    tokenizer = self.tokenizer()\n                ^^^^^^^^^^^^^^^^\n  File \"/Users/uladzimir_klyshevich/.local/share/uv/tools/mflux/lib/python3.11/site-packages/transformers/convert_slow_tokenizer.py\", line 1928, in tokenizer\n    vocab_scores, merges = self.extract_vocab_merges_from_model(self.vocab_file)\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/uladzimir_klyshevich/.local/share/uv/tools/mflux/lib/python3.11/site-packages/transformers/convert_slow_tokenizer.py\", line 1904, in extract_vocab_merges_from_model\n    bpe_ranks = load_tiktoken_bpe(tiktoken_url)\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/uladzimir_klyshevich/.local/share/uv/tools/mflux/lib/python3.11/site-packages/tiktoken/load.py\", line 171, in load_tiktoken_bpe\n    raise ValueError(f\"Error parsing line {line!r} in {tiktoken_bpe_file}\") from e\nValueError: Error parsing line b'\\x0e' in /Users/uladzimir_klyshevich/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/flux1-schnell-mflux-4bit/tokenizer_2/spiece.model",
+          "command": [
+            "~/.local/bin/mflux-generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/flux1-schnell-mflux-4bit",
+            "--base-model",
+            "schnell",
+            "--prompt",
+            "a tiny robot mascot reading benchmark results, clean app icon style",
+            "--output",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-image-flux1-schnell-mflux-4bit-lgeufoda/image.png",
+            "--width",
+            "512",
+            "--height",
+            "512",
+            "--steps",
+            "1",
+            "--guidance",
+            "0.0"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "gemma4-31b-it-4bit",
+      "model_name": "Gemma 4 31B IT 4bit",
+      "runtime": "mlx_vlm",
+      "task": "chat",
+      "status": "timeout",
+      "size_bytes": 18444423234,
+      "error": null,
+      "runs": [
+        {
+          "status": "timeout",
+          "duration_seconds": 157.994,
+          "output": "<|channel>thought\n<channel|>\n[WARNING] Generating with a model that requires 17558 MB which is close to the maximum recommended size of 18186 MB. This can be slow. See the documentation for possible work-arounds: https://github.com/ml-explore/mlx-lm/tree/main#large-models",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": "timed out after 60s",
+          "speed": "1.7 chars/s",
+          "metrics": {
+            "chars_per_second": 1.722
+          },
+          "stdout_tail": "==========\nFiles: [] \n\nPrompt: <bos><|turn>user\nAnswer in one short English sentence: what does this local model benchmark measure?<turn|>\n<|turn>model\n<|channel>thought\n<channel|>\n[WARNING] Generating with a model that requires 17558 MB which is close to the maximum recommended size of 18186 MB. This can be slow. See the documentation for possible work-arounds: https://github.com/ml-explore/mlx-lm/tree/main#large-models",
+          "stderr_tail": "/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/transformers/audio_utils.py:549: UserWarning: At least one mel filter has all zero values. The value for `num_mel_filters` (128) may be set too high. Or, the value for `num_frequency_bins` (257) may be set too low.\n  warnings.warn(",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_vlm",
+            "generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/gemma4-31b-it-4bit",
+            "--prompt",
+            "Answer in one short English sentence: what does this local model benchmark measure?",
+            "--max-tokens",
+            "32",
+            "--temperature",
+            "0.7"
+          ]
+        },
+        {
+          "status": "timeout",
+          "duration_seconds": 152.057,
+          "output": "<|channel>thought\n<channel|>\n[WARNING] Generating with a model that requires 17558 MB which is close to the maximum recommended size of 18186 MB. This can be slow. See the documentation for possible work-arounds: https://github.com/ml-explore/mlx-lm/tree/main#large-models",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": "timed out after 60s",
+          "speed": "1.8 chars/s",
+          "metrics": {
+            "chars_per_second": 1.789
+          },
+          "stdout_tail": "==========\nFiles: [] \n\nPrompt: <bos><|turn>user\nОтветь одним коротким русским предложением: зачем нужен локальный ИИ?<turn|>\n<|turn>model\n<|channel>thought\n<channel|>\n[WARNING] Generating with a model that requires 17558 MB which is close to the maximum recommended size of 18186 MB. This can be slow. See the documentation for possible work-arounds: https://github.com/ml-explore/mlx-lm/tree/main#large-models",
+          "stderr_tail": "/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/transformers/audio_utils.py:549: UserWarning: At least one mel filter has all zero values. The value for `num_mel_filters` (128) may be set too high. Or, the value for `num_frequency_bins` (257) may be set too low.\n  warnings.warn(",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_vlm",
+            "generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/gemma4-31b-it-4bit",
+            "--prompt",
+            "Ответь одним коротким русским предложением: зачем нужен локальный ИИ?",
+            "--max-tokens",
+            "32",
+            "--temperature",
+            "0.7"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "gemma4-e2b-it-4bit",
+      "model_name": "Gemma 4 E2B IT 4bit",
+      "runtime": "mlx_vlm",
+      "task": "chat",
+      "status": "passed",
+      "size_bytes": 3613533380,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 14.611,
+          "output": "This local model benchmark measures its performance on a specific set of local tasks or data.",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": null,
+          "speed": "6.4 chars/s",
+          "metrics": {
+            "chars_per_second": 6.365
+          },
+          "stdout_tail": "==========\nFiles: [] \n\nPrompt: <bos><|turn>user\nAnswer in one short English sentence: what does this local model benchmark measure?<turn|>\n<|turn>model\n\nThis local model benchmark measures its performance on a specific set of local tasks or data.\n==========\nPrompt: 24 tokens, 182.463 tokens-per-sec\nGeneration: 18 tokens, 16.323 tokens-per-sec\nPeak memory: 3.656 GB",
+          "stderr_tail": "/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/transformers/audio_utils.py:549: UserWarning: At least one mel filter has all zero values. The value for `num_mel_filters` (128) may be set too high. Or, the value for `num_frequency_bins` (257) may be set too low.\n  warnings.warn(",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_vlm",
+            "generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/gemma4-e2b-it-4bit",
+            "--prompt",
+            "Answer in one short English sentence: what does this local model benchmark measure?",
+            "--max-tokens",
+            "32",
+            "--temperature",
+            "0.7"
+          ]
+        },
+        {
+          "status": "passed",
+          "duration_seconds": 10.542,
+          "output": "Локальный ИИ нужен для сохранения конфиденциальности и обеспечения автономной работы.",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": null,
+          "speed": "8.1 chars/s",
+          "metrics": {
+            "chars_per_second": 8.063
+          },
+          "stdout_tail": "==========\nFiles: [] \n\nPrompt: <bos><|turn>user\nОтветь одним коротким русским предложением: зачем нужен локальный ИИ?<turn|>\n<|turn>model\n\nЛокальный ИИ нужен для сохранения конфиденциальности и обеспечения автономной работы.\n==========\nPrompt: 28 tokens, 17.659 tokens-per-sec\nGeneration: 18 tokens, 33.424 tokens-per-sec\nPeak memory: 3.630 GB",
+          "stderr_tail": "/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/transformers/audio_utils.py:549: UserWarning: At least one mel filter has all zero values. The value for `num_mel_filters` (128) may be set too high. Or, the value for `num_frequency_bins` (257) may be set too low.\n  warnings.warn(",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_vlm",
+            "generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/gemma4-e2b-it-4bit",
+            "--prompt",
+            "Ответь одним коротким русским предложением: зачем нужен локальный ИИ?",
+            "--max-tokens",
+            "32",
+            "--temperature",
+            "0.7"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "kokoro-82m-4bit",
+      "model_name": "Kokoro 82M 4bit",
+      "runtime": "mlx_audio",
+      "task": "text_to_speech",
+      "status": "passed",
+      "size_bytes": 672276095,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 6.617,
+          "output": "speech-1778505045823.wav (146.5 KB, 3.1s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-kokoro-82m-4bit-nam4xm7m/speech-1778505045823.wav",
+          "artifact_bytes": 150044,
+          "error": null,
+          "speed": "RTF 2.12",
+          "metrics": {
+            "audio_duration_seconds": 3.125,
+            "realtime_factor": 2.117
+          },
+          "stdout_tail": "\u001b[94mText:\u001b[0m Hello, this is a cold start speech benchmark.\n\u001b[94mVoice:\u001b[0m af_heart\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m en\nCreating new KokoroPipeline for language: en",
+          "stderr_tail": "",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/kokoro-82m-4bit",
+            "--text",
+            "Hello, this is a cold start speech benchmark.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-kokoro-82m-4bit-nam4xm7m",
+            "--file_prefix",
+            "speech-1778505045823",
+            "--audio_format",
+            "wav",
+            "--voice",
+            "af_heart",
+            "--join_audio"
+          ]
+        },
+        {
+          "status": "passed",
+          "duration_seconds": 4.672,
+          "output": "speech-1778505052449.wav (125.4 KB, 2.7s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-kokoro-82m-4bit-tg2yg2jk/speech-1778505052449.wav",
+          "artifact_bytes": 128444,
+          "error": null,
+          "speed": "RTF 1.75",
+          "metrics": {
+            "audio_duration_seconds": 2.675,
+            "realtime_factor": 1.747
+          },
+          "stdout_tail": "\u001b[94mText:\u001b[0m Second local speech synthesis run.\n\u001b[94mVoice:\u001b[0m af_heart\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m en\nCreating new KokoroPipeline for language: en",
+          "stderr_tail": "",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/kokoro-82m-4bit",
+            "--text",
+            "Second local speech synthesis run.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-kokoro-82m-4bit-tg2yg2jk",
+            "--file_prefix",
+            "speech-1778505052449",
+            "--audio_format",
+            "wav",
+            "--voice",
+            "af_heart",
+            "--join_audio"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "qwen-image-2512-4bit",
+      "model_name": "Qwen Image 2512 4bit",
+      "runtime": "mflux",
+      "task": "image_generation",
+      "status": "timeout",
+      "size_bytes": 25907128673,
+      "error": null,
+      "runs": [
+        {
+          "status": "timeout",
+          "duration_seconds": 181.618,
+          "output": "",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": "timed out after 180s",
+          "speed": "",
+          "metrics": {},
+          "stdout_tail": "",
+          "stderr_tail": "0%|          | 0/1 [00:00<?, ?it/s]\n100%|██████████| 1/1 [02:53<00:00, 173.93s/it]\n100%|██████████| 1/1 [02:53<00:00, 173.96s/it]\n/Users/uladzimir_klyshevich/.local/share/uv/python/cpython-3.11.14-macos-aarch64-none/lib/python3.11/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown\n  warnings.warn('resource_tracker: There appear to be %d '",
+          "command": [
+            "~/.local/bin/mflux-generate-qwen",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen-image-2512-4bit",
+            "--prompt",
+            "a tiny robot mascot reading benchmark results, clean app icon style",
+            "--output",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-image-qwen-image-2512-4bit-k7170elw/image.png",
+            "--width",
+            "512",
+            "--height",
+            "512",
+            "--steps",
+            "1",
+            "--guidance",
+            "4.0"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "qwen3-8b-4bit",
+      "model_name": "Qwen3 8B 4bit",
+      "runtime": "mlx_lm",
+      "task": "chat",
+      "status": "passed",
+      "size_bytes": 4623787446,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 6.958,
+          "output": "<think>\nOkay, the user is asking what the local model benchmark measures. Let me start by recalling what a local model benchmark typically refers to. In machine learning",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": null,
+          "speed": "24.3 chars/s",
+          "metrics": {
+            "chars_per_second": 24.287
+          },
+          "stdout_tail": "<think>\nOkay, the user is asking what the local model benchmark measures. Let me start by recalling what a local model benchmark typically refers to. In machine learning",
+          "stderr_tail": "",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_lm",
+            "generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-8b-4bit",
+            "--prompt",
+            "Answer in one short English sentence: what does this local model benchmark measure?",
+            "--max-tokens",
+            "32",
+            "--temp",
+            "0.7",
+            "--verbose",
+            "false",
+            "--top-p",
+            "0.95"
+          ]
+        },
+        {
+          "status": "passed",
+          "duration_seconds": 5.879,
+          "output": "<think>\nХорошо, мне нужно ответить на вопрос \"зачем нужен локальный ИИ?\" одним коротким рус",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": null,
+          "speed": "15.5 chars/s",
+          "metrics": {
+            "chars_per_second": 15.478
+          },
+          "stdout_tail": "<think>\nХорошо, мне нужно ответить на вопрос \"зачем нужен локальный ИИ?\" одним коротким рус",
+          "stderr_tail": "",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_lm",
+            "generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-8b-4bit",
+            "--prompt",
+            "Ответь одним коротким русским предложением: зачем нужен локальный ИИ?",
+            "--max-tokens",
+            "32",
+            "--temp",
+            "0.7",
+            "--verbose",
+            "false",
+            "--top-p",
+            "0.95"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "qwen3-asr-0.6b-4bit",
+      "model_name": "Qwen3 ASR 0.6B 4bit",
+      "runtime": "mlx_audio",
+      "task": "speech_to_text",
+      "status": "passed",
+      "size_bytes": 712784451,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 3.586,
+          "output": "Hello, this is a reusable reference voice sample for local model tests.",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": null,
+          "speed": "RTF 0.70",
+          "metrics": {
+            "audio_duration_seconds": 5.15,
+            "realtime_factor": 0.696
+          },
+          "stdout_tail": "",
+          "stderr_tail": "",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.stt.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-asr-0.6b-4bit",
+            "--audio",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-reference-audio-8eer25cu/speech-1778504601710.wav",
+            "--output-path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-asr-qwen3-asr-0.6b-4bit-_6ns7gos/transcript",
+            "--format",
+            "txt"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "qwen3-tts-12hz-0.6b-base-4bit",
+      "model_name": "Qwen3 TTS 12Hz 0.6B Base 4bit",
+      "runtime": "mlx_audio",
+      "task": "text_to_speech",
+      "status": "passed",
+      "size_bytes": 1711333998,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 5.424,
+          "output": "speech-1778505255190.wav (131.3 KB, 2.8s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-0.6b-base-4bit-3rcqoycb/speech-1778505255190.wav",
+          "artifact_bytes": 134444,
+          "error": null,
+          "speed": "RTF 1.94",
+          "metrics": {
+            "audio_duration_seconds": 2.8,
+            "realtime_factor": 1.937
+          },
+          "stdout_tail": "Initialized encoder codebooks\nLoaded speech tokenizer from /Users/uladzimir_klyshevich/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-0.6b-base-4bit/speech_tokenizer\n\u001b[94mText:\u001b[0m Hello, this is a cold start speech benchmark.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m auto",
+          "stderr_tail": "[transformers] You are using a model of type `qwen3_tts` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-0.6b-base-4bit",
+            "--text",
+            "Hello, this is a cold start speech benchmark.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-0.6b-base-4bit-3rcqoycb",
+            "--file_prefix",
+            "speech-1778505255190",
+            "--audio_format",
+            "wav",
+            "--lang_code",
+            "auto",
+            "--speed",
+            "1.0",
+            "--ref_audio",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-reference-audio-8eer25cu/speech-1778504601710.wav",
+            "--ref_text",
+            "Hello, this is a reusable reference voice sample for local model tests.",
+            "--join_audio"
+          ]
+        },
+        {
+          "status": "passed",
+          "duration_seconds": 4.894,
+          "output": "speech-1778505260616.wav (108.8 KB, 2.3s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-0.6b-base-4bit-9kg1uymx/speech-1778505260616.wav",
+          "artifact_bytes": 111404,
+          "error": null,
+          "speed": "RTF 2.11",
+          "metrics": {
+            "audio_duration_seconds": 2.32,
+            "realtime_factor": 2.109
+          },
+          "stdout_tail": "Initialized encoder codebooks\nLoaded speech tokenizer from /Users/uladzimir_klyshevich/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-0.6b-base-4bit/speech_tokenizer\n\u001b[94mText:\u001b[0m Second local speech synthesis run.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m auto",
+          "stderr_tail": "[transformers] You are using a model of type `qwen3_tts` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-0.6b-base-4bit",
+            "--text",
+            "Second local speech synthesis run.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-0.6b-base-4bit-9kg1uymx",
+            "--file_prefix",
+            "speech-1778505260616",
+            "--audio_format",
+            "wav",
+            "--lang_code",
+            "auto",
+            "--speed",
+            "1.0",
+            "--ref_audio",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-reference-audio-8eer25cu/speech-1778504601710.wav",
+            "--ref_text",
+            "Hello, this is a reusable reference voice sample for local model tests.",
+            "--join_audio"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "qwen3-tts-12hz-1.7b-base-4bit",
+      "model_name": "Qwen3 TTS 12Hz 1.7B Base 4bit",
+      "runtime": "mlx_audio",
+      "task": "text_to_speech",
+      "status": "passed",
+      "size_bytes": 2336082075,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 5.676,
+          "output": "speech-1778505265511.wav (127.5 KB, 2.7s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-1.7b-base-4bit-xwrmf53y/speech-1778505265511.wav",
+          "artifact_bytes": 130604,
+          "error": null,
+          "speed": "RTF 2.09",
+          "metrics": {
+            "audio_duration_seconds": 2.72,
+            "realtime_factor": 2.087
+          },
+          "stdout_tail": "Initialized encoder codebooks\nLoaded speech tokenizer from /Users/uladzimir_klyshevich/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-1.7b-base-4bit/speech_tokenizer\n\u001b[94mText:\u001b[0m Hello, this is a cold start speech benchmark.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m auto",
+          "stderr_tail": "[transformers] You are using a model of type `qwen3_tts` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-1.7b-base-4bit",
+            "--text",
+            "Hello, this is a cold start speech benchmark.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-1.7b-base-4bit-xwrmf53y",
+            "--file_prefix",
+            "speech-1778505265511",
+            "--audio_format",
+            "wav",
+            "--lang_code",
+            "auto",
+            "--speed",
+            "1.0",
+            "--ref_audio",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-reference-audio-8eer25cu/speech-1778504601710.wav",
+            "--ref_text",
+            "Hello, this is a reusable reference voice sample for local model tests.",
+            "--join_audio"
+          ]
+        },
+        {
+          "status": "passed",
+          "duration_seconds": 5.841,
+          "output": "speech-1778505271189.wav (112.5 KB, 2.4s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-1.7b-base-4bit-7uotj0ng/speech-1778505271189.wav",
+          "artifact_bytes": 115244,
+          "error": null,
+          "speed": "RTF 2.43",
+          "metrics": {
+            "audio_duration_seconds": 2.4,
+            "realtime_factor": 2.434
+          },
+          "stdout_tail": "Initialized encoder codebooks\nLoaded speech tokenizer from /Users/uladzimir_klyshevich/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-1.7b-base-4bit/speech_tokenizer\n\u001b[94mText:\u001b[0m Second local speech synthesis run.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m auto",
+          "stderr_tail": "[transformers] You are using a model of type `qwen3_tts` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-1.7b-base-4bit",
+            "--text",
+            "Second local speech synthesis run.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-1.7b-base-4bit-7uotj0ng",
+            "--file_prefix",
+            "speech-1778505271189",
+            "--audio_format",
+            "wav",
+            "--lang_code",
+            "auto",
+            "--speed",
+            "1.0",
+            "--ref_audio",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-reference-audio-8eer25cu/speech-1778504601710.wav",
+            "--ref_text",
+            "Hello, this is a reusable reference voice sample for local model tests.",
+            "--join_audio"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "qwen3-tts-12hz-1.7b-voicedesign-4bit",
+      "model_name": "Qwen3 TTS 12Hz 1.7B VoiceDesign 4bit",
+      "runtime": "mlx_audio",
+      "task": "text_to_speech",
+      "status": "passed",
+      "size_bytes": 2312064154,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 4.562,
+          "output": "speech-1778505277032.wav (123.8 KB, 2.6s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-1.7b-voicedesign-4bit-5lknegca/speech-1778505277032.wav",
+          "artifact_bytes": 126764,
+          "error": null,
+          "speed": "RTF 1.73",
+          "metrics": {
+            "audio_duration_seconds": 2.64,
+            "realtime_factor": 1.728
+          },
+          "stdout_tail": "Initialized encoder codebooks\nLoaded speech tokenizer from /Users/uladzimir_klyshevich/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-1.7b-voicedesign-4bit/speech_tokenizer\n\u001b[94mInstruct:\u001b[0m A calm, natural assistant voice with stable tone, speaking clearly.\n\u001b[94mText:\u001b[0m Hello, this is a cold start speech benchmark.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m auto",
+          "stderr_tail": "[transformers] You are using a model of type `qwen3_tts` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-1.7b-voicedesign-4bit",
+            "--text",
+            "Hello, this is a cold start speech benchmark.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-1.7b-voicedesign-4bit-5lknegca",
+            "--file_prefix",
+            "speech-1778505277032",
+            "--audio_format",
+            "wav",
+            "--instruct",
+            "A calm, natural assistant voice with stable tone, speaking clearly.",
+            "--lang_code",
+            "auto",
+            "--speed",
+            "1.0",
+            "--join_audio"
+          ]
+        },
+        {
+          "status": "passed",
+          "duration_seconds": 3.693,
+          "output": "speech-1778505281596.wav (97.5 KB, 2.1s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-1.7b-voicedesign-4bit-mj1d8k5d/speech-1778505281596.wav",
+          "artifact_bytes": 99884,
+          "error": null,
+          "speed": "RTF 1.78",
+          "metrics": {
+            "audio_duration_seconds": 2.08,
+            "realtime_factor": 1.776
+          },
+          "stdout_tail": "Initialized encoder codebooks\nLoaded speech tokenizer from /Users/uladzimir_klyshevich/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-1.7b-voicedesign-4bit/speech_tokenizer\n\u001b[94mInstruct:\u001b[0m A calm, natural assistant voice with stable tone, speaking clearly.\n\u001b[94mText:\u001b[0m Second local speech synthesis run.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m auto",
+          "stderr_tail": "[transformers] You are using a model of type `qwen3_tts` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/qwen3-tts-12hz-1.7b-voicedesign-4bit",
+            "--text",
+            "Second local speech synthesis run.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-qwen3-tts-12hz-1.7b-voicedesign-4bit-mj1d8k5d",
+            "--file_prefix",
+            "speech-1778505281596",
+            "--audio_format",
+            "wav",
+            "--instruct",
+            "A calm, natural assistant voice with stable tone, speaking clearly.",
+            "--lang_code",
+            "auto",
+            "--speed",
+            "1.0",
+            "--join_audio"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "vibevoice-realtime-0.5b-4bit",
+      "model_name": "VibeVoice Realtime 0.5B 4bit",
+      "runtime": "mlx_audio",
+      "task": "text_to_speech",
+      "status": "passed",
+      "size_bytes": 732680662,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 6.97,
+          "output": "speech-1778505285292.wav (287.5 KB, 6.1s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-vibevoice-realtime-0.5b-4bit-p28g2lkr/speech-1778505285292.wav",
+          "artifact_bytes": 294444,
+          "error": null,
+          "speed": "RTF 1.14",
+          "metrics": {
+            "audio_duration_seconds": 6.133,
+            "realtime_factor": 1.136
+          },
+          "stdout_tail": "\u001b[94mText:\u001b[0m Hello, this is a cold start speech benchmark.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m en",
+          "stderr_tail": "",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/vibevoice-realtime-0.5b-4bit",
+            "--text",
+            "Hello, this is a cold start speech benchmark.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-vibevoice-realtime-0.5b-4bit-p28g2lkr",
+            "--file_prefix",
+            "speech-1778505285292",
+            "--audio_format",
+            "wav",
+            "--join_audio"
+          ]
+        },
+        {
+          "status": "passed",
+          "duration_seconds": 6.198,
+          "output": "speech-1778505292264.wav (212.5 KB, 4.5s audio)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-vibevoice-realtime-0.5b-4bit-ifrlb57p/speech-1778505292264.wav",
+          "artifact_bytes": 217644,
+          "error": null,
+          "speed": "RTF 1.37",
+          "metrics": {
+            "audio_duration_seconds": 4.533,
+            "realtime_factor": 1.367
+          },
+          "stdout_tail": "\u001b[94mText:\u001b[0m Second local speech synthesis run.\n\u001b[94mVoice:\u001b[0m None\n\u001b[94mSpeed:\u001b[0m 1.0x\n\u001b[94mLanguage:\u001b[0m en",
+          "stderr_tail": "",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/vibevoice-realtime-0.5b-4bit",
+            "--text",
+            "Second local speech synthesis run.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-vibevoice-realtime-0.5b-4bit-ifrlb57p",
+            "--file_prefix",
+            "speech-1778505292264",
+            "--audio_format",
+            "wav",
+            "--join_audio"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "voxcpm2-4bit",
+      "model_name": "VoxCPM2 4bit",
+      "runtime": "mlx_audio",
+      "task": "text_to_speech",
+      "status": "failed",
+      "size_bytes": 2302048219,
+      "error": null,
+      "runs": [
+        {
+          "status": "failed",
+          "duration_seconds": 0.954,
+          "output": "",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": "process exited successfully but produced no audio",
+          "speed": "",
+          "metrics": {},
+          "stdout_tail": "Error loading model: Model type voxcpm2 not supported for tts.",
+          "stderr_tail": "…work/Versions/3.14/lib/python3.14/importlib/__init__.py\", line 88, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap>\", line 1406, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1371, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 1335, in _find_and_load_unlocked\nModuleNotFoundError: No module named 'mlx_audio.tts.models.voxcpm2'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/mlx_audio/tts/generate.py\", line 191, in generate_audio\n    model = load_model(model_path=model)\n  File \"/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/mlx_audio/tts/utils.py\", line 117, in load_model\n    return base_load_model(\n        model_path=model_path,\n    ...<4 lines>...\n        **kwargs,\n    )\n  File \"/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/mlx_audio/utils.py\", line 377, in base_load_model\n    model_class, model_type = get_model_class(\n                              ~~~~~~~~~~~~~~~^\n        model_type=model_type,\n        ^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n        model_remapping=model_remapping,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/mlx_audio/utils.py\", line 314, in get_model_class\n    raise ValueError(msg)\nValueError: Model type voxcpm2 not supported for tts.",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/voxcpm2-4bit",
+            "--text",
+            "Hello, this is a cold start speech benchmark.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-voxcpm2-4bit-2r0d11f_",
+            "--file_prefix",
+            "speech-1778505298467",
+            "--audio_format",
+            "wav",
+            "--join_audio"
+          ]
+        },
+        {
+          "status": "failed",
+          "duration_seconds": 0.537,
+          "output": "",
+          "artifact_path": null,
+          "artifact_bytes": null,
+          "error": "process exited successfully but produced no audio",
+          "speed": "",
+          "metrics": {},
+          "stdout_tail": "Error loading model: Model type voxcpm2 not supported for tts.",
+          "stderr_tail": "…work/Versions/3.14/lib/python3.14/importlib/__init__.py\", line 88, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap>\", line 1406, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1371, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 1335, in _find_and_load_unlocked\nModuleNotFoundError: No module named 'mlx_audio.tts.models.voxcpm2'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/mlx_audio/tts/generate.py\", line 191, in generate_audio\n    model = load_model(model_path=model)\n  File \"/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/mlx_audio/tts/utils.py\", line 117, in load_model\n    return base_load_model(\n        model_path=model_path,\n    ...<4 lines>...\n        **kwargs,\n    )\n  File \"/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/mlx_audio/utils.py\", line 377, in base_load_model\n    model_class, model_type = get_model_class(\n                              ~~~~~~~~~~~~~~~^\n        model_type=model_type,\n        ^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n        model_remapping=model_remapping,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/Users/uladzimir_klyshevich/.venvs/mlx/lib/python3.14/site-packages/mlx_audio/utils.py\", line 314, in get_model_class\n    raise ValueError(msg)\nValueError: Model type voxcpm2 not supported for tts.",
+          "command": [
+            "~/.venvs/mlx/bin/python",
+            "-m",
+            "mlx_audio.tts.generate",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/voxcpm2-4bit",
+            "--text",
+            "Second local speech synthesis run.",
+            "--output_path",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-tts-voxcpm2-4bit-ksmnhkmx",
+            "--file_prefix",
+            "speech-1778505299422",
+            "--audio_format",
+            "wav",
+            "--join_audio"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "z-image-turbo-mflux-4bit",
+      "model_name": "Z-Image Turbo mflux 4bit",
+      "runtime": "mflux",
+      "task": "image_generation",
+      "status": "passed",
+      "size_bytes": 5911144541,
+      "error": null,
+      "runs": [
+        {
+          "status": "passed",
+          "duration_seconds": 18.134,
+          "output": "image.png (226.9 KB)",
+          "artifact_path": "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-image-z-image-turbo-mflux-4bit-cs3a_adv/image.png",
+          "artifact_bytes": 232347,
+          "error": null,
+          "speed": "18.1s/image",
+          "metrics": {
+            "seconds_per_image": 18.134
+          },
+          "stdout_tail": "",
+          "stderr_tail": "0%|          | 0/1 [00:00<?, ?it/s]\n100%|██████████| 1/1 [00:06<00:00,  6.66s/it]\n100%|██████████| 1/1 [00:06<00:00,  6.66s/it]",
+          "command": [
+            "~/.local/bin/mflux-generate-z-image-turbo",
+            "--model",
+            "~/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/z-image-turbo-mflux-4bit",
+            "--base-model",
+            "z-image-turbo",
+            "--prompt",
+            "a tiny robot mascot reading benchmark results, clean app icon style",
+            "--output",
+            "/var/folders/91/d70565j93ssdm9_0k159x5jm0000gn/T/flm-bench-image-z-image-turbo-mflux-4bit-cs3a_adv/image.png",
+            "--width",
+            "512",
+            "--height",
+            "512",
+            "--steps",
+            "1",
+            "--guidance",
+            "3.5"
+          ]
+        }
+      ]
+    }
+  ],
+  "json_path": "benchmarks/local-model-benchmark-20260511-161518.json"
+}
