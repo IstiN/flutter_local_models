@@ -3695,7 +3695,8 @@
       "recommendedMemoryGb": 24,
       "notes": [
         "MLX Audio TTS",
-        "Multilingual voice generation"
+        "Multilingual voice generation",
+        "Requires mlx-audio from GitHub until VoxCPM2 support ships in a PyPI release"
       ]
     },
     "capabilities": {
@@ -3712,7 +3713,8 @@
       ],
       "limitations": [
         "Voice controls vary by model family",
-        "Generated speech quality depends on prompt and runtime support"
+        "Generated speech quality depends on prompt and runtime support",
+        "Requires a GitHub mlx-audio build because PyPI mlx-audio 0.4.3 does not include VoxCPM2 yet"
       ],
       "languages": [
         "multilingual"
@@ -3730,7 +3732,11 @@
     "runtimeConfig": {
       "defaultParameters": {
         "audio_format": "wav",
-        "join_audio": true
+        "join_audio": true,
+        "lang_code": "en",
+        "cfg_scale": 2.0,
+        "ddpm_steps": 7,
+        "max_tokens": 2000
       },
       "parameterSchema": {
         "type": "object",
@@ -3742,6 +3748,21 @@
             "type": "number",
             "minimum": 0.5,
             "maximum": 2.0
+          },
+          "cfg_scale": {
+            "type": "number",
+            "minimum": 2.0,
+            "maximum": 5.0
+          },
+          "ddpm_steps": {
+            "type": "integer",
+            "minimum": 4,
+            "maximum": 30
+          },
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 4096
           }
         }
       },
@@ -3756,6 +3777,12 @@
         "media_type": "audio/wav",
         "extension": "wav",
         "supports_inline_playback": true
+      },
+      "extra": {
+        "mlx_audio_model_type": "voxcpm2",
+        "mlx_audio_source": "git+https://github.com/Blaizzy/mlx-audio.git@f7c11556eda88731be5cc75ddbdf4a4cb9eeaafc",
+        "default_inference_timesteps": 7,
+        "default_cfg_value": 2.0
       }
     }
   },

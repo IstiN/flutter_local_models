@@ -306,6 +306,18 @@ def tts_command(
     speed = defaults.get("speed")
     if speed is not None:
         command += ["--speed", str(speed)]
+    cfg_scale = defaults.get("cfg_scale")
+    if cfg_scale is not None:
+        command += ["--cfg_scale", str(cfg_scale)]
+    ddpm_steps = defaults.get("ddpm_steps")
+    if ddpm_steps is not None:
+        command += ["--ddpm_steps", str(ddpm_steps)]
+    max_tokens = defaults.get("max_tokens") or defaults.get("maxTokens")
+    if max_tokens is not None:
+        command += ["--max_tokens", str(max_tokens)]
+    temperature = defaults.get("temperature")
+    if temperature is not None:
+        command += ["--temperature", str(temperature)]
     if model["extra"].get("qwen_tts_mode") == "base" and reference_audio is not None:
         command += ["--ref_audio", str(reference_audio), "--ref_text", reference_text]
     if defaults.get("join_audio", True):

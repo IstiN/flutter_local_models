@@ -947,6 +947,12 @@ class LocalAudioRunner {
     final runtimeDefaults = model.manifest.runtimeConfig.defaultParameters;
     final audioFormat = runtimeDefaults['audio_format'] as String? ?? 'wav';
     final joinAudio = runtimeDefaults['join_audio'] as bool? ?? true;
+    final cfgScale = _numberParameter(runtimeDefaults['cfg_scale']);
+    final ddpmSteps = _intParameter(runtimeDefaults['ddpm_steps']);
+    final maxTokens =
+        _intParameter(runtimeDefaults['max_tokens']) ??
+        _intParameter(runtimeDefaults['maxTokens']);
+    final temperature = _numberParameter(runtimeDefaults['temperature']);
     final result = await Process.run(pythonExecutable, <String>[
       '-m',
       'mlx_audio.tts.generate',
@@ -981,6 +987,10 @@ class LocalAudioRunner {
         options.referenceText.trim(),
       ],
       if (options.speed != null) ...<String>['--speed', '${options.speed}'],
+      if (cfgScale != null) ...<String>['--cfg_scale', '$cfgScale'],
+      if (ddpmSteps != null) ...<String>['--ddpm_steps', '$ddpmSteps'],
+      if (maxTokens != null) ...<String>['--max_tokens', '$maxTokens'],
+      if (temperature != null) ...<String>['--temperature', '$temperature'],
       if (joinAudio) '--join_audio',
     ], workingDirectory: tempDirectory.path);
     final stdout = (result.stdout as String).trim();
@@ -1096,6 +1106,12 @@ class LocalAudioRunner {
         '\nMissing Kokoro phoneme fallback: install espeak-ng with `brew install espeak-ng`.',
       );
     }
+    if (_looksLikeUnsupportedVoxCpm2(stdout) ||
+        _looksLikeUnsupportedVoxCpm2(stderr)) {
+      buffer.writeln(
+        '\nVoxCPM2 runtime mismatch: PyPI `mlx-audio 0.4.3` does not include the `voxcpm2` backend yet. Install the tested GitHub build in the MLX runtime with `$pythonExecutable -m pip install -U git+https://github.com/Blaizzy/mlx-audio.git@f7c11556eda88731be5cc75ddbdf4a4cb9eeaafc`.',
+      );
+    }
     buffer.writeln('\nOutput directory: ${outputDirectory.path}');
     if (stdout.isNotEmpty) {
       buffer.writeln('\nstdout:\n${_trimProcessLog(stdout)}');
@@ -1123,6 +1139,13 @@ class LocalAudioRunner {
 
   bool _looksLikeMissingEspeak(String output) {
     return output.toLowerCase().contains('espeak not installed');
+  }
+
+  bool _looksLikeUnsupportedVoxCpm2(String output) {
+    final lower = output.toLowerCase();
+    return lower.contains('model type voxcpm2 not supported') ||
+        lower.contains("no module named 'mlx_audio.tts.models.voxcpm2'") ||
+        lower.contains('no module named "mlx_audio.tts.models.voxcpm2"');
   }
 
   String _trimProcessLog(String text) {

@@ -1,6 +1,6 @@
 # Local Model Benchmark Report
 
-Generated: `2026-05-11T13:15:18.114767+00:00`
+Generated: `2026-05-11T14:50:52.380844+00:00`
 
 ## Environment
 
@@ -34,12 +34,12 @@ Generated: `2026-05-11T13:15:18.114767+00:00`
 | Qwen3 TTS 12Hz 1.7B Base 4bit | text_to_speech | 2.2 GB | passed | 5.7s | 5.8s | RTF 2.43 | speech-1778505271189.wav (112.5 KB, 2.4s audio) |
 | Qwen3 TTS 12Hz 1.7B VoiceDesign 4bit | text_to_speech | 2.2 GB | passed | 4.6s | 3.7s | RTF 1.78 | speech-1778505281596.wav (97.5 KB, 2.1s audio) |
 | VibeVoice Realtime 0.5B 4bit | text_to_speech | 698.7 MB | passed | 7.0s | 6.2s | RTF 1.37 | speech-1778505292264.wav (212.5 KB, 4.5s audio) |
-| VoxCPM2 4bit | text_to_speech | 2.1 GB | failed | 954 ms | 537 ms | — | process exited successfully but produced no audio |
+| VoxCPM2 4bit | text_to_speech | 2.1 GB | passed | 5.5s | 3.5s | RTF 1.56 | speech-1778511048878.wav (210.1 KB, 2.2s audio) |
 | Z-Image Turbo mflux 4bit | image_generation | 5.5 GB | passed | 18.1s | — | 18.1s/image | image.png (226.9 KB) |
 
 ## Highlights
 
-- Passed: `10/14` benchmark tasks.
+- Passed: `11/14` benchmark tasks.
 - Fastest chat throughput: `Qwen3 8B 4bit` at `24.3 chars/s`.
 - Best TTS RTF: `VibeVoice Realtime 0.5B 4bit` at `RTF 1.14` (`7.0s` wall time).
 - ASR smoke test: `Qwen3 ASR 0.6B 4bit` at `RTF 0.70`.
@@ -50,7 +50,6 @@ Generated: `2026-05-11T13:15:18.114767+00:00`
 - **FLUX.1 Schnell mflux 4bit / image_generation**: `failed` — exit code 1; ValueError: Error parsing line b'\x0e' in /Users/uladzimir_klyshevich/Library/Containers/com.example.localModelsStudio/Data/Library/Application Support/flutter_local_models/models/flux1-schnell-mflux-4bit/tokenizer_2/spiece.model
 - **Gemma 4 31B IT 4bit / chat**: `timeout` — timed out after 60s
 - **Qwen Image 2512 4bit / image_generation**: `timeout` — timed out after 180s
-- **VoxCPM2 4bit / text_to_speech**: `failed` — process exited successfully but produced no audio
 
 ## Raw Artifacts
 

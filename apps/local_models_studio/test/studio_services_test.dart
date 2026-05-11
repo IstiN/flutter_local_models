@@ -74,6 +74,47 @@ const _ttsManifest = LocalModelManifest(
   ),
 );
 
+const _voxcpm2Manifest = LocalModelManifest(
+  id: 'voxcpm2-4bit',
+  displayName: 'VoxCPM2 4bit',
+  description: 'Multilingual local TTS model.',
+  runtimeAdapter: RuntimeAdapter.mlxAudio,
+  tasks: [ModelTask.textToSpeech, ModelTask.audioOutput],
+  source: ModelSource(
+    provider: 'huggingface',
+    repo: 'mlx-community/VoxCPM2-4bit',
+    revision: 'main',
+    license: 'apache-2.0',
+  ),
+  packaging: PackagingSpec(
+    releaseTag: 'model-voxcpm2-4bit',
+    archiveName: 'voxcpm2-4bit.tar',
+    chunkSizeBytes: 1900000000,
+    assetPrefix: 'voxcpm2-4bit',
+  ),
+  requirements: SystemRequirements(
+    platform: 'macos-apple-silicon',
+    minMemoryGb: 12,
+    recommendedMemoryGb: 24,
+    notes: ['Requires GitHub mlx-audio build'],
+  ),
+  capabilities: CapabilitySpec(
+    audioInput: false,
+    audioOutput: true,
+    toolCalling: false,
+  ),
+  runtimeConfig: ModelRuntimeConfig(
+    defaultParameters: {
+      'audio_format': 'wav',
+      'join_audio': true,
+      'lang_code': 'en',
+      'cfg_scale': 2.0,
+      'ddpm_steps': 7,
+      'max_tokens': 2000,
+    },
+  ),
+);
+
 class FakeStudioApiClient extends StudioApiClient {
   FakeStudioApiClient(this.details, this.files, {this.releaseManifest});
 
@@ -297,6 +338,111 @@ echo "Import error: Kokoro requires the optional 'misaki' package for text proce
               contains('Missing Kokoro dependency'),
             )
             .having((error) => error.message, 'message', contains('notes.txt')),
+      ),
+    );
+  });
+
+  test('LocalAudioRunner passes VoxCPM2 diffusion defaults', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'local-models-studio-voxcpm2-args-test',
+    );
+    addTearDown(() async {
+      if (tempDirectory.existsSync()) {
+        await tempDirectory.delete(recursive: true);
+      }
+    });
+
+    final fakePython = File('${tempDirectory.path}/fake-python.sh');
+    await fakePython.writeAsString('''
+#!/bin/sh
+output=""
+while [ "\$#" -gt 0 ]; do
+  echo "\$1" >> "${tempDirectory.path}/args.txt"
+  if [ "\$1" = "--output_path" ]; then
+    shift
+    output="\$1"
+    echo "\$1" >> "${tempDirectory.path}/args.txt"
+  fi
+  shift
+done
+mkdir -p "\$output"
+printf 'RIFF____WAVEfmt ' > "\$output/generated.wav"
+''');
+    await Process.run('chmod', ['+x', fakePython.path]);
+
+    final modelDirectory = Directory('${tempDirectory.path}/model');
+    await modelDirectory.create();
+    final runner = LocalAudioRunner(pythonExecutable: fakePython.path);
+    await runner.synthesizeSpeech(
+      model: InstalledModel(
+        manifest: _voxcpm2Manifest,
+        directory: modelDirectory,
+        sourceLabel: 'test',
+        installedAt: DateTime.utc(2026, 5, 11),
+        sizeBytes: 0,
+      ),
+      text: 'hello',
+    );
+
+    final args = await File('${tempDirectory.path}/args.txt').readAsLines();
+    expect(args, containsAll(['--cfg_scale', '2.0']));
+    expect(args, containsAll(['--ddpm_steps', '7']));
+    expect(args, containsAll(['--max_tokens', '2000']));
+  });
+
+  test('LocalAudioRunner explains unsupported VoxCPM2 runtime', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'local-models-studio-voxcpm2-error-test',
+    );
+    addTearDown(() async {
+      if (tempDirectory.existsSync()) {
+        await tempDirectory.delete(recursive: true);
+      }
+    });
+
+    final fakePython = File('${tempDirectory.path}/fake-python.sh');
+    await fakePython.writeAsString('''
+#!/bin/sh
+output=""
+while [ "\$#" -gt 0 ]; do
+  if [ "\$1" = "--output_path" ]; then
+    shift
+    output="\$1"
+  fi
+  shift
+done
+mkdir -p "\$output"
+echo "Error loading model: Model type voxcpm2 not supported for tts."
+''');
+    await Process.run('chmod', ['+x', fakePython.path]);
+
+    final modelDirectory = Directory('${tempDirectory.path}/model');
+    await modelDirectory.create();
+    final runner = LocalAudioRunner(pythonExecutable: fakePython.path);
+
+    await expectLater(
+      runner.synthesizeSpeech(
+        model: InstalledModel(
+          manifest: _voxcpm2Manifest,
+          directory: modelDirectory,
+          sourceLabel: 'test',
+          installedAt: DateTime.utc(2026, 5, 11),
+          sizeBytes: 0,
+        ),
+        text: 'hello',
+      ),
+      throwsA(
+        isA<StateError>()
+            .having(
+              (error) => error.message,
+              'message',
+              contains('VoxCPM2 runtime mismatch'),
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              contains('git+https://github.com/Blaizzy/mlx-audio.git'),
+            ),
       ),
     );
   });
