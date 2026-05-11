@@ -412,11 +412,21 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Future<void> _loadLatestVoiceReference() async {
-    final files = _voiceReferenceFiles();
-    if (files.isEmpty || !mounted) {
+    final file = _bestVoiceReferenceFile();
+    if (file == null || !mounted) {
       return;
     }
-    setState(() => myVoiceReferencePath = files.first.path);
+    setState(() {
+      myVoiceReferencePath = file.path;
+      ttsReferenceAudioPath = file.path;
+      final sidecar = File(p.setExtension(file.path, '.txt'));
+      if (sidecar.existsSync()) {
+        final transcript = sidecar.readAsStringSync().trim();
+        if (transcript.isNotEmpty) {
+          ttsReferenceTextController.text = transcript;
+        }
+      }
+    });
   }
 
   List<File> _voiceReferenceFiles() {
@@ -438,6 +448,27 @@ class _StudioShellState extends State<StudioShell> {
       (left, right) =>
           right.lastModifiedSync().compareTo(left.lastModifiedSync()),
     );
+  }
+
+  File? _bestVoiceReferenceFile() {
+    final files = _voiceReferenceFiles();
+    if (files.isEmpty) {
+      return null;
+    }
+    for (final file in files) {
+      if (_hasReferenceTranscript(file.path)) {
+        return file;
+      }
+    }
+    return files.first;
+  }
+
+  bool _hasReferenceTranscript(String audioPath) {
+    final sidecar = File(p.setExtension(audioPath, '.txt'));
+    if (!sidecar.existsSync()) {
+      return false;
+    }
+    return sidecar.readAsStringSync().trim().isNotEmpty;
   }
 
   void _scrollChatToBottom() {
@@ -3538,25 +3569,44 @@ class _StudioShellState extends State<StudioShell> {
     );
     setState(() {
       recordingReferenceVoice = true;
-      myVoiceReferencePath = path;
-      ttsReferenceAudioPath = path;
-      ttsReferenceTextController.clear();
       testErrorMessage = null;
     });
   }
 
   Future<void> _stopReferenceVoiceRecording() async {
     final path = await audioRecorder.stop();
-    setState(() {
-      recordingReferenceVoice = false;
-      if (path != null) {
-        myVoiceReferencePath = path;
-        ttsReferenceAudioPath = path;
-      }
-    });
-    if (path != null) {
-      await _loadOrTranscribeReferenceTranscript(path);
+    if (!mounted) {
+      return;
     }
+    setState(() => recordingReferenceVoice = false);
+    if (path == null) {
+      return;
+    }
+    final duration = await _probeAudioDuration(path);
+    if (duration != null && duration < const Duration(seconds: 2)) {
+      final file = File(path);
+      if (file.existsSync()) {
+        await file.delete();
+      }
+      final fallback = _bestVoiceReferenceFile();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        myVoiceReferencePath = fallback?.path;
+        ttsReferenceAudioPath = fallback?.path;
+        if (fallback == null) {
+          ttsReferenceTextController.clear();
+        }
+        testErrorMessage =
+            'Voice sample is too short (${_formatDuration(duration)}). Record a clean 3–10 sec sample.';
+      });
+      if (fallback != null) {
+        await _setTtsReferenceAudioPath(fallback.path);
+      }
+      return;
+    }
+    await _selectVoiceReference(path);
   }
 
   Future<void> _selectVoiceReference(
@@ -3572,6 +3622,17 @@ class _StudioShellState extends State<StudioShell> {
       );
       return;
     }
+    final duration = await _probeAudioDuration(path);
+    if (duration != null && duration < const Duration(seconds: 2)) {
+      if (!mounted) {
+        return;
+      }
+      setState(
+        () => testErrorMessage =
+            'Voice sample is too short (${_formatDuration(duration)}). Record a clean 3–10 sec sample.',
+      );
+      return;
+    }
     if (!mounted) {
       return;
     }
@@ -3579,6 +3640,7 @@ class _StudioShellState extends State<StudioShell> {
       myVoiceReferencePath = path;
       if (openTest) {
         selectedPageIndex = 2;
+        showTtsVoiceSettings = false;
       }
     });
     await _setTtsReferenceAudioPath(path);
@@ -3618,6 +3680,7 @@ class _StudioShellState extends State<StudioShell> {
           setState(() => ttsReferenceTextController.text = cachedTranscript);
           return;
         }
+        await sidecar.delete();
       }
       if (ttsReferenceTextController.text.trim().isNotEmpty) {
         return;
@@ -4253,18 +4316,20 @@ class _StudioShellState extends State<StudioShell> {
     if (text.isEmpty) {
       return;
     }
-    final validationError = _speechOptionsValidationError(model);
-    if (validationError != null) {
-      setState(() {
-        testErrorMessage = validationError;
-        showTtsVoiceSettings = true;
-      });
-      return;
-    }
     setState(() {
       testBusy = true;
       testErrorMessage = null;
       generatedAudioPath = null;
+    });
+    final validationError = await _prepareSpeechOptionsForModel(model);
+    if (validationError != null) {
+      setState(() {
+        testBusy = false;
+        testErrorMessage = validationError;
+      });
+      return;
+    }
+    setState(() {
       controller.chatTurns.add(ChatTurn.user(text));
       controller.chatTurns.add(
         const ChatTurn.assistant('Generating local speech...'),
@@ -4312,19 +4377,20 @@ class _StudioShellState extends State<StudioShell> {
     if (audioPath == null) {
       return;
     }
-    final validationError = _speechOptionsValidationError(ttsModel);
-    if (validationError != null) {
-      setState(() {
-        testErrorMessage = validationError;
-        showVoicePipelineSettings = true;
-        showTtsVoiceSettings = true;
-      });
-      return;
-    }
     setState(() {
       testBusy = true;
       testErrorMessage = null;
       generatedAudioPath = null;
+    });
+    final validationError = await _prepareSpeechOptionsForModel(ttsModel);
+    if (validationError != null) {
+      setState(() {
+        testBusy = false;
+        testErrorMessage = validationError;
+      });
+      return;
+    }
+    setState(() {
       controller.chatTurns.add(
         ChatTurn.user('Audio: ${p.basename(audioPath)}'),
       );
@@ -4397,6 +4463,22 @@ class _StudioShellState extends State<StudioShell> {
       referenceText: ttsReferenceTextController.text.trim(),
       speed: double.tryParse(ttsSpeedController.text.trim()),
     );
+  }
+
+  Future<String?> _prepareSpeechOptionsForModel(InstalledModel model) async {
+    if (!_supportsReferenceVoiceClone(model)) {
+      return null;
+    }
+    if ((ttsReferenceAudioPath == null || ttsReferenceAudioPath!.isEmpty) &&
+        myVoiceReferencePath != null &&
+        File(myVoiceReferencePath!).existsSync()) {
+      await _setTtsReferenceAudioPath(myVoiceReferencePath!);
+    } else if (ttsReferenceAudioPath != null &&
+        ttsReferenceAudioPath!.isNotEmpty &&
+        ttsReferenceTextController.text.trim().isEmpty) {
+      await _loadOrTranscribeReferenceTranscript(ttsReferenceAudioPath!);
+    }
+    return _speechOptionsValidationError(model);
   }
 
   String? _speechOptionsValidationError(InstalledModel model) {
