@@ -67,12 +67,11 @@ class BundleModelTests(unittest.TestCase):
             )
 
         self.assertEqual(
-            release_metadata["runtime_config"]["default_parameters"]["voice"],
-            "Ethan",
-        )
-        self.assertEqual(
             release_metadata["runtime_config"]["default_parameters"]["lang_code"],
-            "ru",
+            "auto",
+        )
+        self.assertTrue(
+            release_metadata["runtime_config"]["extra"]["supports_voice_clone"],
         )
 
 

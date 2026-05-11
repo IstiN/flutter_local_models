@@ -41,10 +41,20 @@ runtime_config:
     properties:
       voice:
         type: string
+      lang_code:
+        type: string
+        description: VoxCPM2 language passed to --lang_code.
+        enum: [auto, chinese, english, japanese, korean, german, french, russian, portuguese, spanish, italian]
       speed:
         type: number
         minimum: 0.5
         maximum: 2.0
+      ref_audio:
+        type: string
+        description: Reference voice audio path passed to --ref_audio.
+      ref_text:
+        type: string
+        description: Transcript for reference audio passed to --ref_text.
       cfg_scale:
         type: number
         minimum: 2.0
@@ -57,6 +67,7 @@ runtime_config:
         type: integer
         minimum: 64
         maximum: 4096
+    required_for_best_quality: [ref_audio, ref_text]
   voices:
   - id: default
     display_name: Default VoxCPM2
@@ -70,16 +81,20 @@ runtime_config:
     mlx_audio_source: git+https://github.com/Blaizzy/mlx-audio.git@f7c11556eda88731be5cc75ddbdf4a4cb9eeaafc
     default_inference_timesteps: 7
     default_cfg_value: 2.0
+    supports_voice_clone: true
+    recommended_ref_audio_seconds: 3-10
 model_card:
   summary: Multilingual MLX text-to-speech and voice cloning model for local assistant
     voices.
   use_cases:
   - Spoken assistant responses
+  - Voice cloning with short reference audio and transcript
   - Local TTS playback in Flutter chat
   - Voice UX prototyping
   limitations:
   - Voice controls vary by model family
   - Generated speech quality depends on prompt and runtime support
+  - Use a clean 3-10 second reference clip and transcript for stable voice cloning
   - Requires a GitHub mlx-audio build because PyPI mlx-audio 0.4.3 does not include VoxCPM2 yet
   languages:
   - multilingual

@@ -315,6 +315,7 @@ class _StudioShellState extends State<StudioShell> {
   _TestWorkspaceMode testWorkspaceMode = _TestWorkspaceMode.single;
   bool recordingAudio = false;
   bool recordingReferenceVoice = false;
+  bool transcribingReferenceVoice = false;
   bool showVoicePipelineSettings = false;
   bool showTtsVoiceSettings = false;
   bool testBusy = false;
@@ -1082,10 +1083,10 @@ class _StudioShellState extends State<StudioShell> {
                       onPressed: selectedPath == null
                           ? null
                           : () {
-                              setState(() {
-                                ttsReferenceAudioPath = selectedPath;
-                                selectedPageIndex = 2;
-                              });
+                              setState(() => selectedPageIndex = 2);
+                              unawaited(
+                                _setTtsReferenceAudioPath(selectedPath),
+                              );
                             },
                       icon: const StudioSvgIcon('mic', size: 20),
                       label: const Text('Use in Test'),
@@ -2206,6 +2207,8 @@ class _StudioShellState extends State<StudioShell> {
       '1.5',
     ], ttsSpeedController.text.trim());
     final mode = config?.extra['qwen_tts_mode'] as String? ?? '';
+    final referenceCloneCapable =
+        model != null && _supportsReferenceVoiceClone(model);
     final needsVoice = voiceNames.isNotEmpty && mode != 'base';
     final needsInstruct =
         mode == 'voice_design' ||
@@ -2276,12 +2279,12 @@ class _StudioShellState extends State<StudioShell> {
               ],
             ),
             if (showTtsVoiceSettings) ...[
-              if (mode == 'base') ...[
+              if (referenceCloneCapable && mode != 'voice_design') ...[
                 const SizedBox(height: 8),
                 _buildTtsModeHint(
                   title: 'Speaker source: reference audio',
                   message:
-                      'Qwen3-TTS Base has no built-in speaker list. Choose a clean 3–10 sec Ref Audio and paste its transcript below to clone that speaker.',
+                      'This model can clone a speaker from Ref Audio. Choose a clean 3–10 sec sample; the app will auto-fill the transcript when a local ASR model is installed.',
                 ),
               ] else if (mode == 'custom_voice') ...[
                 const SizedBox(height: 8),
@@ -2355,7 +2358,7 @@ class _StudioShellState extends State<StudioShell> {
                 ),
               ],
               const SizedBox(height: 10),
-              _buildMyVoiceReferenceMenu(mode),
+              _buildMyVoiceReferenceMenu(referenceCloneCapable),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -2393,14 +2396,15 @@ class _StudioShellState extends State<StudioShell> {
                 const SizedBox(height: 10),
                 TextField(
                   controller: ttsReferenceTextController,
-                  enabled: !testBusy,
+                  enabled: !testBusy && !transcribingReferenceVoice,
                   minLines: 1,
                   maxLines: 2,
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Reference transcript',
-                    hintText:
-                        'Text spoken in the reference audio, improves voice clone quality.',
+                    hintText: transcribingReferenceVoice
+                        ? 'Transcribing reference voice locally...'
+                        : 'Text spoken in the reference audio, improves voice clone quality.',
                   ),
                 ),
               ],
@@ -2491,7 +2495,7 @@ class _StudioShellState extends State<StudioShell> {
     );
   }
 
-  Widget _buildMyVoiceReferenceMenu(String mode) {
+  Widget _buildMyVoiceReferenceMenu(bool referenceCloneCapable) {
     final hasMyVoice = myVoiceReferencePath != null;
     final selectedMyVoice =
         hasMyVoice && ttsReferenceAudioPath == myVoiceReferencePath;
@@ -2511,14 +2515,16 @@ class _StudioShellState extends State<StudioShell> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  mode == 'base'
+                  referenceCloneCapable
                       ? 'My voice clone source'
                       : 'My reference voice',
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  recordingReferenceVoice
+                  transcribingReferenceVoice
+                      ? 'Transcribing reference voice locally...'
+                      : recordingReferenceVoice
                       ? 'Recording your voice sample...'
                       : hasMyVoice
                       ? '${p.basename(myVoiceReferencePath!)}${selectedMyVoice ? ' • selected' : ''}'
@@ -2546,11 +2552,15 @@ class _StudioShellState extends State<StudioShell> {
           ),
           const SizedBox(width: 8),
           OutlinedButton.icon(
-            onPressed: !hasMyVoice || testBusy || recordingReferenceVoice
+            onPressed:
+                !hasMyVoice ||
+                    testBusy ||
+                    recordingReferenceVoice ||
+                    transcribingReferenceVoice
                 ? null
-                : () => setState(() {
-                    ttsReferenceAudioPath = myVoiceReferencePath;
-                  }),
+                : () => unawaited(
+                    _setTtsReferenceAudioPath(myVoiceReferencePath!),
+                  ),
             icon: const StudioSvgIcon('play', size: 20),
             label: const Text('Use My Voice'),
           ),
@@ -3436,7 +3446,11 @@ class _StudioShellState extends State<StudioShell> {
     final speed = defaults['speed'];
     ttsVoiceController.text = voice?.trim() ?? '';
     ttsInstructController.clear();
-    ttsReferenceTextController.clear();
+    if (ttsReferenceAudioPath == null) {
+      ttsReferenceTextController.clear();
+    } else {
+      unawaited(_loadOrTranscribeReferenceTranscript(ttsReferenceAudioPath!));
+    }
     if (voicePrompt != null && voicePrompt.trim().isNotEmpty) {
       ttsInstructController.text = voicePrompt.trim();
     }
@@ -3474,7 +3488,7 @@ class _StudioShellState extends State<StudioShell> {
     if (file == null) {
       return;
     }
-    setState(() => ttsReferenceAudioPath = file.path);
+    await _setTtsReferenceAudioPath(file.path);
   }
 
   Future<void> _importVoiceReferenceAudioFile() async {
@@ -3496,9 +3510,9 @@ class _StudioShellState extends State<StudioShell> {
     await File(file.path).copy(destination.path);
     setState(() {
       myVoiceReferencePath = destination.path;
-      ttsReferenceAudioPath = destination.path;
       testErrorMessage = null;
     });
+    await _setTtsReferenceAudioPath(destination.path);
   }
 
   Future<void> _startReferenceVoiceRecording() async {
@@ -3522,6 +3536,7 @@ class _StudioShellState extends State<StudioShell> {
       recordingReferenceVoice = true;
       myVoiceReferencePath = path;
       ttsReferenceAudioPath = path;
+      ttsReferenceTextController.clear();
       testErrorMessage = null;
     });
   }
@@ -3535,6 +3550,75 @@ class _StudioShellState extends State<StudioShell> {
         ttsReferenceAudioPath = path;
       }
     });
+    if (path != null) {
+      await _loadOrTranscribeReferenceTranscript(path);
+    }
+  }
+
+  Future<void> _setTtsReferenceAudioPath(String path) async {
+    final changed = ttsReferenceAudioPath != path;
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      ttsReferenceAudioPath = path;
+      testErrorMessage = null;
+      if (changed) {
+        ttsReferenceTextController.clear();
+      }
+    });
+    await _loadOrTranscribeReferenceTranscript(path);
+  }
+
+  Future<void> _loadOrTranscribeReferenceTranscript(String audioPath) async {
+    final sidecar = File(p.setExtension(audioPath, '.txt'));
+    if (await sidecar.exists()) {
+      final cachedTranscript = (await sidecar.readAsString()).trim();
+      if (cachedTranscript.isNotEmpty && mounted) {
+        setState(() => ttsReferenceTextController.text = cachedTranscript);
+        return;
+      }
+    }
+    if (ttsReferenceTextController.text.trim().isNotEmpty) {
+      return;
+    }
+    final asrModel = _referenceTranscriptModel();
+    if (asrModel == null) {
+      return;
+    }
+    setState(() => transcribingReferenceVoice = true);
+    try {
+      final transcript = await controller.transcribeAudio(
+        model: asrModel,
+        audioPath: audioPath,
+      );
+      await sidecar.writeAsString(transcript);
+      if (!mounted || ttsReferenceAudioPath != audioPath) {
+        return;
+      }
+      setState(() => ttsReferenceTextController.text = transcript);
+    } catch (error) {
+      if (!mounted || ttsReferenceAudioPath != audioPath) {
+        return;
+      }
+      setState(
+        () => testErrorMessage =
+            'Could not auto-transcribe the reference voice. Paste the exact Reference transcript manually.\n$error',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => transcribingReferenceVoice = false);
+      }
+    }
+  }
+
+  InstalledModel? _referenceTranscriptModel() {
+    for (final model in controller.installedModels) {
+      if (model.speechToTextSupported) {
+        return model;
+      }
+    }
+    return null;
   }
 
   Future<XFile?> _openAudioFile() {
@@ -3844,9 +3928,7 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   String? _ttsBenchmarkSkipReason(InstalledModel model) {
-    final mode =
-        model.manifest.runtimeConfig.extra['qwen_tts_mode'] as String? ?? '';
-    if (mode != 'base') {
+    if (!_supportsReferenceVoiceClone(model)) {
       return null;
     }
     final hasReferenceAudio =
@@ -3854,7 +3936,7 @@ class _StudioShellState extends State<StudioShell> {
         ttsReferenceAudioPath!.trim().isNotEmpty;
     final hasReferenceText = ttsReferenceTextController.text.trim().isNotEmpty;
     if (!hasReferenceAudio || !hasReferenceText) {
-      return 'Skipped: Qwen3-TTS Base needs Ref Audio + Reference transcript. Open Voices, record/import a clean 3–10 sec sample, paste its transcript, then rerun E2E.';
+      return 'Skipped: voice cloning needs Ref Audio + Reference transcript. Open Voices, record/import a clean 3–10 sec sample, then rerun E2E.';
     }
     return null;
   }
@@ -4279,18 +4361,29 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   String? _speechOptionsValidationError(InstalledModel model) {
-    final mode = model.manifest.runtimeConfig.extra['qwen_tts_mode'] as String?;
-    if (mode != 'base') {
+    if (!_supportsReferenceVoiceClone(model)) {
       return null;
+    }
+    if (transcribingReferenceVoice) {
+      return 'Reference transcript is still being generated locally. Try again in a moment.';
     }
     if (ttsReferenceAudioPath == null ||
         ttsReferenceAudioPath!.trim().isEmpty) {
-      return 'Qwen3-TTS Base needs a reference voice audio sample. Open Voices, record/import your voice, then use it as Ref Audio.';
+      return 'Voice cloning needs a reference voice audio sample. Open Voices, record/import your voice, then use it as Ref Audio.';
     }
     if (ttsReferenceTextController.text.trim().isEmpty) {
-      return 'Qwen3-TTS Base needs Reference transcript for your voice sample. Without it mlx_audio tries to download an STT model automatically and can hang/fail. Paste exactly what you said in the 3–10 sec sample.';
+      return 'Voice cloning needs Reference transcript for your voice sample. The app can auto-fill it with a local ASR model; otherwise paste exactly what you said in the 3–10 sec sample.';
     }
     return null;
+  }
+
+  bool _supportsReferenceVoiceClone(InstalledModel model) {
+    final extra = model.manifest.runtimeConfig.extra;
+    final mode = extra['qwen_tts_mode'] as String?;
+    final id = model.manifest.id.toLowerCase();
+    return mode == 'base' ||
+        extra['supports_voice_clone'] == true ||
+        id.contains('voxcpm2');
   }
 
   LocalChatParams _chatParamsForModel(InstalledModel model) {

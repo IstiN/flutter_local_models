@@ -382,9 +382,17 @@ printf 'RIFF____WAVEfmt ' > "\$output/generated.wav"
         sizeBytes: 0,
       ),
       text: 'hello',
+      options: const SpeechSynthesisOptions(
+        languageCode: 'ru',
+        referenceAudioPath: '/tmp/reference.wav',
+        referenceText: 'reference words',
+      ),
     );
 
     final args = await File('${tempDirectory.path}/args.txt').readAsLines();
+    expect(args, containsAll(['--lang_code', 'ru']));
+    expect(args, containsAll(['--ref_audio', '/tmp/reference.wav']));
+    expect(args, containsAll(['--ref_text', 'reference words']));
     expect(args, containsAll(['--cfg_scale', '2.0']));
     expect(args, containsAll(['--ddpm_steps', '7']));
     expect(args, containsAll(['--max_tokens', '2000']));
