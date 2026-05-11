@@ -634,7 +634,11 @@ class LocalChatRunner {
     int maxTokens = 256,
     double? temperature,
     double? topP,
+    bool? enableThinking,
   }) {
+    final chatTemplateConfig = enableThinking == null
+        ? null
+        : jsonEncode({'enable_thinking': enableThinking});
     return switch (model.manifest.runtimeAdapter) {
       RuntimeAdapter.mlxLm => <String>[
         '-m',
@@ -648,6 +652,10 @@ class LocalChatRunner {
         '$maxTokens',
         if (temperature != null) ...<String>['--temp', '$temperature'],
         if (topP != null) ...<String>['--top-p', '$topP'],
+        if (chatTemplateConfig != null) ...<String>[
+          '--chat-template-config',
+          chatTemplateConfig,
+        ],
         '--verbose',
         'false',
       ],
@@ -691,6 +699,7 @@ class LocalChatRunner {
     int maxTokens = 256,
     double? temperature,
     double? topP,
+    bool? enableThinking,
   }) async {
     _checkRuntime(model);
     final args = _buildGenerateArgs(
@@ -701,6 +710,7 @@ class LocalChatRunner {
       maxTokens: maxTokens,
       temperature: temperature,
       topP: topP,
+      enableThinking: enableThinking,
     );
 
     final result = await Process.run(pythonExecutable, args);
@@ -725,6 +735,7 @@ class LocalChatRunner {
     int maxTokens = 256,
     double? temperature,
     double? topP,
+    bool? enableThinking,
   }) async {
     _checkRuntime(model);
     final args = _buildGenerateArgs(
@@ -735,6 +746,7 @@ class LocalChatRunner {
       maxTokens: maxTokens,
       temperature: temperature,
       topP: topP,
+      enableThinking: enableThinking,
     );
     final process = await Process.start(pythonExecutable, args);
     final stdoutBuffer = StringBuffer();
@@ -799,6 +811,7 @@ class LocalChatRunner {
       maxTokens: params.maxTokens,
       temperature: params.temperature,
       topP: params.topP,
+      enableThinking: params.enableThinking,
       onText: onText,
     );
   }
@@ -841,6 +854,8 @@ String _cleanGeneratedText(String rawOutput) {
     }
   }
 
+  text = _stripThinkingBlocks(text);
+
   final lines = const LineSplitter()
       .convert(text)
       .where((line) {
@@ -854,6 +869,27 @@ String _cleanGeneratedText(String rawOutput) {
       })
       .toList(growable: false);
   return lines.join('\n').trim();
+}
+
+String _stripThinkingBlocks(String text) {
+  var cleaned = text;
+  final closingIndex = cleaned.lastIndexOf('</think>');
+  if (closingIndex != -1) {
+    cleaned = cleaned.substring(closingIndex + '</think>'.length);
+  }
+  while (true) {
+    final startIndex = cleaned.indexOf('<think>');
+    if (startIndex == -1) {
+      return cleaned.trim();
+    }
+    final endIndex = cleaned.indexOf('</think>', startIndex);
+    if (endIndex == -1) {
+      return cleaned.substring(0, startIndex).trim();
+    }
+    cleaned =
+        cleaned.substring(0, startIndex) +
+        cleaned.substring(endIndex + '</think>'.length);
+  }
 }
 
 class LocalAudioRunner {

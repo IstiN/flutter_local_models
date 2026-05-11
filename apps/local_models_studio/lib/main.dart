@@ -318,6 +318,7 @@ class _StudioShellState extends State<StudioShell> {
   bool transcribingReferenceVoice = false;
   bool showVoicePipelineSettings = false;
   bool showTtsVoiceSettings = false;
+  bool generationThinkingEnabled = false;
   bool testBusy = false;
   String? testErrorMessage;
   bool obscureHfToken = true;
@@ -2459,6 +2460,23 @@ class _StudioShellState extends State<StudioShell> {
           children: [
             Text('Generation', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(width: 16),
+            if (_modelSupportsThinking(model)) ...[
+              SizedBox(
+                width: 160,
+                child: SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Thinking'),
+                  subtitle: Text(generationThinkingEnabled ? 'On' : 'Off'),
+                  value: generationThinkingEnabled,
+                  onChanged: testBusy
+                      ? null
+                      : (value) =>
+                            setState(() => generationThinkingEnabled = value),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
             SizedBox(
               width: 150,
               child: TextField(
@@ -2520,6 +2538,8 @@ class _StudioShellState extends State<StudioShell> {
               child: Text(
                 model?.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm
                     ? 'mlx-vlm exposes max tokens + temperature; top_p is skipped for this runner.'
+                    : _modelSupportsThinking(model)
+                    ? 'Qwen thinking is passed via mlx-lm chat-template-config enable_thinking.'
                     : 'mlx-lm uses max tokens, temperature, and top_p.',
                 style: TextStyle(color: Theme.of(context).colorScheme.outline),
               ),
@@ -4004,6 +4024,7 @@ class _StudioShellState extends State<StudioShell> {
       topP: model.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm
           ? null
           : _doubleDefault(defaults, const ['top_p', 'topP'], fallback: 0.9),
+      enableThinking: _modelSupportsThinking(model) ? false : null,
     );
   }
 
@@ -4515,7 +4536,23 @@ class _StudioShellState extends State<StudioShell> {
       topP: model.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm
           ? null
           : double.tryParse(generationTopPController.text.trim()),
+      enableThinking: _modelSupportsThinking(model)
+          ? generationThinkingEnabled
+          : null,
     );
+  }
+
+  bool _modelSupportsThinking(InstalledModel? model) {
+    if (model == null ||
+        model.manifest.runtimeAdapter != RuntimeAdapter.mlxLm) {
+      return false;
+    }
+    final text = [
+      model.manifest.id,
+      model.manifest.displayName,
+      model.manifest.source.repo,
+    ].join(' ').toLowerCase();
+    return text.contains('qwen3');
   }
 
   String _normalizeTtsLanguageCode(String value) {

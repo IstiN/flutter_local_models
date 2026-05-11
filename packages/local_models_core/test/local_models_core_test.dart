@@ -198,6 +198,7 @@ void main() {
       maxTokens: 128,
       temperature: 0.2,
       topP: 0.8,
+      enableThinking: false,
       stop: ['</tool_call>'],
       extra: {'seed': 7},
     );
@@ -207,6 +208,7 @@ void main() {
     expect(openAIParams['model'], 'qwen3-8b-4bit');
     expect(openAIParams['max_tokens'], 128);
     expect(openAIParams['top_p'], 0.8);
+    expect(openAIParams['chat_template_kwargs'], {'enable_thinking': false});
     expect(openAIParams['seed'], 7);
   });
 

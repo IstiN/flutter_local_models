@@ -913,6 +913,7 @@ class LocalChatParams {
     this.maxTokens = 256,
     this.temperature,
     this.topP,
+    this.enableThinking,
     this.stop = const <String>[],
     this.tools = const <LocalTool>[],
     this.toolChoice,
@@ -923,6 +924,7 @@ class LocalChatParams {
   final int maxTokens;
   final double? temperature;
   final double? topP;
+  final bool? enableThinking;
   final List<String> stop;
   final List<LocalTool> tools;
   final LocalToolChoice? toolChoice;
@@ -934,6 +936,7 @@ class LocalChatParams {
       maxTokens: (map['maxTokens'] as num?)?.toInt() ?? 256,
       temperature: (map['temperature'] as num?)?.toDouble(),
       topP: (map['topP'] as num?)?.toDouble(),
+      enableThinking: map['enableThinking'] as bool?,
       stop: List<String>.from(map['stop'] as List? ?? const <String>[]),
       tools: List<Map<String, Object?>>.from(
         map['tools'] as List? ?? const <Map<String, Object?>>[],
@@ -954,6 +957,7 @@ class LocalChatParams {
     'maxTokens': maxTokens,
     if (temperature != null) 'temperature': temperature,
     if (topP != null) 'topP': topP,
+    if (enableThinking != null) 'enableThinking': enableThinking,
     if (stop.isNotEmpty) 'stop': stop,
     if (tools.isNotEmpty) 'tools': tools.map((item) => item.toJson()).toList(),
     if (toolChoice != null) 'toolChoice': toolChoice!.toJson(),
@@ -965,6 +969,8 @@ class LocalChatParams {
     'max_tokens': maxTokens,
     if (temperature != null) 'temperature': temperature,
     if (topP != null) 'top_p': topP,
+    if (enableThinking != null)
+      'chat_template_kwargs': {'enable_thinking': enableThinking},
     if (stop.isNotEmpty) 'stop': stop,
     if (tools.isNotEmpty)
       'tools': tools.map((item) => item.toOpenAIJson()).toList(),

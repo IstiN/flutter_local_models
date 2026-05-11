@@ -398,6 +398,49 @@ printf 'RIFF____WAVEfmt ' > "\$output/generated.wav"
     expect(args, containsAll(['--max_tokens', '2000']));
   });
 
+  test('LocalChatRunner passes Qwen thinking chat template config', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'local-models-studio-thinking-args-test',
+    );
+    addTearDown(() async {
+      if (tempDirectory.existsSync()) {
+        await tempDirectory.delete(recursive: true);
+      }
+    });
+
+    final fakePython = File('${tempDirectory.path}/fake-python.sh');
+    await fakePython.writeAsString('''
+#!/bin/sh
+while [ "\$#" -gt 0 ]; do
+  echo "\$1" >> "${tempDirectory.path}/args.txt"
+  shift
+done
+echo "<think>hidden</think>hello"
+''');
+    await Process.run('chmod', ['+x', fakePython.path]);
+
+    final modelDirectory = Directory('${tempDirectory.path}/model');
+    await modelDirectory.create();
+    final runner = LocalChatRunner(pythonExecutable: fakePython.path);
+    final response = await runner.chatStream(
+      model: InstalledModel(
+        manifest: _manifest,
+        directory: modelDirectory,
+        sourceLabel: 'test',
+        installedAt: DateTime.utc(2026, 5, 11),
+        sizeBytes: 0,
+      ),
+      messages: [LocalChatMessage.user('hi')],
+      onText: (_) {},
+      params: const LocalChatParams(enableThinking: false),
+    );
+
+    final args = await File('${tempDirectory.path}/args.txt').readAsLines();
+    expect(args, contains('--chat-template-config'));
+    expect(args, contains('{"enable_thinking":false}'));
+    expect(response, 'hello');
+  });
+
   test('LocalAudioRunner explains unsupported VoxCPM2 runtime', () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
       'local-models-studio-voxcpm2-error-test',
