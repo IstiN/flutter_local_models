@@ -10,7 +10,6 @@ import tarfile
 from typing import Any
 
 import yaml
-from huggingface_hub import snapshot_download
 
 
 class BundleError(RuntimeError):
@@ -203,6 +202,8 @@ def build_release_notes(metadata: dict[str, Any]) -> str:
 
 
 def download_snapshot(manifest: Manifest, target_dir: pathlib.Path, revision_override: str | None) -> tuple[pathlib.Path, str]:
+    from huggingface_hub import snapshot_download
+
     revision = revision_override or manifest.revision
     snapshot_path = snapshot_download(
         repo_id=manifest.repo,

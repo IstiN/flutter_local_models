@@ -1,0 +1,37 @@
+name: Release model metadata only
+
+# Updates manifest.source.yaml / release_metadata.json / model_metadata.json / release notes
+# on an **existing** GitHub release. Does **not** download weights or rebuild .part archives.
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_id:
+        description: Registry manifest id without .yaml (e.g. qwen3-tts-12hz-0.6b-base-4bit)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install deps (PyYAML only)
+        run: pip install pyyaml
+
+      - name: Publish metadata to existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          MANIFEST="registry/models/${{ inputs.manifest_id }}.yaml"
+          test -f "$MANIFEST"
+          python tools/model_release/publish_metadata_only.py --manifest "$MANIFEST"
