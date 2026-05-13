@@ -5143,8 +5143,7 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   bool _modelSupportsToolCallingUi(InstalledModel model) {
-    return model.textPromptSupported &&
-        model.manifest.capabilities.toolCalling;
+    return model.toolCallingUiSupported;
   }
 
   List<LocalTool> _parseToolsListOrEmpty() {
@@ -5509,9 +5508,6 @@ class _StudioShellState extends State<StudioShell> {
     if (model.textToSpeechSupported) {
       return 'tts';
     }
-    if (model.speechToTextSupported) {
-      return 'audio';
-    }
     if (model.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
         model.textPromptSupported) {
       final modes = <String>['chat'];
@@ -5522,6 +5518,9 @@ class _StudioShellState extends State<StudioShell> {
         modes.add('image');
       }
       return modes.join('/');
+    }
+    if (model.dedicatedSpeechToTextModel) {
+      return 'audio';
     }
     if (model.audioPromptSupported) {
       return 'audio chat';

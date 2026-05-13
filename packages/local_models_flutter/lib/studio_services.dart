@@ -423,6 +423,17 @@ class InstalledModel {
   bool get imageGenerationSupported =>
       manifest.tasks.contains(ModelTask.imageGeneration) &&
       manifest.runtimeAdapter == RuntimeAdapter.mflux;
+
+  /// Tool-calling in Studio (JSON tools field + native bridge).
+  ///
+  /// Uses [CapabilitySpec.toolCalling] when present; Gemma 4 `mlx_vlm` chat
+  /// checkpoints may omit the flag on older installed metadata.
+  bool get toolCallingUiSupported =>
+      textPromptSupported &&
+      (manifest.capabilities.toolCalling ||
+          (manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
+              manifest.tasks.contains(ModelTask.chat) &&
+              manifest.id.startsWith('gemma4')));
 }
 
 class ChatTurn {
