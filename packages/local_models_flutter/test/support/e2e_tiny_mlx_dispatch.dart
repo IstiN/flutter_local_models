@@ -14,6 +14,9 @@ final class E2eTinyMlxDispatcher implements FlmDispatching {
     this.assistantReply = 'assistant e2e reply',
   });
 
+  @override
+  bool get isBlockingInvoke => false;
+
   final String transcript;
   final String assistantReply;
 

@@ -4,15 +4,133 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:local_models_core/local_models_core.dart';
 import 'package:path/path.dart' as p;
 
 import 'openai_audio_speech_client.dart';
+import 'runtime/lm_tool_registry.dart';
 import 'runtime/native_engines.dart';
 
 const _installMetadataFileName = '.flutter_local_model.json';
 const _downloadQueueFileName = 'download_queue.json';
 const _settingsFileName = 'settings.json';
+
+/// Fills empty schema/metadata from the catalog so UI (voice presets, TTS extras)
+/// still works when `manifest.source.yaml` or disk metadata omits `parameterSchema`.
+ModelRuntimeConfig _runtimeConfigGapFill({
+  required ModelRuntimeConfig primary,
+  required ModelRuntimeConfig gapFill,
+}) {
+  if (gapFill.isEmpty) {
+    return primary;
+  }
+  final defaults = primary.defaultParameters.isNotEmpty
+      ? primary.defaultParameters
+      : gapFill.defaultParameters;
+  final parameterSchema = _mergeParameterSchemaGapFill(
+    gapFill: gapFill.parameterSchema,
+    primary: primary.parameterSchema,
+  );
+  final voices = primary.voices.isNotEmpty ? primary.voices : gapFill.voices;
+  final output = primary.output.isNotEmpty ? primary.output : gapFill.output;
+  final extra = <String, Object?>{...gapFill.extra, ...primary.extra};
+  return ModelRuntimeConfig(
+    defaultParameters: defaults,
+    parameterSchema: parameterSchema,
+    voices: voices,
+    output: output,
+    extra: extra,
+  );
+}
+
+Map<String, Object?> _mergeParameterSchemaGapFill({
+  required Map<String, Object?> gapFill,
+  required Map<String, Object?> primary,
+}) {
+  if (gapFill.isEmpty) {
+    return primary;
+  }
+  if (primary.isEmpty) {
+    return gapFill;
+  }
+  final gapProps = gapFill['properties'];
+  final primaryProps = primary['properties'];
+  if (gapProps is! Map && primaryProps is! Map) {
+    return primary;
+  }
+  final gapMap = gapProps is Map
+      ? Map<String, Object?>.from(gapProps)
+      : <String, Object?>{};
+  final primaryMap = primaryProps is Map
+      ? Map<String, Object?>.from(primaryProps)
+      : <String, Object?>{};
+  final mergedProps = <String, Object?>{};
+  for (final key in {...gapMap.keys, ...primaryMap.keys}) {
+    mergedProps[key] = _mergeJsonSchemaPropertyGapFill(
+      gapFill: gapMap[key],
+      primary: primaryMap[key],
+    );
+  }
+  return <String, Object?>{
+    ...gapFill,
+    ...primary,
+    'properties': mergedProps,
+  };
+}
+
+Object? _mergeJsonSchemaPropertyGapFill({Object? gapFill, Object? primary}) {
+  if (primary == null) {
+    return gapFill;
+  }
+  if (gapFill == null) {
+    return primary;
+  }
+  if (primary is! Map || gapFill is! Map) {
+    return primary;
+  }
+  final primaryMap = Map<String, Object?>.from(primary);
+  final gapMap = Map<String, Object?>.from(gapFill);
+  final out = <String, Object?>{...gapMap, ...primaryMap};
+  final primaryEnum = primaryMap['enum'];
+  final gapEnum = gapMap['enum'];
+  if ((primaryEnum is! List || primaryEnum.isEmpty) &&
+      gapEnum is List &&
+      gapEnum.isNotEmpty) {
+    out['enum'] = gapEnum;
+  }
+  return out;
+}
+
+LocalModelManifest _manifestWithRegistryRuntimeGapFill({
+  required LocalModelManifest primary,
+  required ModelRegistry registry,
+}) {
+  final reg = _firstWhereOrNull(registry.manifests, (m) => m.id == primary.id);
+  if (reg == null) {
+    return primary;
+  }
+  final rc = _runtimeConfigGapFill(
+    primary: primary.runtimeConfig,
+    gapFill: reg.runtimeConfig,
+  );
+  if (identical(rc, primary.runtimeConfig)) {
+    return primary;
+  }
+  return LocalModelManifest(
+    id: primary.id,
+    displayName: primary.displayName,
+    description: primary.description,
+    runtimeAdapter: primary.runtimeAdapter,
+    tasks: primary.tasks,
+    source: primary.source,
+    packaging: primary.packaging,
+    requirements: primary.requirements,
+    capabilities: primary.capabilities,
+    modelCard: primary.modelCard,
+    runtimeConfig: rc,
+  );
+}
 
 enum DownloadSourceKind { huggingFace, githubRelease }
 
@@ -34,6 +152,12 @@ DownloadSourceKind _downloadSourceKindFromString(String value) {
     default:
       throw FormatException('Unsupported download source kind: $value');
   }
+}
+
+Future<void> _yieldHostUiFrame() async {
+  try {
+    await SchedulerBinding.instance.endOfFrame;
+  } catch (_) {}
 }
 
 enum DownloadTaskStatus {
@@ -281,6 +405,14 @@ class InstalledModel {
       manifest.runtimeAdapter == RuntimeAdapter.mlxVlm;
 
   bool get speechToTextSupported =>
+      (manifest.tasks.contains(ModelTask.speechToText) &&
+          manifest.runtimeAdapter == RuntimeAdapter.mlxAudio) ||
+      (manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
+          manifest.tasks.contains(ModelTask.audioInput) &&
+          manifest.id.startsWith('gemma4'));
+
+  /// Whisper / mlx-audio ASR checkpoints — transcribe-only UX, not Gemma4 chat+VLM.
+  bool get dedicatedSpeechToTextModel =>
       manifest.tasks.contains(ModelTask.speechToText) &&
       manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
 
@@ -645,8 +777,12 @@ class LocalChatRunner {
     double? temperature,
     double? topP,
     bool? enableThinking,
+    List<LocalTool> tools = const [],
+    Future<String> Function(String name, Map<String, Object?> args)? onToolCall,
   }) async {
     _checkRuntime(model);
+    await _yieldHostUiFrame();
+
     final raw = await _engine.complete(
       LmCompletionRequest(
         modelPath: model.directory.path,
@@ -658,6 +794,8 @@ class LocalChatRunner {
         temperature: temperature,
         topP: topP,
         enableThinking: enableThinking,
+        tools: tools,
+        onToolCall: onToolCall,
       ),
     );
     final output = _cleanGeneratedText(raw).trim();
@@ -677,17 +815,39 @@ class LocalChatRunner {
     double? temperature,
     double? topP,
     bool? enableThinking,
+    List<LocalTool> tools = const [],
+    Future<String> Function(String name, Map<String, Object?> args)? onToolCall,
   }) async {
-    final output = await generateResponse(
-      model: model,
-      prompt: prompt,
-      audioPath: audioPath,
-      imagePath: imagePath,
-      maxTokens: maxTokens,
-      temperature: temperature,
-      topP: topP,
-      enableThinking: enableThinking,
+    _checkRuntime(model);
+    await _yieldHostUiFrame();
+
+    final buffer = StringBuffer();
+    final raw = await _engine.completeStreaming(
+      LmCompletionRequest(
+        modelPath: model.directory.path,
+        manifest: model.manifest,
+        prompt: prompt,
+        audioPath: audioPath,
+        imagePath: imagePath,
+        maxTokens: maxTokens,
+        temperature: temperature,
+        topP: topP,
+        enableThinking: enableThinking,
+        tools: tools,
+        onToolCall: onToolCall,
+      ),
+      (delta) {
+        buffer.write(delta);
+        final soFar = _cleanGeneratedText(buffer.toString()).trim();
+        if (soFar.isNotEmpty) {
+          onText(soFar);
+        }
+      },
     );
+    final output = _cleanGeneratedText(raw).trim();
+    if (output.isEmpty) {
+      throw StateError('Local generation returned an empty response.');
+    }
     onText(output);
     return output;
   }
@@ -697,12 +857,22 @@ class LocalChatRunner {
     required List<LocalChatMessage> messages,
     required ValueChanged<String> onText,
     LocalChatParams params = const LocalChatParams(),
+    LmToolRegistry? toolRegistry,
   }) {
     final requestedModelId = params.modelId;
     if (requestedModelId != null && requestedModelId != model.manifest.id) {
       throw StateError(
         'Selected runtime model ${model.manifest.id} does not match requested model $requestedModelId.',
       );
+    }
+    if (params.tools.isNotEmpty && toolRegistry == null) {
+      throw StateError(
+        'LocalChatParams.tools is non-empty; pass an LmToolRegistry with handlers.',
+      );
+    }
+    Future<String> Function(String name, Map<String, Object?> args)? onTool;
+    if (params.tools.isNotEmpty) {
+      onTool = toolRegistry!.invoke;
     }
     final prompt = _promptFromMessages(messages);
     final attachments = messages
@@ -725,6 +895,8 @@ class LocalChatRunner {
       temperature: params.temperature,
       topP: params.topP,
       enableThinking: params.enableThinking,
+      tools: params.tools,
+      onToolCall: onTool,
       onText: onText,
     );
   }
@@ -815,7 +987,8 @@ class LocalAudioRunner {
     required InstalledModel model,
     required String audioPath,
     String? language,
-  }) {
+  }) async {
+    await _yieldHostUiFrame();
     return _engine.transcribe(
       modelPath: model.directory.path,
       manifest: model.manifest,
@@ -828,7 +1001,8 @@ class LocalAudioRunner {
     required InstalledModel model,
     required String text,
     SpeechSynthesisOptions options = const SpeechSynthesisOptions(),
-  }) {
+  }) async {
+    await _yieldHostUiFrame();
     final runtimeDefaults = model.manifest.runtimeConfig.defaultParameters;
     final audioFormat = runtimeDefaults['audio_format'] as String? ?? 'wav';
     final joinAudio = runtimeDefaults['join_audio'] as bool? ?? true;
@@ -838,6 +1012,48 @@ class LocalAudioRunner {
         _intParameter(runtimeDefaults['max_tokens']) ??
         _intParameter(runtimeDefaults['maxTokens']);
     final temperature = _numberParameter(runtimeDefaults['temperature']);
+    // For VoiceDesign models the `voice` field must carry the natural-language
+    // description (the "instruct" prompt), NOT a speaker name. Sending a speaker
+    // name like "Serena" as `voice` on a VoiceDesign checkpoint causes the Swift
+    // runtime to prefer that short name over the instruct prompt, so the voice
+    // never changes regardless of the prompt text.
+    final extra = model.manifest.runtimeConfig.extra;
+    final qwenTtsMode = extra['qwen_tts_mode'] as String? ?? '';
+    final vibevoiceTtsMode = extra['vibevoice_tts_mode'] as String? ?? '';
+    final isVoiceDesign = qwenTtsMode == 'voice_design';
+    final isVibeVoice = vibevoiceTtsMode.isNotEmpty;
+
+    String? voiceField;
+    String? instructField;
+    String? referenceAudioPath;
+    String? referenceText;
+
+    if (isVibeVoice) {
+      // VibeVoice: only preset voice is supported, no instruct/clone
+      voiceField = options.voice.trim().isEmpty ? null : options.voice.trim();
+      instructField = null;
+      referenceAudioPath = null;
+      referenceText = null;
+    } else if (isVoiceDesign) {
+      // For VoiceDesign in design-prompt mode: clear `voice` so the instruct prompt
+      // reaches the model. In preset mode the voice field carries the speaker name.
+      final voiceVal = options.voice.trim();
+      final voiceDesignPresetMode =
+          voiceVal.isNotEmpty && !voiceVal.contains(' ');
+      voiceField = voiceDesignPresetMode ? options.voice : null;
+      instructField = options.instruct;
+      referenceAudioPath = options.referenceAudioPath;
+      referenceText = options.referenceText;
+    } else {
+      voiceField = options.voice;
+      instructField = options.instruct;
+      referenceAudioPath = options.referenceAudioPath;
+      referenceText = options.referenceText;
+    }
+
+    debugPrint('[TTS] model=${model.manifest.id} qwenMode=$qwenTtsMode vibeMode=$vibevoiceTtsMode');
+    debugPrint('[TTS] UI voice="${options.voice}" instruct="${options.instruct}"');
+    debugPrint('[TTS] payload voice="$voiceField" instruct="$instructField"');
     final fields = <String, Object?>{
       'runtimeDefaults': runtimeDefaults,
       'audio_format': audioFormat,
@@ -846,11 +1062,11 @@ class LocalAudioRunner {
       'ddpm_steps': ?ddpmSteps,
       'max_tokens': ?maxTokens,
       'temperature': ?temperature,
-      'voice': options.voice,
-      'instruct': options.instruct,
+      'voice': voiceField,
+      'instruct': instructField,
       'languageCode': options.languageCode,
-      'referenceAudioPath': options.referenceAudioPath,
-      'referenceText': options.referenceText,
+      'referenceAudioPath': referenceAudioPath,
+      'referenceText': referenceText,
       'speed': options.speed,
     };
     return _engine.synthesizeToFile(
@@ -871,6 +1087,7 @@ class LocalAudioRunner {
         'Speech generation currently supports installed mlx_audio text-to-speech models.',
       );
     }
+    await _yieldHostUiFrame();
     final endpoint = options.openAiCompatibleSpeechEndpoint;
     if (endpoint != null && options.streamSpeech) {
       final client = OpenAiAudioSpeechClient(apiKey: options.speechApiKey);
@@ -960,7 +1177,8 @@ class LocalImageRunner {
     required InstalledModel model,
     required String prompt,
     ValueChanged<double>? onProgress,
-  }) {
+  }) async {
+    await _yieldHostUiFrame();
     return _engine.generate(
       modelPath: model.directory.path,
       manifest: model.manifest,
@@ -1350,8 +1568,11 @@ class StudioController extends ChangeNotifier {
         final decoded =
             jsonDecode(await metadataFile.readAsString())
                 as Map<String, dynamic>;
-        final manifest = LocalModelManifest.fromJsonMap(
-          Map<String, Object?>.from(decoded['manifest'] as Map),
+        final manifest = _manifestWithRegistryRuntimeGapFill(
+          primary: LocalModelManifest.fromJsonMap(
+            Map<String, Object?>.from(decoded['manifest'] as Map),
+          ),
+          registry: registry,
         );
         discovered.add(
           InstalledModel(
@@ -1376,7 +1597,10 @@ class StudioController extends ChangeNotifier {
       if (manifest != null) {
         discovered.add(
           InstalledModel(
-            manifest: manifest,
+            manifest: _manifestWithRegistryRuntimeGapFill(
+              primary: manifest,
+              registry: registry,
+            ),
             directory: entity,
             sourceLabel: 'Unknown',
             installedAt: (await entity.stat()).modified,
@@ -2155,17 +2379,20 @@ class StudioController extends ChangeNotifier {
       githubReleases,
       (item) => item.tagName == model.manifest.packaging.releaseTag,
     );
+    LocalModelManifest? releaseManifest;
     if (release != null) {
-      final releaseManifest = await apiClient.fetchReleaseManifest(release);
-      if (releaseManifest != null) {
-        return releaseManifest;
-      }
+      releaseManifest = await apiClient.fetchReleaseManifest(release);
     }
     final registryManifest = _firstWhereOrNull(
       registry.manifests,
       (item) => item.id == model.manifest.id,
     );
-    return registryManifest ?? model.manifest;
+    final next =
+        releaseManifest ?? registryManifest ?? model.manifest;
+    return _manifestWithRegistryRuntimeGapFill(
+      primary: next,
+      registry: registry,
+    );
   }
 
   Future<void> _concatenateFiles(List<File> parts, File destination) async {

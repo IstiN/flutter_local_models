@@ -2,7 +2,7 @@
 
 ## Goal
 
-- **Priority: macOS.** Run as much as possible through **native code** (Swift / MLX **mlx-swift-lm** for chat/VLM, **[mlx-audio-swift](https://github.com/Blaizzy/mlx-audio-swift)** for **Qwen3** ASR/TTS) via **FFI** — `flm_dispatch_json` — with **Python subprocesses only as a transitional fallback** for Whisper or non-Qwen audio checkpoints until broader Swift coverage lands.
+- **Priority: macOS.** Run as much as possible through **native code** (Swift / MLX **mlx-swift-lm** for chat/VLM, **[mlx-audio-swift](https://github.com/Blaizzy/mlx-audio-swift)** for **Qwen3** ASR/TTS) via **FFI** — `flm_dispatch_json`. **Python mlx-audio** is **opt-in on macOS** (`FLM_ENABLE_PROCESS_FALLBACK=1`) for Whisper / non-Qwen checkpoints or debugging.
 - **Other desktop / mobile (Android, Linux, Windows, iOS):** the same Dart **`FlmDispatching` contract** (`operation` + JSON payload) is meant to be backed by **platform-specific native bridges** (JNI, NDK, separate `.so` / DLL load, etc.). There is no plan to standardize on Python long-term; bridges may still call into a Python runtime somewhere in edge cases, but the product direction is **maximum native** per OS.
 - **Interfaces stay stable:** `LmEngine`, `AudioEngine`, `ImageEngine` do not care whether the host is MLX, LiteRT, Core ML, or vendor APIs — only that something implements the dispatch JSON contract or an explicit process policy for that platform.
 
@@ -10,8 +10,8 @@
 
 1. **Dart (`local_models_flutter`)**  
    - `LmEngine`, `AudioEngine`, `ImageEngine` — small async APIs used by `LocalChatRunner`, `LocalAudioRunner`, `LocalImageRunner`.  
-   - **`defaultFlmDispatching()`** — **macOS:** **Swift FFI first** (`flm_dispatch_json`), then **optional Python subprocess** for `audio.transcribe` / `audio.synthesize` only when the native result is not OK ([MLX-Audio](https://github.com/Blaizzy/mlx-audio) CLI) — **intended to shrink** as Swift ASR/TTS land.  
-   - **Other OS:** primary is a **stub** until a native library is linked; **audio** may still use the same Python CLI as a stopgap. Replace the stub with **`DynamicLibrary.open(...)`** (or embed) to your platform bridge when ready.
+   - **`defaultFlmDispatching()`** — **macOS:** **Swift only** (`flm_dispatch_json`); no Python unless **`FLM_ENABLE_PROCESS_FALLBACK=1`**.  
+   - **Other OS:** primary is a **stub** until a native library is linked; **audio** may still use the **Python** mlx-audio CLI unless **`FLM_DISABLE_PROCESS_FALLBACK=1`**. Replace the stub with **`DynamicLibrary.open(...)`** (or embed) to your platform bridge when ready.
 
 2. **Host macOS app (Runner)**  
    - The C symbol `flm_dispatch_json` is implemented in the **FlmMLXRuntime** local Swift package  
@@ -40,15 +40,15 @@
 | **Linux / Windows** | Future: load a native shared library / plugin that exports `flm_dispatch_json` or a thin shim with the same semantics. |
 | **iOS** | Same pattern as macOS where Apple stack allows; otherwise Core ML / on-device APIs behind the same Dart engines. |
 
-Apps choose their **primary** dispatcher per build flavor: today `defaultFlmDispatching()` encodes macOS + optional Python; tomorrow **`FLM_DISABLE_PROCESS_FALLBACK=1`** becomes the default shipping profile on macOS once Swift audio is complete.
+Apps choose their **primary** dispatcher per build flavor: **`defaultFlmDispatching()`** on macOS is **Swift-only** by default; enable Python for audio with **`FLM_ENABLE_PROCESS_FALLBACK=1`** when needed (e.g. Whisper via mlx-audio).
 
 ## Operations (contract)
 
 | `operation`        | Payload (summary)                          | Success response                          |
 |--------------------|---------------------------------------------|-------------------------------------------|
 | `lm.generate`      | `modelPath`, `adapter`, `prompt`, `maxTokens`, `temperature`, `topP`, optional `imagePath` | `{ "ok": true, "text": "..." }`           |
-| `audio.transcribe` | `modelPath`, `audioPath`, `language?`     | **Swift:** **Qwen3-ASR** folders only (native via mlx-audio-swift). **Whisper** / other → `ok:false` so Python mlx-audio can run if enabled. |
-| `audio.synthesize` | `modelPath`, `text`, `voice?`, `instruct?`, `languageCode?`, `referenceAudioPath?`, `referenceText?`, `max_tokens?`, `temperature?` | **Swift:** **Qwen3-TTS** only; WAV to temp path in `outputAudioPath`. Other TTS checkpoints → `ok:false` for Python fallback. |
+| `audio.transcribe` | `modelPath`, `audioPath`, `language?`     | **Swift:** **Qwen3-ASR** natively. **Whisper** / other → `ok:false` (Python only if **`FLM_ENABLE_PROCESS_FALLBACK=1`** on macOS). |
+| `audio.synthesize` | `modelPath`, `text`, `voice?`, `instruct?`, `languageCode?`, `referenceAudioPath?`, `referenceText?`, `max_tokens?`, `temperature?` | **Swift:** **Qwen3-TTS** only. Other TTS → `ok:false` (Python only if **`FLM_ENABLE_PROCESS_FALLBACK=1`** on macOS). |
 | `image.generate`   | `modelPath`, `prompt`, …                  | stub in Swift; add `mflux-generate` / process policy later |
 
 Errors: `{ "ok": false, "error": "message" }`.
@@ -67,10 +67,11 @@ Other apps that depend on `local_models_flutter` must link the same **FlmMLXRunt
 
 | Variable | Effect |
 |----------|--------|
-| `FLM_MLX_PYTHON` | Python executable for **mlx-audio** fallback (default `python3`). |
-| `FLM_DISABLE_PROCESS_FALLBACK` | If `1`, never run Python; only Swift (macOS) or stub errors (other OS). |
+| `FLM_MLX_PYTHON` | Python executable for **mlx-audio** subprocess (default `python3`). |
+| `FLM_ENABLE_PROCESS_FALLBACK` | On **macOS**, if `1`, retry failed **`audio.*`** with Python mlx-audio after Swift. **Off by default.** |
+| `FLM_DISABLE_PROCESS_FALLBACK` | On **non-macOS**, if `1`, never run Python (stub only for LM; audio fails). |
 | `FLM_PROCESS_MLX_ONLY` | If `1`, use **only** Python for `audio.*` (no Swift attempt). |
 
 ## Python
 
-[MLX-Audio](https://github.com/Blaizzy/mlx-audio) **Python** is a **transitional, optional** path for ASR/TTS when native code is missing or returns an error. It is **not** bundled in the Flutter app. Long-term, **macOS and other platforms should satisfy `audio.*` (and other ops) natively**; Python remains available for developers and power users who opt in.
+[MLX-Audio](https://github.com/Blaizzy/mlx-audio) **Python** is **optional** and **off on macOS by default**. Set **`FLM_ENABLE_PROCESS_FALLBACK=1`** to use it for `audio.*` after Swift returns an error (e.g. Whisper). On **non-macOS**, Python may still run for `audio.*` unless **`FLM_DISABLE_PROCESS_FALLBACK=1`**. It is **not** bundled in the Flutter app.

@@ -29,6 +29,59 @@ void main() {
     expect(fallback.calls, hasLength(1));
   });
 
+  test('FallbackFlmDispatcher retries image.generate when configured', () {
+    final primary = RecordingFlmDispatcher()
+      ..onInvoke = (op, _) {
+        if (op == 'image.generate') {
+          return <String, Object?>{'ok': false, 'error': 'stub'};
+        }
+        return <String, Object?>{'ok': true};
+      };
+
+    final fallback = RecordingFlmDispatcher()
+      ..onInvoke = (op, _) {
+        expect(op, 'image.generate');
+        return <String, Object?>{
+          'ok': true,
+          'outputImagePath': '/tmp/x.png',
+        };
+      };
+
+    final chain = FallbackFlmDispatcher(
+      primary: primary,
+      fallback: fallback,
+      retryOperations: {
+        'image.generate',
+      },
+    );
+    final r = chain.invoke('image.generate', <String, Object?>{
+      'modelPath': '/m',
+      'prompt': 'hi',
+    });
+
+    expect(r['ok'], true);
+    expect(r['outputImagePath'], '/tmp/x.png');
+    expect(fallback.calls, hasLength(1));
+  });
+
+  test('FallbackFlmDispatcher does not retry image.generate by default', () {
+    final primary = RecordingFlmDispatcher()
+      ..onInvoke = (_, _) {
+        return <String, Object?>{'ok': false, 'error': 'stub'};
+      };
+
+    final fallback = RecordingFlmDispatcher()
+      ..onInvoke = (_, _) {
+        return <String, Object?>{'ok': true, 'outputImagePath': '/x'};
+      };
+
+    final chain = FallbackFlmDispatcher(primary: primary, fallback: fallback);
+    final r = chain.invoke('image.generate', <String, Object?>{});
+
+    expect(r['ok'], false);
+    expect(fallback.calls, isEmpty);
+  });
+
   test('FallbackFlmDispatcher does not retry lm.generate', () {
     final primary = RecordingFlmDispatcher()
       ..onInvoke = (op, _) {

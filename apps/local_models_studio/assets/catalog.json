@@ -2559,11 +2559,31 @@
         "audio_format": "wav",
         "join_audio": true,
         "lang_code": "auto",
+        "voice": "Ryan",
         "speed": 1.0
       },
       "parameterSchema": {
         "type": "object",
         "properties": {
+          "voice": {
+            "type": "string",
+            "description": "Preset speaker passed to --voice (CustomVoice set; experimental on Base).",
+            "enum": [
+              "Vivian",
+              "Serena",
+              "Uncle_Fu",
+              "Dylan",
+              "Eric",
+              "Ryan",
+              "Aiden",
+              "Ono_Anna",
+              "Sohee"
+            ]
+          },
+          "instruct": {
+            "type": "string",
+            "description": "Optional style/emotion instruction passed to --instruct."
+          },
           "lang_code": {
             "type": "string",
             "description": "Qwen3-TTS language passed to --lang_code.",
@@ -2600,6 +2620,62 @@
           "ref_text"
         ]
       },
+      "voices": [
+        {
+          "id": "Vivian",
+          "displayName": "Vivian",
+          "locale": "Chinese",
+          "description": "Bright, slightly edgy young female voice."
+        },
+        {
+          "id": "Serena",
+          "displayName": "Serena",
+          "locale": "Chinese",
+          "description": "Warm, gentle young female voice."
+        },
+        {
+          "id": "Uncle_Fu",
+          "displayName": "Uncle Fu",
+          "locale": "Chinese",
+          "description": "Seasoned male voice with a low, mellow timbre."
+        },
+        {
+          "id": "Dylan",
+          "displayName": "Dylan",
+          "locale": "Chinese Beijing dialect",
+          "description": "Youthful Beijing male voice with a clear, natural timbre."
+        },
+        {
+          "id": "Eric",
+          "displayName": "Eric",
+          "locale": "Chinese Sichuan dialect",
+          "description": "Lively Chengdu male voice with slightly husky brightness."
+        },
+        {
+          "id": "Ryan",
+          "displayName": "Ryan",
+          "locale": "English",
+          "description": "Dynamic male voice with strong rhythmic drive."
+        },
+        {
+          "id": "Aiden",
+          "displayName": "Aiden",
+          "locale": "English",
+          "description": "Sunny American male voice with a clear midrange."
+        },
+        {
+          "id": "Ono_Anna",
+          "displayName": "Ono Anna",
+          "locale": "Japanese",
+          "description": "Playful Japanese female voice with a light, nimble timbre."
+        },
+        {
+          "id": "Sohee",
+          "displayName": "Sohee",
+          "locale": "Korean",
+          "description": "Warm Korean female voice with rich emotion."
+        }
+      ],
       "output": {
         "media_type": "audio/wav",
         "extension": "wav",
@@ -2608,6 +2684,7 @@
       "extra": {
         "qwen_tts_mode": "base",
         "supports_voice_clone": true,
+        "supports_speaker_presets": true,
         "recommended_ref_audio_seconds": "3-10"
       }
     }
@@ -2880,11 +2957,31 @@
         "audio_format": "wav",
         "join_audio": true,
         "lang_code": "auto",
+        "voice": "Ryan",
         "speed": 1.0
       },
       "parameterSchema": {
         "type": "object",
         "properties": {
+          "voice": {
+            "type": "string",
+            "description": "Preset speaker passed to --voice (CustomVoice set; experimental on Base).",
+            "enum": [
+              "Vivian",
+              "Serena",
+              "Uncle_Fu",
+              "Dylan",
+              "Eric",
+              "Ryan",
+              "Aiden",
+              "Ono_Anna",
+              "Sohee"
+            ]
+          },
+          "instruct": {
+            "type": "string",
+            "description": "Optional style/emotion instruction passed to --instruct."
+          },
           "lang_code": {
             "type": "string",
             "description": "Qwen3-TTS language passed to --lang_code.",
@@ -2921,6 +3018,62 @@
           "ref_text"
         ]
       },
+      "voices": [
+        {
+          "id": "Vivian",
+          "displayName": "Vivian",
+          "locale": "Chinese",
+          "description": "Bright, slightly edgy young female voice."
+        },
+        {
+          "id": "Serena",
+          "displayName": "Serena",
+          "locale": "Chinese",
+          "description": "Warm, gentle young female voice."
+        },
+        {
+          "id": "Uncle_Fu",
+          "displayName": "Uncle Fu",
+          "locale": "Chinese",
+          "description": "Seasoned male voice with a low, mellow timbre."
+        },
+        {
+          "id": "Dylan",
+          "displayName": "Dylan",
+          "locale": "Chinese Beijing dialect",
+          "description": "Youthful Beijing male voice with a clear, natural timbre."
+        },
+        {
+          "id": "Eric",
+          "displayName": "Eric",
+          "locale": "Chinese Sichuan dialect",
+          "description": "Lively Chengdu male voice with slightly husky brightness."
+        },
+        {
+          "id": "Ryan",
+          "displayName": "Ryan",
+          "locale": "English",
+          "description": "Dynamic male voice with strong rhythmic drive."
+        },
+        {
+          "id": "Aiden",
+          "displayName": "Aiden",
+          "locale": "English",
+          "description": "Sunny American male voice with a clear midrange."
+        },
+        {
+          "id": "Ono_Anna",
+          "displayName": "Ono Anna",
+          "locale": "Japanese",
+          "description": "Playful Japanese female voice with a light, nimble timbre."
+        },
+        {
+          "id": "Sohee",
+          "displayName": "Sohee",
+          "locale": "Korean",
+          "description": "Warm Korean female voice with rich emotion."
+        }
+      ],
       "output": {
         "media_type": "audio/wav",
         "extension": "wav",
@@ -2929,6 +3082,7 @@
       "extra": {
         "qwen_tts_mode": "base",
         "supports_voice_clone": true,
+        "supports_speaker_presets": true,
         "recommended_ref_audio_seconds": "3-10"
       }
     }
@@ -3203,6 +3357,7 @@
         "join_audio": true,
         "lang_code": "auto",
         "speed": 1.0,
+        "voice": "Ryan",
         "instruct": "A calm, natural assistant voice with stable tone, speaking clearly."
       },
       "parameterSchema": {
@@ -3211,6 +3366,21 @@
           "instruct": {
             "type": "string",
             "description": "Natural-language voice design prompt passed to --instruct."
+          },
+          "voice": {
+            "type": "string",
+            "description": "Preset speaker passed to --voice (CustomVoice set; experimental on VoiceDesign).",
+            "enum": [
+              "Vivian",
+              "Serena",
+              "Uncle_Fu",
+              "Dylan",
+              "Eric",
+              "Ryan",
+              "Aiden",
+              "Ono_Anna",
+              "Sohee"
+            ]
           },
           "lang_code": {
             "type": "string",
@@ -3239,6 +3409,62 @@
           "instruct"
         ]
       },
+      "voices": [
+        {
+          "id": "Vivian",
+          "displayName": "Vivian",
+          "locale": "Chinese",
+          "description": "Bright, slightly edgy young female voice."
+        },
+        {
+          "id": "Serena",
+          "displayName": "Serena",
+          "locale": "Chinese",
+          "description": "Warm, gentle young female voice."
+        },
+        {
+          "id": "Uncle_Fu",
+          "displayName": "Uncle Fu",
+          "locale": "Chinese",
+          "description": "Seasoned male voice with a low, mellow timbre."
+        },
+        {
+          "id": "Dylan",
+          "displayName": "Dylan",
+          "locale": "Chinese Beijing dialect",
+          "description": "Youthful Beijing male voice with a clear, natural timbre."
+        },
+        {
+          "id": "Eric",
+          "displayName": "Eric",
+          "locale": "Chinese Sichuan dialect",
+          "description": "Lively Chengdu male voice with slightly husky brightness."
+        },
+        {
+          "id": "Ryan",
+          "displayName": "Ryan",
+          "locale": "English",
+          "description": "Dynamic male voice with strong rhythmic drive."
+        },
+        {
+          "id": "Aiden",
+          "displayName": "Aiden",
+          "locale": "English",
+          "description": "Sunny American male voice with a clear midrange."
+        },
+        {
+          "id": "Ono_Anna",
+          "displayName": "Ono Anna",
+          "locale": "Japanese",
+          "description": "Playful Japanese female voice with a light, nimble timbre."
+        },
+        {
+          "id": "Sohee",
+          "displayName": "Sohee",
+          "locale": "Korean",
+          "description": "Warm Korean female voice with rich emotion."
+        }
+      ],
       "output": {
         "media_type": "audio/wav",
         "extension": "wav",
@@ -3246,7 +3472,8 @@
       },
       "extra": {
         "qwen_tts_mode": "voice_design",
-        "supports_instruction_control": true
+        "supports_instruction_control": true,
+        "supports_speaker_presets": true
       }
     }
   },
@@ -3580,7 +3807,7 @@
   {
     "id": "vibevoice-realtime-0.5b-4bit",
     "displayName": "VibeVoice Realtime 0.5B 4bit",
-    "description": "Realtime-oriented MIT-licensed MLX TTS model for lightweight local voice responses.",
+    "description": "Microsoft VibeVoice-Realtime 0.5B (MIT) as an MLX 4bit TTS checkpoint: streaming-style text input, ~300 ms class first audible latency (hardware dependent), long-form speech (~10 min class, 8k context), built on Qwen2.5-0.5B + 7.5 Hz acoustic tokenizer. English-first; extra languages are experimental upstream.",
     "runtimeAdapter": "mlx_audio",
     "tasks": [
       "text_to_speech",
@@ -3603,8 +3830,9 @@
       "minMemoryGb": 8,
       "recommendedMemoryGb": 16,
       "notes": [
-        "Realtime TTS candidate",
-        "MIT licensed model"
+        "VibeVoice-Realtime focuses on low-latency research TTS; follow upstream responsible-use guidance",
+        "Optional extra speaker bundles: see microsoft/VibeVoice demo/download_experimental_voices.sh for multilingual exploration voices",
+        "Long-form multi-speaker VibeVoice-TTS (≈1.5B) is separate; upstream removed TTS training/inference code from GitHub in Sept 2025 — see README “Important update”"
       ]
     },
     "capabilities": {
@@ -3613,39 +3841,88 @@
       "toolCalling": false
     },
     "modelCard": {
-      "summary": "Realtime-oriented MIT-licensed MLX TTS model for lightweight local voice responses.",
+      "summary": "MIT Realtime VibeVoice line (0.5B): streaming-oriented TTS suitable for assistant prototypes; MLX 4bit port from microsoft/VibeVoice-Realtime-0.5B.",
       "useCases": [
-        "Spoken assistant responses",
-        "Local TTS playback in Flutter chat",
-        "Voice UX prototyping"
+        "Low-latency spoken assistant replies (research / prototyping)",
+        "Local Flutter TTS demos paired with an LM",
+        "Long single-speaker narration experiments (~10 min class per upstream)"
       ],
       "limitations": [
-        "Voice controls vary by model family",
-        "Generated speech quality depends on prompt and runtime support"
+        "Research-only intent per Microsoft model card; disclose AI-generated speech",
+        "English-trained; other languages may be unstable unless you add upstream experimental voice assets",
+        "Not a drop-in replacement for long-form 4-speaker VibeVoice-TTS (different architecture & availability)",
+        "Voice IDs depend on checkpoint packaging — use Session settings to try documented presets (e.g. mlx example en-Emma_woman)"
       ],
       "languages": [
-        "multilingual"
+        "English",
+        "German",
+        "French",
+        "Italian",
+        "Japanese",
+        "Korean",
+        "Dutch",
+        "Polish",
+        "Portuguese",
+        "Spanish"
       ],
       "tags": [
         "tts",
         "audio",
         "speech",
-        "mlx-audio"
+        "mlx-audio",
+        "vibevoice",
+        "streaming-tts",
+        "microsoft"
       ],
       "links": {
-        "huggingface": "https://huggingface.co/mlx-community/VibeVoice-Realtime-0.5B-4bit"
+        "huggingface": "https://huggingface.co/mlx-community/VibeVoice-Realtime-0.5B-4bit",
+        "github": "https://github.com/microsoft/VibeVoice",
+        "project_page": "https://microsoft.github.io/VibeVoice",
+        "paper": "https://arxiv.org/abs/2508.19205",
+        "upstream_weights": "https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B",
+        "realtime_docs": "https://github.com/microsoft/VibeVoice/blob/main/docs/vibevoice-realtime-0.5b.md"
       }
     },
     "runtimeConfig": {
       "defaultParameters": {
         "audio_format": "wav",
-        "join_audio": true
+        "join_audio": true,
+        "voice": "en-Emma_woman",
+        "speed": 1.0
       },
       "parameterSchema": {
         "type": "object",
         "properties": {
           "voice": {
-            "type": "string"
+            "type": "string",
+            "description": "Voice id — filename without .safetensors from the voices/ subdirectory.",
+            "enum": [
+              "en-Emma_woman",
+              "en-Carter_man",
+              "en-Davis_man",
+              "en-Frank_man",
+              "en-Grace_woman",
+              "en-Mike_man",
+              "de-Spk0_man",
+              "de-Spk1_woman",
+              "fr-Spk0_man",
+              "fr-Spk1_woman",
+              "it-Spk0_woman",
+              "it-Spk1_man",
+              "jp-Spk0_man",
+              "jp-Spk1_woman",
+              "kr-Spk0_woman",
+              "kr-Spk1_man",
+              "nl-Spk0_man",
+              "nl-Spk1_woman",
+              "pl-Spk0_man",
+              "pl-Spk1_woman",
+              "pt-Spk0_woman",
+              "pt-Spk1_man",
+              "sp-Spk0_woman",
+              "sp-Spk1_man",
+              "in-Samuel_man"
+            ]
           },
           "speed": {
             "type": "number",
@@ -3655,16 +3932,166 @@
         }
       },
       "voices": [
-        {
-          "id": "default",
-          "displayName": "Default VibeVoice",
-          "locale": "multilingual"
-        }
+        { "id": "en-Emma_woman",   "displayName": "Emma",            "locale": "English",   "description": "English female." },
+        { "id": "en-Carter_man",   "displayName": "Carter",          "locale": "English",   "description": "English male." },
+        { "id": "en-Davis_man",    "displayName": "Davis",           "locale": "English",   "description": "English male." },
+        { "id": "en-Frank_man",    "displayName": "Frank",           "locale": "English",   "description": "English male." },
+        { "id": "en-Grace_woman",  "displayName": "Grace",           "locale": "English",   "description": "English female." },
+        { "id": "en-Mike_man",     "displayName": "Mike",            "locale": "English",   "description": "English male." },
+        { "id": "de-Spk0_man",     "displayName": "German Male",     "locale": "German",    "description": "German male (experimental)." },
+        { "id": "de-Spk1_woman",   "displayName": "German Female",   "locale": "German",    "description": "German female (experimental)." },
+        { "id": "fr-Spk0_man",     "displayName": "French Male",     "locale": "French",    "description": "French male (experimental)." },
+        { "id": "fr-Spk1_woman",   "displayName": "French Female",   "locale": "French",    "description": "French female (experimental)." },
+        { "id": "it-Spk0_woman",   "displayName": "Italian Female",  "locale": "Italian",   "description": "Italian female (experimental)." },
+        { "id": "it-Spk1_man",     "displayName": "Italian Male",    "locale": "Italian",   "description": "Italian male (experimental)." },
+        { "id": "jp-Spk0_man",     "displayName": "Japanese Male",   "locale": "Japanese",  "description": "Japanese male (experimental)." },
+        { "id": "jp-Spk1_woman",   "displayName": "Japanese Female", "locale": "Japanese",  "description": "Japanese female (experimental)." },
+        { "id": "kr-Spk0_woman",   "displayName": "Korean Female",   "locale": "Korean",    "description": "Korean female (experimental)." },
+        { "id": "kr-Spk1_man",     "displayName": "Korean Male",     "locale": "Korean",    "description": "Korean male (experimental)." },
+        { "id": "nl-Spk0_man",     "displayName": "Dutch Male",      "locale": "Dutch",     "description": "Dutch male (experimental)." },
+        { "id": "nl-Spk1_woman",   "displayName": "Dutch Female",    "locale": "Dutch",     "description": "Dutch female (experimental)." },
+        { "id": "pl-Spk0_man",     "displayName": "Polish Male",     "locale": "Polish",    "description": "Polish male (experimental)." },
+        { "id": "pl-Spk1_woman",   "displayName": "Polish Female",   "locale": "Polish",    "description": "Polish female (experimental)." },
+        { "id": "pt-Spk0_woman",   "displayName": "Portuguese Female","locale": "Portuguese","description": "Portuguese female (experimental)." },
+        { "id": "pt-Spk1_man",     "displayName": "Portuguese Male", "locale": "Portuguese","description": "Portuguese male (experimental)." },
+        { "id": "sp-Spk0_woman",   "displayName": "Spanish Female",  "locale": "Spanish",   "description": "Spanish female (experimental)." },
+        { "id": "sp-Spk1_man",     "displayName": "Spanish Male",    "locale": "Spanish",   "description": "Spanish male (experimental)." },
+        { "id": "in-Samuel_man",   "displayName": "Samuel (Indian)", "locale": "Hindi/Indian English", "description": "Indian English male (experimental)." }
       ],
       "output": {
         "media_type": "audio/wav",
         "extension": "wav",
         "supports_inline_playback": true
+      },
+      "extra": {
+        "vibevoice_tts_mode": "realtime",
+        "upstream_family": "VibeVoice-Realtime-0.5B",
+        "base_llm": "Qwen2.5-0.5B",
+        "acoustic_frame_hz": 7.5,
+        "microsoft_hf": "https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B",
+        "docs_streaming": "https://github.com/microsoft/VibeVoice/blob/main/docs/vibevoice-realtime-0.5b.md",
+        "experimental_voice_pack": "demo/download_experimental_voices.sh in microsoft/VibeVoice (multilingual / extra English styles per project news)",
+        "tts_upstream_note": "VibeVoice-TTS 1.5B long-form: HF entry may show disabled/research-only; upstream removed public TTS code from this GitHub org (Sept 2025). Prefer Realtime 0.5B here or follow current README tables.",
+        "vibevoice_asr_sibling": "Pair with catalog model vibevoice-asr-4bit for MLX ASR from the same research line when you need speech-to-text."
+      }
+    }
+  },
+  {
+    "id": "vibevoice-asr-4bit",
+    "displayName": "VibeVoice ASR 4bit",
+    "description": "Microsoft VibeVoice-ASR (MIT) as an MLX 4bit speech-to-text checkpoint: unified long-form ASR with diarization/timestamp features at 7B class scale (converted by mlx-community from microsoft/VibeVoice-ASR). Suitable for high-quality offline transcription experiments on Apple Silicon.",
+    "runtimeAdapter": "mlx_audio",
+    "tasks": [
+      "speech_to_text",
+      "audio_input"
+    ],
+    "source": {
+      "provider": "huggingface",
+      "repo": "mlx-community/VibeVoice-ASR-4bit",
+      "revision": "main",
+      "license": "mit"
+    },
+    "packaging": {
+      "releaseTag": "model-vibevoice-asr-4bit",
+      "archiveName": "vibevoice-asr-4bit.tar",
+      "chunkSizeBytes": 1900000000,
+      "assetPrefix": "vibevoice-asr-4bit"
+    },
+    "requirements": {
+      "platform": "macos-apple-silicon",
+      "minMemoryGb": 16,
+      "recommendedMemoryGb": 32,
+      "notes": [
+        "Large VibeVoice ASR checkpoint (~5.7 GB weights); allow plenty of unified memory",
+        "Uses mlx-audio STT pipeline (`python -m mlx_audio.stt.generate --model mlx-community/VibeVoice-ASR-4bit`)",
+        "Jan 2026: VibeVoice-ASR integrates with Hugging Face Transformers per microsoft/VibeVoice news — this catalog entry tracks the MLX port"
+      ]
+    },
+    "capabilities": {
+      "audioInput": true,
+      "audioOutput": false,
+      "toolCalling": false
+    },
+    "modelCard": {
+      "summary": "MIT VibeVoice-ASR line in MLX 4bit: long-form multilingual speech recognition with rich metadata (speaker / timestamps / content) at the source project; mlx-community conversion for local Studio tests.",
+      "useCases": [
+        "Offline transcription for voice-pipeline and QA fixtures",
+        "Long-form meeting audio experiments (up to ~60 min class context at source)",
+        "Pairing with VibeVoice Realtime TTS or other local assistants"
+      ],
+      "limitations": [
+        "Much heavier than Whisper tiny/base—expect long load times and high RAM use",
+        "Studio passes generic STT parameters; advanced hotword / structured JSON modes need manual mlx-audio usage",
+        "Research intent per upstream; verify licenses and responsible-use text before shipping"
+      ],
+      "languages": [
+        "English",
+        "Chinese",
+        "multilingual"
+      ],
+      "tags": [
+        "asr",
+        "speech-to-text",
+        "vibevoice",
+        "mlx-audio",
+        "microsoft",
+        "long-form"
+      ],
+      "links": {
+        "huggingface": "https://huggingface.co/mlx-community/VibeVoice-ASR-4bit",
+        "upstream_weights": "https://huggingface.co/microsoft/VibeVoice-ASR",
+        "github": "https://github.com/microsoft/VibeVoice",
+        "project_page": "https://microsoft.github.io/VibeVoice",
+        "asr_report": "https://microsoft.github.io/VibeVoice/asr"
+      }
+    },
+    "runtimeConfig": {
+      "defaultParameters": {
+        "task": "transcribe",
+        "language": "auto",
+        "temperature": 0.0,
+        "word_timestamps": false
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "transcribe"
+            ]
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "en",
+              "zh"
+            ]
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "word_timestamps": {
+            "type": "boolean"
+          }
+        }
+      },
+      "output": {
+        "media_type": "text/plain",
+        "format": "text"
+      },
+      "extra": {
+        "model_type": "vibevoice_asr",
+        "architecture": "VibeVoiceForASRTraining",
+        "upstream_mit_port": "https://huggingface.co/microsoft/VibeVoice-ASR",
+        "mlx_audio_command": "mlx_audio.stt",
+        "hf_downloads_last_month": 2096,
+        "hf_size_bytes": 5713847989,
+        "hf_transformers_note": "2026-03: microsoft/VibeVoice README notes Transformers integration for VibeVoice-ASR — Studio uses mlx-audio native STT path",
+        "quantization_note": "4-bit affine per mlx-community config.json"
       }
     }
   },

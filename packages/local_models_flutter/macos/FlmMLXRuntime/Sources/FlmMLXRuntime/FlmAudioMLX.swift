@@ -78,6 +78,39 @@ private func isQwen3TTS(modelDir: URL) -> Bool {
     return false
 }
 
+private func isVibeVoiceStreamingTTS(modelDir: URL) -> Bool {
+    guard let obj = readConfigObject(modelDir: modelDir) else { return false }
+    if let mt = obj["model_type"] as? String, mt == "vibevoice_streaming" {
+        return true
+    }
+    if let arch = obj["architectures"] as? [String] {
+        return arch.contains { $0.localizedCaseInsensitiveContains("vibevoice") }
+    }
+    return false
+}
+
+private func isVibeVoiceASR(modelDir: URL) -> Bool {
+    guard let obj = readConfigObject(modelDir: modelDir) else { return false }
+    if let mt = obj["model_type"] as? String, mt == "vibevoice_asr" {
+        return true
+    }
+    // Also detect via acoustic_tokenizer sub-config
+    if let acousticCfg = obj["acoustic_tokenizer_config"] as? [String: Any],
+       let mt = acousticCfg["model_type"] as? String,
+       mt == "vibevoice_acoustic_tokenizer" {
+        return true
+    }
+    return false
+}
+
+private func isGemma4WithAudio(modelDir: URL) -> Bool {
+    guard let obj = readConfigObject(modelDir: modelDir) else { return false }
+    if let mt = obj["model_type"] as? String, mt == "gemma4" {
+        return obj["audio_token_id"] != nil || obj["audio_config"] != nil
+    }
+    return false
+}
+
 // MARK: - Language hints for Qwen3 ASR
 
 private let asrLanguageHints: [String: String] = [
@@ -272,6 +305,33 @@ enum FlmAudioMLX {
             ]
         }
 
+        if isVibeVoiceASR(modelDir: modelDir) {
+            return [
+                "ok": false,
+                "error":
+                    "VibeVoice ASR (vibevoice_asr) requires Python mlx-audio. "
+                    + "Using process fallback (python3 -m mlx_audio.stt.generate).",
+            ]
+        }
+
+        if isGemma4WithAudio(modelDir: modelDir) {
+            do {
+                let maxTok = intFromAny(payload["max_tokens"]) ?? 256
+                let text = try await FlmGemma4ASRBridge.transcribe(
+                    modelPath: modelPath,
+                    audioURL: audioURL,
+                    language: payload["language"] as? String,
+                    maxTokens: maxTok
+                )
+                if text.isEmpty {
+                    return ["ok": false, "error": "Gemma4 ASR returned an empty transcript"]
+                }
+                return ["ok": true, "text": text]
+            } catch {
+                return ["ok": false, "error": String(describing: error)]
+            }
+        }
+
         if !isQwen3ASR(modelDir: modelDir) {
             return [
                 "ok": false,
@@ -309,6 +369,15 @@ enum FlmAudioMLX {
             return ["ok": false, "error": "Model directory does not exist: \(modelPath)"]
         }
 
+        if isVibeVoiceStreamingTTS(modelDir: modelDir) {
+            return [
+                "ok": false,
+                "error":
+                    "VibeVoice Realtime TTS (vibevoice_streaming) requires Python mlx-audio. "
+                    + "Using process fallback (python3 -m mlx_audio.tts.generate).",
+            ]
+        }
+
         if !isQwen3TTS(modelDir: modelDir) {
             return [
                 "ok": false,
@@ -333,21 +402,32 @@ enum FlmAudioMLX {
         }
 
         do {
-            let instruct = stringFromAny(payload["instruct"])
-            let voiceName = stringFromAny(payload["voice"])
-            let voiceParam: String?
-            if let instruct, !instruct.isEmpty {
-                voiceParam = instruct
-            } else if let voiceName, !voiceName.isEmpty {
-                voiceParam = voiceName
-            } else {
-                voiceParam = nil
-            }
+        let instruct = stringFromAny(payload["instruct"])
+        let voiceName = stringFromAny(payload["voice"])
+        // If `voice` is set it is a speaker-preset name (CustomVoice/Base).
+        // If only `instruct` is set it is a VoiceDesign/emotion prompt.
+        // The Dart layer clears `voice` for VoiceDesign models so this
+        // priority is now correct.
+        let voiceParam: String?
+        if let voiceName, !voiceName.isEmpty {
+            voiceParam = voiceName
+        } else if let instruct, !instruct.isEmpty {
+            voiceParam = instruct
+        } else {
+            voiceParam = nil
+        }
 
-            let langCode = payload["languageCode"] as? String
-            let language = normalizedTtsLanguage(langCode)
+        let langCode = payload["languageCode"] as? String
+        let language = normalizedTtsLanguage(langCode)
 
-            let outURL = try await FlmQwenMLXRuntime.shared.synthesize(
+        NSLog("[FlmTTS] voice=%@ instruct=%@ voiceParam=%@ lang=%@ refPath=%@",
+              voiceName ?? "<nil>",
+              instruct ?? "<nil>",
+              voiceParam ?? "<nil>",
+              language ?? "<nil>",
+              stringFromAny(payload["referenceAudioPath"]) ?? "<nil>")
+
+        let outURL = try await FlmQwenMLXRuntime.shared.synthesize(
                 modelPath: modelPath,
                 text: text,
                 maxTokensOverride: intFromAny(payload["max_tokens"]),

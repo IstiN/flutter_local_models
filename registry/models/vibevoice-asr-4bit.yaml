@@ -1,0 +1,82 @@
+id: vibevoice-asr-4bit
+display_name: VibeVoice ASR 4bit
+description: Microsoft VibeVoice-ASR (MIT) as an MLX 4bit speech-to-text checkpoint; long-form multilingual
+  ASR (mlx-community port of microsoft/VibeVoice-ASR).
+runtime_adapter: mlx_audio
+tasks:
+- speech_to_text
+- audio_input
+source:
+  provider: huggingface
+  repo: mlx-community/VibeVoice-ASR-4bit
+  revision: main
+  license: mit
+packaging:
+  release_tag: model-vibevoice-asr-4bit
+  archive_name: vibevoice-asr-4bit.tar
+  chunk_size_bytes: 1900000000
+  asset_prefix: vibevoice-asr-4bit
+requirements:
+  platform: macos-apple-silicon
+  min_memory_gb: 16
+  recommended_memory_gb: 32
+  notes:
+  - Large checkpoint (~5.7 GB); use mlx-audio STT CLI or Studio ASR tests
+  - Transformers integration exists upstream; Studio uses mlx_audio.stt
+capabilities:
+  audio_input: true
+  audio_output: false
+  tool_calling: false
+runtime_config:
+  default_parameters:
+    task: transcribe
+    language: auto
+    temperature: 0.0
+    word_timestamps: false
+  parameter_schema:
+    type: object
+    properties:
+      task:
+        type: string
+        enum:
+        - transcribe
+      language:
+        type: string
+        enum:
+        - auto
+        - en
+        - zh
+      temperature:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+      word_timestamps:
+        type: boolean
+  output:
+    media_type: text/plain
+    format: text
+  extra:
+    model_type: vibevoice_asr
+    architecture: VibeVoiceForASRTraining
+    mlx_audio_command: mlx_audio.stt
+model_card:
+  summary: VibeVoice-ASR in MLX 4bit for local Studio / voice-pipeline transcription experiments.
+  use_cases:
+  - Offline transcription and voice-pipeline ASR stage
+  - Long-form audio experiments
+  limitations:
+  - Heavy vs Whisper tiny/base; advanced hotword modes need direct mlx-audio usage
+  languages:
+  - English
+  - Chinese
+  - multilingual
+  tags:
+  - asr
+  - speech-to-text
+  - vibevoice
+  - mlx-audio
+  links:
+    huggingface: https://huggingface.co/mlx-community/VibeVoice-ASR-4bit
+    upstream_weights: https://huggingface.co/microsoft/VibeVoice-ASR
+    github: https://github.com/microsoft/VibeVoice
+    project_page: https://microsoft.github.io/VibeVoice

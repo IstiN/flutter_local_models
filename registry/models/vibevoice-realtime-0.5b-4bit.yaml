@@ -1,7 +1,8 @@
 id: vibevoice-realtime-0.5b-4bit
 display_name: VibeVoice Realtime 0.5B 4bit
-description: Realtime-oriented MIT-licensed MLX TTS model for lightweight local voice
-  responses.
+description: Microsoft VibeVoice-Realtime 0.5B (MIT) as an MLX 4bit TTS checkpoint; streaming-style
+  text input, low first-chunk latency (~300 ms class), long-form speech (~10 min class, 8k context),
+  Qwen2.5-0.5B + 7.5 Hz acoustic tokenizer. English-first; extra languages experimental upstream.
 runtime_adapter: mlx_audio
 tasks:
 - text_to_speech
@@ -21,8 +22,9 @@ requirements:
   min_memory_gb: 8
   recommended_memory_gb: 16
   notes:
-  - Realtime TTS candidate
-  - MIT licensed model
+  - VibeVoice-Realtime focuses on low-latency research TTS; follow upstream responsible-use guidance
+  - Optional extra speaker bundles — microsoft/VibeVoice demo/download_experimental_voices.sh
+  - Long-form VibeVoice-TTS (~1.5B) is separate; upstream removed public TTS code from GitHub Sept 2025
 capabilities:
   audio_input: false
   audio_output: true
@@ -31,39 +33,186 @@ runtime_config:
   default_parameters:
     audio_format: wav
     join_audio: true
+    voice: en-Emma_woman
+    speed: 1.0
   parameter_schema:
     type: object
     properties:
       voice:
         type: string
+        description: Speaker voice id — filename without .safetensors from the voices/ subdirectory.
+        enum:
+        - en-Emma_woman
+        - en-Carter_man
+        - en-Davis_man
+        - en-Frank_man
+        - en-Grace_woman
+        - en-Mike_man
+        - de-Spk0_man
+        - de-Spk1_woman
+        - fr-Spk0_man
+        - fr-Spk1_woman
+        - it-Spk0_woman
+        - it-Spk1_man
+        - jp-Spk0_man
+        - jp-Spk1_woman
+        - kr-Spk0_woman
+        - kr-Spk1_man
+        - nl-Spk0_man
+        - nl-Spk1_woman
+        - pl-Spk0_man
+        - pl-Spk1_woman
+        - pt-Spk0_woman
+        - pt-Spk1_man
+        - sp-Spk0_woman
+        - sp-Spk1_man
+        - in-Samuel_man
       speed:
         type: number
         minimum: 0.5
         maximum: 2.0
   voices:
-  - id: default
-    display_name: Default VibeVoice
-    locale: multilingual
+  - id: en-Emma_woman
+    display_name: Emma
+    locale: English
+    description: Built-in English female voice.
+  - id: en-Carter_man
+    display_name: Carter
+    locale: English
+    description: English male voice.
+  - id: en-Davis_man
+    display_name: Davis
+    locale: English
+    description: English male voice.
+  - id: en-Frank_man
+    display_name: Frank
+    locale: English
+    description: English male voice.
+  - id: en-Grace_woman
+    display_name: Grace
+    locale: English
+    description: English female voice.
+  - id: en-Mike_man
+    display_name: Mike
+    locale: English
+    description: English male voice.
+  - id: de-Spk0_man
+    display_name: German Male
+    locale: German
+    description: German male voice (experimental).
+  - id: de-Spk1_woman
+    display_name: German Female
+    locale: German
+    description: German female voice (experimental).
+  - id: fr-Spk0_man
+    display_name: French Male
+    locale: French
+    description: French male voice (experimental).
+  - id: fr-Spk1_woman
+    display_name: French Female
+    locale: French
+    description: French female voice (experimental).
+  - id: it-Spk0_woman
+    display_name: Italian Female
+    locale: Italian
+    description: Italian female voice (experimental).
+  - id: it-Spk1_man
+    display_name: Italian Male
+    locale: Italian
+    description: Italian male voice (experimental).
+  - id: jp-Spk0_man
+    display_name: Japanese Male
+    locale: Japanese
+    description: Japanese male voice (experimental).
+  - id: jp-Spk1_woman
+    display_name: Japanese Female
+    locale: Japanese
+    description: Japanese female voice (experimental).
+  - id: kr-Spk0_woman
+    display_name: Korean Female
+    locale: Korean
+    description: Korean female voice (experimental).
+  - id: kr-Spk1_man
+    display_name: Korean Male
+    locale: Korean
+    description: Korean male voice (experimental).
+  - id: nl-Spk0_man
+    display_name: Dutch Male
+    locale: Dutch
+    description: Dutch male voice (experimental).
+  - id: nl-Spk1_woman
+    display_name: Dutch Female
+    locale: Dutch
+    description: Dutch female voice (experimental).
+  - id: pl-Spk0_man
+    display_name: Polish Male
+    locale: Polish
+    description: Polish male voice (experimental).
+  - id: pl-Spk1_woman
+    display_name: Polish Female
+    locale: Polish
+    description: Polish female voice (experimental).
+  - id: pt-Spk0_woman
+    display_name: Portuguese Female
+    locale: Portuguese
+    description: Portuguese female voice (experimental).
+  - id: pt-Spk1_man
+    display_name: Portuguese Male
+    locale: Portuguese
+    description: Portuguese male voice (experimental).
+  - id: sp-Spk0_woman
+    display_name: Spanish Female
+    locale: Spanish
+    description: Spanish female voice (experimental).
+  - id: sp-Spk1_man
+    display_name: Spanish Male
+    locale: Spanish
+    description: Spanish male voice (experimental).
+  - id: in-Samuel_man
+    display_name: Samuel (Indian)
+    locale: Hindi/Indian English
+    description: Indian English male voice (experimental).
   output:
     media_type: audio/wav
     extension: wav
     supports_inline_playback: true
+  extra:
+    vibevoice_tts_mode: realtime
+    upstream_family: VibeVoice-Realtime-0.5B
+    base_llm: Qwen2.5-0.5B
+    acoustic_frame_hz: 7.5
+    microsoft_hf: https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B
+    docs_streaming: https://github.com/microsoft/VibeVoice/blob/main/docs/vibevoice-realtime-0.5b.md
 model_card:
-  summary: Realtime-oriented MIT-licensed MLX TTS model for lightweight local voice
-    responses.
+  summary: MIT Realtime VibeVoice line (0.5B); MLX 4bit port from microsoft/VibeVoice-Realtime-0.5B.
   use_cases:
-  - Spoken assistant responses
-  - Local TTS playback in Flutter chat
-  - Voice UX prototyping
+  - Low-latency spoken assistant replies (research / prototyping)
+  - Local Flutter TTS demos paired with an LM
   limitations:
-  - Voice controls vary by model family
-  - Generated speech quality depends on prompt and runtime support
+  - Research-only intent per Microsoft model card; disclose AI-generated speech
+  - English-trained; other languages may be unstable without upstream experimental voice assets
   languages:
-  - multilingual
+  - English
+  - German
+  - French
+  - Italian
+  - Japanese
+  - Korean
+  - Dutch
+  - Polish
+  - Portuguese
+  - Spanish
   tags:
   - tts
   - audio
   - speech
   - mlx-audio
+  - vibevoice
+  - microsoft
   links:
     huggingface: https://huggingface.co/mlx-community/VibeVoice-Realtime-0.5B-4bit
+    github: https://github.com/microsoft/VibeVoice
+    project_page: https://microsoft.github.io/VibeVoice
+    paper: https://arxiv.org/abs/2508.19205
+    upstream_weights: https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B
+    realtime_docs: https://github.com/microsoft/VibeVoice/blob/main/docs/vibevoice-realtime-0.5b.md
