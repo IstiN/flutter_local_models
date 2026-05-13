@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:local_models_core/local_models_core.dart';
 
+import 'runtime/lm_tool_registry.dart';
 import 'studio_services.dart';
 
 /// Result of a full voice → voice pass (ASR + chat + TTS).
@@ -83,6 +84,7 @@ class Voice2VoicePipeline {
     required String userAudioPath,
     String instruction = '',
     LocalChatParams chatParams = const LocalChatParams(),
+    LmToolRegistry? chatToolRegistry,
     SpeechSynthesisOptions ttsOptions = const SpeechSynthesisOptions(),
     String? asrLanguage,
     void Function(String transcript)? onTranscript,
@@ -100,6 +102,7 @@ class Voice2VoicePipeline {
         model: chatModel,
         messages: [LocalChatMessage.user(prompt)],
         params: chatParams,
+        toolRegistry: chatToolRegistry,
         onText: onPartial,
       ),
       synthesizeSpeech: (text) => audioRunner.synthesizeSpeechStream(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -70,6 +71,7 @@ class _StudioShellState extends State<StudioShell> {
   late final TextEditingController customRepoController;
   late final TextEditingController downloadRetryCountController;
   late final TextEditingController chatPromptController;
+  late final TextEditingController chatToolsJsonController;
   late final TextEditingController ttsVoiceController;
   late final TextEditingController ttsInstructController;
   late final TextEditingController ttsLanguageController;
@@ -138,6 +140,7 @@ class _StudioShellState extends State<StudioShell> {
       text: controller.maxDownloadRetries.toString(),
     );
     chatPromptController = TextEditingController();
+    chatToolsJsonController = TextEditingController();
     ttsVoiceController = TextEditingController();
     ttsInstructController = TextEditingController(
       text: 'A calm, natural assistant voice with stable tone.',
@@ -167,6 +170,7 @@ class _StudioShellState extends State<StudioShell> {
     customRepoController.dispose();
     downloadRetryCountController.dispose();
     chatPromptController.dispose();
+    chatToolsJsonController.dispose();
     ttsVoiceController.dispose();
     ttsInstructController.dispose();
     ttsLanguageController.dispose();
@@ -1284,6 +1288,33 @@ class _StudioShellState extends State<StudioShell> {
                     : 'This installed model is not testable yet',
               ),
             ),
+          if (selectedModel != null &&
+              _modelSupportsToolCallingUi(selectedModel)) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: chatToolsJsonController,
+              minLines: 4,
+              maxLines: 12,
+              onChanged: (_) => setState(() {}),
+              enabled: !testBusy,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Tools (JSON array)',
+                border: const OutlineInputBorder(),
+                alignLabelWithHint: true,
+                helperText:
+                    'Модель с tool calling: список инструментов в формате '
+                    'LocalTool (поля name, description, parametersJsonSchema). '
+                    'Пусто — без tools. При вызове инструмента показывается snackbar; '
+                    'в LLM уходит JSON-стаб с ok/receivedArguments.',
+                errorText: _chatToolsFieldError(selectedModel),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
@@ -1688,6 +1719,30 @@ class _StudioShellState extends State<StudioShell> {
                           'Optional: e.g. answer briefly, translate, explain...',
                     ),
                   ),
+                  if (chatModel != null &&
+                      _modelSupportsToolCallingUi(chatModel)) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: chatToolsJsonController,
+                      minLines: 3,
+                      maxLines: 10,
+                      enabled: !testBusy,
+                      onChanged: (_) => setState(() {}),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Tools (JSON array)',
+                        border: const OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                        helperText:
+                            'Для моделей с tool calling. Пусто — выключено.',
+                        errorText: _chatToolsFieldError(chatModel),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   _buildAudioInputBar(asrModel),
                   if (testErrorMessage != null) ...[
@@ -4487,6 +4542,18 @@ class _StudioShellState extends State<StudioShell> {
     if (prompt.isEmpty) {
       return;
     }
+    final toolsErr = _chatToolsFieldError(model);
+    if (toolsErr != null) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(toolsErr),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
     final messages = _messagesForCurrentChat(LocalChatMessage.user(prompt));
     chatPromptController.clear();
     setState(() {
@@ -4503,6 +4570,7 @@ class _StudioShellState extends State<StudioShell> {
         model: model,
         messages: messages,
         params: _chatParamsForModel(model),
+        toolRegistry: _chatToolRegistryForSend(model),
         onText: _replaceStreamingAssistant,
       );
       stopwatch.stop();
@@ -4534,6 +4602,18 @@ class _StudioShellState extends State<StudioShell> {
     }
     final prompt = chatPromptController.text.trim();
     if (!model.speechToTextSupported && prompt.isEmpty) {
+      return;
+    }
+    final toolsErr = _chatToolsFieldError(model);
+    if (toolsErr != null) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(toolsErr),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
       return;
     }
     final userMessage = prompt.isEmpty
@@ -4628,6 +4708,7 @@ class _StudioShellState extends State<StudioShell> {
           model: model,
           messages: messages,
           params: _chatParamsForModel(model),
+          toolRegistry: _chatToolRegistryForSend(model),
           onText: _replaceStreamingAssistant,
         );
         stopwatch.stop();
@@ -4651,6 +4732,18 @@ class _StudioShellState extends State<StudioShell> {
     }
     final prompt = chatPromptController.text.trim();
     if (prompt.isEmpty) {
+      return;
+    }
+    final toolsErr = _chatToolsFieldError(model);
+    if (toolsErr != null) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(toolsErr),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
       return;
     }
     final messages = _messagesForCurrentChat(
@@ -4681,6 +4774,7 @@ class _StudioShellState extends State<StudioShell> {
         model: model,
         messages: messages,
         params: _chatParamsForModel(model),
+        toolRegistry: _chatToolRegistryForSend(model),
         onText: _replaceStreamingAssistant,
       );
       stopwatch.stop();
@@ -4846,6 +4940,22 @@ class _StudioShellState extends State<StudioShell> {
       });
       return;
     }
+    final toolsErr = _chatToolsFieldError(chatModel);
+    if (toolsErr != null) {
+      voiceCubit.reset();
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(toolsErr),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      setState(() {
+        testBusy = false;
+      });
+      return;
+    }
     setState(() {
       controller.chatTurns.add(
         ChatTurn.user('Audio: ${p.basename(audioPath)}'),
@@ -4866,6 +4976,7 @@ class _StudioShellState extends State<StudioShell> {
         userAudioPath: audioPath,
         instruction: instruction,
         chatParams: _chatParamsForModel(chatModel),
+        chatToolRegistry: _chatToolRegistryForSend(chatModel),
         ttsOptions: _speechOptionsFromUi(),
         onTranscript: (transcript) {
           if (!mounted) {
@@ -5014,6 +5125,9 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   LocalChatParams _chatParamsForModel(InstalledModel model) {
+    final tools =
+        _modelSupportsToolCallingUi(model) ? _parseToolsListOrEmpty() : const <
+            LocalTool>[];
     return LocalChatParams(
       modelId: model.manifest.id,
       maxTokens: int.tryParse(generationMaxTokensController.text.trim()) ?? 256,
@@ -5024,7 +5138,103 @@ class _StudioShellState extends State<StudioShell> {
       enableThinking: _modelSupportsThinking(model)
           ? generationThinkingEnabled
           : null,
+      tools: tools,
     );
+  }
+
+  bool _modelSupportsToolCallingUi(InstalledModel model) {
+    return model.textPromptSupported &&
+        model.manifest.capabilities.toolCalling;
+  }
+
+  List<LocalTool> _parseToolsListOrEmpty() {
+    final raw = chatToolsJsonController.text.trim();
+    if (raw.isEmpty) {
+      return const <LocalTool>[];
+    }
+    final decoded = jsonDecode(raw) as List<dynamic>;
+    return decoded.map((item) {
+      final m = Map<String, Object?>.from(
+        (item as Map).map((k, v) => MapEntry('$k', v)),
+      );
+      return LocalTool.fromJsonMap(m);
+    }).toList(growable: false);
+  }
+
+  String? _chatToolsFieldError(InstalledModel model) {
+    if (!_modelSupportsToolCallingUi(model)) {
+      return null;
+    }
+    final raw = chatToolsJsonController.text.trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return 'Tools JSON must be a JSON array of tool objects.';
+      }
+      for (final item in decoded) {
+        if (item is! Map) {
+          return 'Each tool must be a JSON object '
+              '(fields: name, description, parametersJsonSchema).';
+        }
+        LocalTool.fromJsonMap(Map<String, Object?>.from(
+          item.map((k, v) => MapEntry('$k', v)),
+        ));
+      }
+      return null;
+    } catch (e) {
+      return 'Invalid tools JSON: $e';
+    }
+  }
+
+  LmToolRegistry? _chatToolRegistryForSend(InstalledModel model) {
+    if (!_modelSupportsToolCallingUi(model)) {
+      return null;
+    }
+    final raw = chatToolsJsonController.text.trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+    final tools = _parseToolsListOrEmpty();
+    if (tools.isEmpty) {
+      return null;
+    }
+    final reg = LmToolRegistry();
+    for (final t in tools) {
+      reg.register(t.name, (args) async {
+        final payload = <String, Object?>{
+          'tool': t.name,
+          'arguments': args,
+        };
+        final summary = _shortJsonForSnackBar(payload);
+        if (mounted) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              content: Text('Tool call: $summary'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return jsonEncode(<String, Object?>{
+          'ok': true,
+          'tool': t.name,
+          'receivedArguments': args,
+          'stubResult':
+              'Studio UI stub response; replace with real logic in production.',
+        });
+      });
+    }
+    return reg;
+  }
+
+  String _shortJsonForSnackBar(Object? value, {int maxLen = 220}) {
+    final s = jsonEncode(value);
+    if (s.length <= maxLen) {
+      return s;
+    }
+    return '${s.substring(0, maxLen)}…';
   }
 
   bool _modelSupportsThinking(InstalledModel? model) {
