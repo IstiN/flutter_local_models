@@ -6,6 +6,11 @@ import 'package:local_models_flutter/local_models_flutter.dart';
 
 /// Runs a minimal tool-calling chat against an installed LM when
 /// `FLM_TOOLS_TEST_MODEL_PATH` points at a local MLX directory (Gemma / Qwen / etc.).
+///
+/// **Coverage:** this is an optional env-gated smoke test (not run in CI unless
+/// configured). Gemma-style checkpoints that emit `<|tool_call|>…` as plain
+/// text are handled in Dart via `applyEmbeddedGemmaToolCallsIfAny` in
+/// `studio_services.dart`; see `embedded_gemma_tool_calls_test.dart` for unit tests.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 

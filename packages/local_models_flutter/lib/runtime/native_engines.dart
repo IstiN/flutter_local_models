@@ -16,9 +16,7 @@ Map<String, Object?> _jsonMapFromDynamic(Object? value) {
     return const <String, Object?>{};
   }
   return Map<String, Object?>.from(
-    value.map(
-      (k, v) => MapEntry('$k', _jsonValueFromDynamic(v)),
-    ),
+    value.map((k, v) => MapEntry('$k', _jsonValueFromDynamic(v))),
   );
 }
 
@@ -53,37 +51,7 @@ Object? _jsonValueFromDynamic(Object? value) {
   if (name == null || name.isEmpty) {
     throw const FormatException('tool request: missing function.name');
   }
-  return (
-    name: name,
-    arguments: _jsonMapFromDynamic(fn['arguments']),
-  );
-}
-
-String _blockingWaitToolFuture(Future<String> future) {
-  var finished = false;
-  String? out;
-  Object? err;
-  StackTrace? stack;
-  scheduleMicrotask(() async {
-    try {
-      out = await future;
-    } catch (e, st) {
-      err = e;
-      stack = st;
-    } finally {
-      finished = true;
-    }
-  });
-  while (!finished) {
-    sleep(const Duration(milliseconds: 2));
-  }
-  if (err != null) {
-    if (stack != null) {
-      Error.throwWithStackTrace(err!, stack!);
-    }
-    throw err!;
-  }
-  return out ?? '';
+  return (name: name, arguments: _jsonMapFromDynamic(fn['arguments']));
 }
 
 Future<T> _withNativeToolListener<T>({
@@ -95,16 +63,17 @@ Future<T> _withNativeToolListener<T>({
   late final NativeCallable<NativeFlmToolRequest> toolHook;
   toolHook = NativeCallable.listener((Pointer<Utf8> reqPtr, Pointer<Void> _) {
     final bridge = FlmNativeDispatcher();
-    try {
-      final json = reqPtr.toDartString();
-      final parsed = _parseNativeToolRequest(json);
-      final out = _blockingWaitToolFuture(onTool(parsed.name, parsed.arguments));
-      bridge.completeToolBridge(out);
-    } catch (e) {
-      bridge.abortToolBridge('$e');
-    } finally {
-      malloc.free(reqPtr);
-    }
+    final json = reqPtr.toDartString();
+    malloc.free(reqPtr);
+    unawaited(() async {
+      try {
+        final parsed = _parseNativeToolRequest(json);
+        final out = await onTool(parsed.name, parsed.arguments);
+        bridge.completeToolBridge(out);
+      } catch (e) {
+        bridge.abortToolBridge('$e');
+      }
+    }());
   });
   try {
     final payload = <String, Object?>{
@@ -122,9 +91,7 @@ Map<String, Object?> _decodeFlmPayloadJson(String jsonPayload) {
   if (decoded is! Map) {
     throw FormatException('Expected JSON object for FLM payload');
   }
-  return Map<String, Object?>.from(
-    decoded.map((k, v) => MapEntry('$k', v)),
-  );
+  return Map<String, Object?>.from(decoded.map((k, v) => MapEntry('$k', v)));
 }
 
 /// Top-level isolate runners only take JSON + scalars so no instance / UI
@@ -196,7 +163,8 @@ Map<String, Object?> _lmGeneratePayload(LmCompletionRequest request) {
     'maxTokens': request.maxTokens,
     if (request.temperature != null) 'temperature': request.temperature,
     if (request.topP != null) 'topP': request.topP,
-    if (request.enableThinking != null) 'enableThinking': request.enableThinking,
+    if (request.enableThinking != null)
+      'enableThinking': request.enableThinking,
     if (request.audioPath != null) 'audioPath': request.audioPath,
     if (request.imagePath != null) 'imagePath': request.imagePath,
     if (request.tools.isNotEmpty)
@@ -285,14 +253,15 @@ final class NativeLmEngine implements LmEngine {
     if (audio != null &&
         audio.isNotEmpty &&
         _manifestUsesNativeGemma4Asr(request.manifest)) {
-      final trMap = await _invokeFlmDispatch(_dispatch, 'audio.transcribe', <
-          String,
-          Object?
-        >{
+      final trMap = await _invokeFlmDispatch(
+        _dispatch,
+        'audio.transcribe',
+        <String, Object?>{
           'modelPath': request.modelPath,
           'audioPath': audio,
           'max_tokens': request.maxTokens,
-        });
+        },
+      );
       if (trMap['ok'] != true) {
         throw StateError(trMap['error'] as String? ?? jsonEncode(trMap));
       }
@@ -321,19 +290,13 @@ final class NativeLmEngine implements LmEngine {
     }
     _assertToolsConsistent(request);
     final payload = _lmGeneratePayload(request);
-    final useTools =
-        request.tools.isNotEmpty && request.onToolCall != null;
+    final useTools = request.tools.isNotEmpty && request.onToolCall != null;
     final Map<String, Object?> map;
     if (useTools) {
       map = await _withNativeToolListener(
         basePayload: payload,
         onTool: request.onToolCall!,
-        run: (p) => _invokeFlmDispatch(
-          _dispatch,
-          'lm.generate',
-          p,
-          sameIsolate: true,
-        ),
+        run: (p) => _invokeFlmDispatch(_dispatch, 'lm.generate', p),
       );
     } else {
       map = await _invokeFlmDispatch(_dispatch, 'lm.generate', payload);
@@ -357,14 +320,15 @@ final class NativeLmEngine implements LmEngine {
     if (audio != null &&
         audio.isNotEmpty &&
         _manifestUsesNativeGemma4Asr(request.manifest)) {
-      final trMap = await _invokeFlmDispatch(_dispatch, 'audio.transcribe', <
-          String,
-          Object?
-        >{
+      final trMap = await _invokeFlmDispatch(
+        _dispatch,
+        'audio.transcribe',
+        <String, Object?>{
           'modelPath': request.modelPath,
           'audioPath': audio,
           'max_tokens': request.maxTokens,
-        });
+        },
+      );
       if (trMap['ok'] != true) {
         throw StateError(trMap['error'] as String? ?? jsonEncode(trMap));
       }
@@ -394,16 +358,14 @@ final class NativeLmEngine implements LmEngine {
     }
     _assertToolsConsistent(request);
     final payload = _lmGeneratePayload(request);
-    final useTools =
-        request.tools.isNotEmpty && request.onToolCall != null;
+    final useTools = request.tools.isNotEmpty && request.onToolCall != null;
 
     if (useTools) {
       return _withNativeToolListener(
         basePayload: payload,
         onTool: request.onToolCall!,
         run: (payloadWithListener) async {
-          final streamNative = flmNativeDispatcherForStream(_dispatch);
-          if (streamNative == null) {
+          if (flmNativeDispatcherForStream(_dispatch) == null) {
             final text = await complete(request);
             onChunk(text);
             return text;
@@ -428,9 +390,10 @@ final class NativeLmEngine implements LmEngine {
           });
 
           try {
-            final map = streamNative.invokeLmGenerateStream(
-              payloadWithListener,
-              chunkHook.nativeFunction.address,
+            final addr = chunkHook.nativeFunction.address;
+            final map = await _isolateRunLmGenerateStream(
+              jsonEncode(payloadWithListener),
+              addr,
             );
             if (map['ok'] == true) {
               final text = map['text'];
@@ -544,13 +507,17 @@ final class NativeAudioEngine implements AudioEngine {
         'Speech-to-text requires an mlx_audio ASR model or a Gemma 4 mlx_vlm checkpoint.',
       );
     }
-    final map = await _invokeFlmDispatch(_dispatch, 'audio.transcribe', <String, Object?>{
-      'modelPath': modelPath,
-      'audioPath': audioPath,
-      'max_tokens': 256,
-      if (language != null && language.trim().isNotEmpty)
-        'language': language.trim(),
-    });
+    final map = await _invokeFlmDispatch(
+      _dispatch,
+      'audio.transcribe',
+      <String, Object?>{
+        'modelPath': modelPath,
+        'audioPath': audioPath,
+        'max_tokens': 256,
+        if (language != null && language.trim().isNotEmpty)
+          'language': language.trim(),
+      },
+    );
     if (map['ok'] == true) {
       final text = map['text'];
       if (text is! String || text.trim().isEmpty) {
@@ -579,7 +546,11 @@ final class NativeAudioEngine implements AudioEngine {
       'text': text,
       ...synthesizeFields,
     };
-    final map = await _invokeFlmDispatch(_dispatch, 'audio.synthesize', payload);
+    final map = await _invokeFlmDispatch(
+      _dispatch,
+      'audio.synthesize',
+      payload,
+    );
     if (map['ok'] == true) {
       final path = map['outputAudioPath'] as String?;
       if (path == null || path.isEmpty) {
@@ -629,14 +600,15 @@ final class NativeImageEngine implements ImageEngine {
     }
     final defaults = manifest.runtimeConfig.defaultParameters;
     final extra = manifest.runtimeConfig.extra;
-    final map = await _invokeFlmDispatch(_dispatch, 'image.generate', <String, Object?>{
-      'modelPath': modelPath,
-      'manifestId': manifest.id,
-      'displayName': manifest.displayName,
-      'prompt': prompt,
-      'defaults': defaults,
-      'extra': extra,
-    });
+    final map =
+        await _invokeFlmDispatch(_dispatch, 'image.generate', <String, Object?>{
+          'modelPath': modelPath,
+          'manifestId': manifest.id,
+          'displayName': manifest.displayName,
+          'prompt': prompt,
+          'defaults': defaults,
+          'extra': extra,
+        });
     if (map['ok'] == true) {
       final path = map['outputImagePath'] as String?;
       if (path == null || path.isEmpty) {

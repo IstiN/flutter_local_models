@@ -17,6 +17,8 @@ dependencies:
     path: ../../packages/local_models_core
   local_models_flutter:
     path: ../../packages/local_models_flutter
+  local_models_sdk:
+    path: ../../packages/local_models_sdk
   path: ^1.9.1
   record: ^6.1.2
   audioplayers: ^6.6.0

@@ -10,6 +10,7 @@ export 'runtime/native_dispatch.dart';
 export 'runtime/native_engines.dart';
 export 'runtime/process_mlx_dispatch.dart';
 export 'runtime/runtime_policy.dart';
+export 'streaming_voice2_voice_studio.dart';
 export 'studio_services.dart';
 export 'voice2_voice_pipeline.dart'
     show

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:local_models_flutter/local_models_flutter.dart';
+import 'package:local_models_sdk/local_models_sdk.dart' as sdk;
 import 'package:local_models_studio/studio/studio_types.dart';
 import 'package:local_models_studio/studio/widgets/studio_svg_icon.dart';
 import 'package:local_models_studio/studio/widgets/thinking_indicator.dart';
@@ -49,6 +50,39 @@ T? _firstWhereOrNull<T>(Iterable<T> values, bool Function(T value) test) {
   return null;
 }
 
+/// Default editable sample for the Tools JSON field (array of [LocalTool] maps).
+const String kDefaultStudioToolsJsonSample = r'''
+[
+  {
+    "name": "get_current_time",
+    "description": "Returns the current local time as an ISO-8601 string.",
+    "parametersJsonSchema": {
+      "type": "object",
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "description": "IANA timezone id (optional), e.g. America/New_York"
+        }
+      }
+    }
+  },
+  {
+    "name": "echo_message",
+    "description": "Demo tool: echoes the message (Studio stub handler).",
+    "parametersJsonSchema": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "Short text to echo"
+        }
+      },
+      "required": ["message"]
+    }
+  }
+]
+''';
+
 class StudioShell extends StatefulWidget {
   const StudioShell({
     super.key,
@@ -83,6 +117,7 @@ class _StudioShellState extends State<StudioShell> {
   late final ScrollController chatScrollController;
   late final AudioRecorder audioRecorder;
   late final AudioPlayer audioPlayer;
+  late final VoicePipelineCubit _voicePipelineCubit;
   InstalledModel? selectedTestModel;
   InstalledModel? selectedAsrModel;
   InstalledModel? selectedVoiceChatModel;
@@ -108,7 +143,9 @@ class _StudioShellState extends State<StudioShell> {
   bool streamSpeechEnabled = false;
   bool generationThinkingEnabled = false;
   bool testBusy = false;
+  sdk.Voice2VoiceCancelToken? _voicePipelineCancel;
   String? testErrorMessage;
+  bool chatToolsExpanded = false;
   bool obscureHfToken = true;
   bool settingsControllersHydrated = false;
   int selectedPageIndex = 0;
@@ -140,7 +177,9 @@ class _StudioShellState extends State<StudioShell> {
       text: controller.maxDownloadRetries.toString(),
     );
     chatPromptController = TextEditingController();
-    chatToolsJsonController = TextEditingController();
+    chatToolsJsonController = TextEditingController(
+      text: kDefaultStudioToolsJsonSample.trim(),
+    );
     ttsVoiceController = TextEditingController();
     ttsInstructController = TextEditingController(
       text: 'A calm, natural assistant voice with stable tone.',
@@ -156,9 +195,21 @@ class _StudioShellState extends State<StudioShell> {
     streamingTtsModelIdController = TextEditingController();
     audioRecorder = AudioRecorder();
     audioPlayer = AudioPlayer();
+    _voicePipelineCubit = VoicePipelineCubit();
     controller.addListener(_handleControllerUpdate);
     unawaited(controller.initialize());
     unawaited(_loadLatestVoiceReference());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await audioRecorder.stop();
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          recordingAudio = false;
+          recordingReferenceVoice = false;
+        });
+      }
+    });
   }
 
   @override
@@ -184,6 +235,7 @@ class _StudioShellState extends State<StudioShell> {
     streamingTtsModelIdController.dispose();
     audioRecorder.dispose();
     audioPlayer.dispose();
+    _voicePipelineCubit.close();
     super.dispose();
   }
 
@@ -282,102 +334,102 @@ class _StudioShellState extends State<StudioShell> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => VoicePipelineCubit(),
+    return BlocProvider.value(
+      value: _voicePipelineCubit,
       child: Scaffold(
         body: Row(
-        children: [
-          NavigationRail(
-            backgroundColor: const Color(0xFF11162B),
-            selectedIndex: selectedPageIndex,
-            onDestinationSelected: (index) {
-              setState(() => selectedPageIndex = index);
-            },
-            labelType: NavigationRailLabelType.all,
-            leading: const Padding(
-              padding: EdgeInsets.only(top: 20, bottom: 24),
-              child: StudioSvgIcon('logo_mark', size: 36),
-            ),
-            destinations: const [
-              NavigationRailDestination(
-                icon: StudioSvgIcon('catalog', opacity: 0.6),
-                selectedIcon: StudioSvgIcon('catalog'),
-                label: Text('Catalog'),
+          children: [
+            NavigationRail(
+              backgroundColor: const Color(0xFF11162B),
+              selectedIndex: selectedPageIndex,
+              onDestinationSelected: (index) {
+                setState(() => selectedPageIndex = index);
+              },
+              labelType: NavigationRailLabelType.all,
+              leading: const Padding(
+                padding: EdgeInsets.only(top: 20, bottom: 24),
+                child: StudioSvgIcon('logo_mark', size: 36),
               ),
-              NavigationRailDestination(
-                icon: StudioSvgIcon('downloads', opacity: 0.6),
-                selectedIcon: StudioSvgIcon('downloads'),
-                label: Text('Downloads'),
-              ),
-              NavigationRailDestination(
-                icon: StudioSvgIcon('test', opacity: 0.6),
-                selectedIcon: StudioSvgIcon('test'),
-                label: Text('Test'),
-              ),
-              NavigationRailDestination(
-                icon: StudioSvgIcon('sparkle', opacity: 0.6),
-                selectedIcon: StudioSvgIcon('sparkle'),
-                label: Text('E2E'),
-              ),
-              NavigationRailDestination(
-                icon: StudioSvgIcon('mic', opacity: 0.6),
-                selectedIcon: StudioSvgIcon('mic'),
-                label: Text('Voices'),
-              ),
-              NavigationRailDestination(
-                icon: StudioSvgIcon('settings', opacity: 0.6),
-                selectedIcon: StudioSvgIcon('settings'),
-                label: Text('Settings'),
-              ),
-            ],
-          ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: Column(
-              children: [
-                Container(
-                  height: 72,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  decoration: const BoxDecoration(color: Color(0xFF101429)),
-                  child: Row(
-                    children: [
-                      const Text(
-                        'Local Models Studio',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2E314F),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text('Flutter SDK demo · UI May 2026'),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        tooltip: 'Refresh sources',
-                        onPressed: controller.loadingSources
-                            ? null
-                            : () => _runAction(controller.refreshSources),
-                        icon: const StudioSvgIcon('refresh'),
-                      ),
-                    ],
-                  ),
+              destinations: const [
+                NavigationRailDestination(
+                  icon: StudioSvgIcon('catalog', opacity: 0.6),
+                  selectedIcon: StudioSvgIcon('catalog'),
+                  label: Text('Catalog'),
                 ),
-                Expanded(child: _buildActivePage(context)),
+                NavigationRailDestination(
+                  icon: StudioSvgIcon('downloads', opacity: 0.6),
+                  selectedIcon: StudioSvgIcon('downloads'),
+                  label: Text('Downloads'),
+                ),
+                NavigationRailDestination(
+                  icon: StudioSvgIcon('test', opacity: 0.6),
+                  selectedIcon: StudioSvgIcon('test'),
+                  label: Text('Test'),
+                ),
+                NavigationRailDestination(
+                  icon: StudioSvgIcon('sparkle', opacity: 0.6),
+                  selectedIcon: StudioSvgIcon('sparkle'),
+                  label: Text('E2E'),
+                ),
+                NavigationRailDestination(
+                  icon: StudioSvgIcon('mic', opacity: 0.6),
+                  selectedIcon: StudioSvgIcon('mic'),
+                  label: Text('Voices'),
+                ),
+                NavigationRailDestination(
+                  icon: StudioSvgIcon('settings', opacity: 0.6),
+                  selectedIcon: StudioSvgIcon('settings'),
+                  label: Text('Settings'),
+                ),
               ],
             ),
-          ),
-        ],
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: Column(
+                children: [
+                  Container(
+                    height: 72,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    decoration: const BoxDecoration(color: Color(0xFF101429)),
+                    child: Row(
+                      children: [
+                        const Text(
+                          'Local Models Studio',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2E314F),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text('Flutter SDK demo · UI May 2026'),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: 'Refresh sources',
+                          onPressed: controller.loadingSources
+                              ? null
+                              : () => _runAction(controller.refreshSources),
+                          icon: const StudioSvgIcon('refresh'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: _buildActivePage(context)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -1007,9 +1059,13 @@ class _StudioShellState extends State<StudioShell> {
         : installedModels.isEmpty
         ? null
         : installedModels.first;
+    // Audio test UX: dedicated mlx-audio ASR models always; VLM audio only when
+    // session settings set Input modality to Audio (not merely speechToTextSupported,
+    // which Gemma reports for its audio-input capability even in Text mode).
     final useAudioInput =
-        selectedModel?.speechToTextSupported == true ||
-        (selectedModel?.audioPromptSupported == true && audioInputMode);
+        selectedModel != null &&
+        (selectedModel.dedicatedSpeechToTextModel ||
+            (selectedModel.audioPromptSupported && audioInputMode));
     final useImageInput =
         selectedModel?.manifest.tasks.contains(ModelTask.vision) == true &&
         selectedModel?.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
@@ -1028,7 +1084,7 @@ class _StudioShellState extends State<StudioShell> {
         selectedAudioPath != null &&
         !recordingAudio &&
         !testBusy &&
-        (selectedModel?.speechToTextSupported == true ||
+        (selectedModel.speechToTextSupported ||
             chatPromptController.text.trim().isNotEmpty);
     final canSendImage =
         useImageInput &&
@@ -1077,10 +1133,9 @@ class _StudioShellState extends State<StudioShell> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.22),
+              color: Theme.of(
+                context,
+              ).colorScheme.primaryContainer.withValues(alpha: 0.22),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: Theme.of(context).colorScheme.outlineVariant,
@@ -1100,9 +1155,9 @@ class _StudioShellState extends State<StudioShell> {
                     'Use the gear (⚙) next to the model name for local path, LLM '
                     'parameters, VLM text/audio/image mode, and the full TTS panel '
                     '(Speaker list for CustomVoice, reference cloning, transcripts).',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      height: 1.35,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(height: 1.35),
                   ),
                 ),
               ],
@@ -1169,7 +1224,8 @@ class _StudioShellState extends State<StudioShell> {
                 ),
                 const SizedBox(width: 4),
                 IconButton(
-                  tooltip: 'Model path, generation tuning, input mode, speech voice',
+                  tooltip:
+                      'Model path, generation tuning, input mode, speech voice',
                   onPressed: selectedModel == null || testBusy
                       ? null
                       : () => unawaited(
@@ -1182,7 +1238,8 @@ class _StudioShellState extends State<StudioShell> {
                 ),
               ],
             ),
-            if (selectedModel?.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
+            if (selectedModel?.manifest.runtimeAdapter ==
+                    RuntimeAdapter.mlxVlm &&
                 selectedModel?.textPromptSupported == true) ...[
               const SizedBox(height: 6),
               Text(
@@ -1193,211 +1250,218 @@ class _StudioShellState extends State<StudioShell> {
               ),
             ],
           ],
+          if (selectedModel != null &&
+              _modelSupportsToolCallingUi(selectedModel)) ...[
+            const SizedBox(height: 10),
+            _buildChatToolsCompactPanel(selectedModel),
+          ],
           if (testErrorMessage != null) ...[
             const SizedBox(height: 10),
             _buildSelectableError(testErrorMessage!),
           ],
           const SizedBox(height: 12),
           Expanded(child: _buildConversationPane(context)),
-          const SizedBox(height: 12),
-          if (useSpeechOutput && selectedModel != null) ...[
-            _buildTtsVoicePanel(selectedModel, forDialog: false),
-            const SizedBox(height: 10),
-          ],
-          if (useAudioInput && selectedModel != null)
-            Column(
-              children: [
-                if (selectedModel.textPromptSupported) ...[
-                  TextField(
-                    controller: chatPromptController,
-                    minLines: 2,
-                    maxLines: 4,
-                    onChanged: (_) => setState(() {}),
-                    enabled: !testBusy,
-                    decoration: const InputDecoration(
-                      labelText: 'Audio prompt',
-                      border: OutlineInputBorder(),
-                      hintText:
-                          'Ask what the model should do with the audio...',
-                    ),
-                  ),
+          Flexible(
+            fit: FlexFit.loose,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   const SizedBox(height: 12),
-                ],
-                _buildAudioInputBar(selectedModel),
-              ],
-            )
-          else if (useImageInput && selectedModel != null)
-            Column(
-              children: [
-                TextField(
-                  controller: chatPromptController,
-                  minLines: 2,
-                  maxLines: 4,
-                  onChanged: (_) => setState(() {}),
-                  enabled: !testBusy,
-                  decoration: const InputDecoration(
-                    labelText: 'Image prompt',
-                    border: OutlineInputBorder(),
-                    hintText: 'Ask what the model should do with the image...',
+                  if (useSpeechOutput && selectedModel != null) ...[
+                    _buildTtsVoicePanel(selectedModel, forDialog: false),
+                    const SizedBox(height: 10),
+                  ],
+                  if (useAudioInput)
+                    Column(
+                      children: [
+                        if (selectedModel.textPromptSupported) ...[
+                          TextField(
+                            controller: chatPromptController,
+                            minLines: 2,
+                            maxLines: 4,
+                            onChanged: (_) => setState(() {}),
+                            enabled: !testBusy,
+                            decoration: const InputDecoration(
+                              labelText: 'Audio prompt',
+                              border: OutlineInputBorder(),
+                              hintText:
+                                  'Ask what the model should do with the audio...',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        _buildAudioInputBar(selectedModel),
+                      ],
+                    )
+                  else if (useImageInput && selectedModel != null)
+                    Column(
+                      children: [
+                        TextField(
+                          controller: chatPromptController,
+                          minLines: 2,
+                          maxLines: 4,
+                          onChanged: (_) => setState(() {}),
+                          enabled: !testBusy,
+                          decoration: const InputDecoration(
+                            labelText: 'Image prompt',
+                            border: OutlineInputBorder(),
+                            hintText:
+                                'Ask what the model should do with the image...',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildImageInputBar(),
+                      ],
+                    )
+                  else if (useImageGeneration && selectedModel != null)
+                    TextField(
+                      controller: chatPromptController,
+                      minLines: 3,
+                      maxLines: 6,
+                      onChanged: (_) => setState(() {}),
+                      enabled: !testBusy,
+                      decoration: const InputDecoration(
+                        labelText: 'Image prompt',
+                        border: OutlineInputBorder(),
+                        hintText: 'Describe the image you want to generate...',
+                      ),
+                    )
+                  else
+                    TextField(
+                      controller: chatPromptController,
+                      minLines: 3,
+                      maxLines: 6,
+                      onChanged: (_) => setState(() {}),
+                      enabled:
+                          !testBusy &&
+                          (useSpeechOutput
+                              ? selectedModel != null
+                              : selectedModel?.textPromptSupported == true),
+                      decoration: InputDecoration(
+                        labelText: useSpeechOutput ? 'Speech text' : 'Message',
+                        border: const OutlineInputBorder(),
+                        helperText:
+                            useSpeechOutput &&
+                                selectedModel != null &&
+                                chatPromptController.text.trim().isEmpty
+                            ? 'Type text here to enable Generate Speech.'
+                            : null,
+                        hintText: selectedModel == null
+                            ? 'Install a model first'
+                            : useSpeechOutput
+                            ? 'Type text to synthesize locally...'
+                            : selectedModel.textPromptSupported
+                            ? 'Type a message for the selected model...'
+                            : selectedModel.imageGenerationSupported
+                            ? 'Describe the image you want to generate...'
+                            : 'This installed model is not testable yet',
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      if (useAudioInput)
+                        FilledButton.icon(
+                          onPressed: canSendAudio
+                              ? () => _sendAudioToSelectedModel(selectedModel)
+                              : null,
+                          icon: testBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const StudioSvgIcon('send', size: 22),
+                          label: Text(testBusy ? 'Running...' : 'Send Audio'),
+                        )
+                      else if (useSpeechOutput && selectedModel != null)
+                        FilledButton.icon(
+                          onPressed: canSendSpeech
+                              ? () => _sendTtsToSelectedModel(selectedModel)
+                              : null,
+                          icon: testBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const StudioSvgIcon('mic', size: 22),
+                          label: Text(
+                            testBusy ? 'Running...' : 'Generate Speech',
+                          ),
+                        )
+                      else if (useImageInput && selectedModel != null)
+                        FilledButton.icon(
+                          onPressed: canSendImage
+                              ? () => _sendImageToSelectedModel(selectedModel)
+                              : null,
+                          icon: testBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const StudioSvgIcon('send', size: 22),
+                          label: Text(testBusy ? 'Running...' : 'Send Image'),
+                        )
+                      else if (useImageGeneration && selectedModel != null)
+                        FilledButton.icon(
+                          onPressed: canGenerateImage
+                              ? () => _generateImageWithSelectedModel(
+                                  selectedModel,
+                                )
+                              : null,
+                          icon: testBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const StudioSvgIcon('image', size: 22),
+                          label: Text(
+                            testBusy ? 'Generating...' : 'Generate Image',
+                          ),
+                        )
+                      else
+                        FilledButton.icon(
+                          onPressed: canSendText
+                              ? () => _sendPromptToSelectedModel(selectedModel!)
+                              : null,
+                          icon: testBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const StudioSvgIcon('send', size: 22),
+                          label: Text(testBusy ? 'Running...' : 'Send Message'),
+                        ),
+                      OutlinedButton.icon(
+                        onPressed: testBusy || controller.chatTurns.isEmpty
+                            ? null
+                            : controller.clearChat,
+                        icon: const StudioSvgIcon('trash', size: 20),
+                        label: const Text('Clear'),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                _buildImageInputBar(),
-              ],
-            )
-          else if (useImageGeneration && selectedModel != null)
-            TextField(
-              controller: chatPromptController,
-              minLines: 3,
-              maxLines: 6,
-              onChanged: (_) => setState(() {}),
-              enabled: !testBusy,
-              decoration: const InputDecoration(
-                labelText: 'Image prompt',
-                border: OutlineInputBorder(),
-                hintText: 'Describe the image you want to generate...',
-              ),
-            )
-          else
-            TextField(
-              controller: chatPromptController,
-              minLines: 3,
-              maxLines: 6,
-              onChanged: (_) => setState(() {}),
-              enabled: !testBusy &&
-                  (useSpeechOutput
-                      ? selectedModel != null
-                      : selectedModel?.textPromptSupported == true),
-              decoration: InputDecoration(
-                labelText:
-                    useSpeechOutput ? 'Speech text' : 'Message',
-                border: const OutlineInputBorder(),
-                helperText: useSpeechOutput &&
-                        selectedModel != null &&
-                        chatPromptController.text.trim().isEmpty
-                    ? 'Type text here to enable Generate Speech.'
-                    : null,
-                hintText: selectedModel == null
-                    ? 'Install a model first'
-                    : useSpeechOutput
-                    ? 'Type text to synthesize locally...'
-                    : selectedModel.textPromptSupported
-                    ? 'Type a message for the selected model...'
-                    : selectedModel.imageGenerationSupported
-                    ? 'Describe the image you want to generate...'
-                    : 'This installed model is not testable yet',
+                ],
               ),
             ),
-          if (selectedModel != null &&
-              _modelSupportsToolCallingUi(selectedModel)) ...[
-            const SizedBox(height: 12),
-            TextField(
-              controller: chatToolsJsonController,
-              minLines: 4,
-              maxLines: 12,
-              onChanged: (_) => setState(() {}),
-              enabled: !testBusy,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-              decoration: InputDecoration(
-                labelText: 'Tools (JSON array)',
-                border: const OutlineInputBorder(),
-                alignLabelWithHint: true,
-                helperText:
-                    'Модель с tool calling: список инструментов в формате '
-                    'LocalTool (поля name, description, parametersJsonSchema). '
-                    'Пусто — без tools. При вызове инструмента показывается snackbar; '
-                    'в LLM уходит JSON-стаб с ok/receivedArguments.',
-                errorText: _chatToolsFieldError(selectedModel),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              if (useAudioInput && selectedModel != null)
-                FilledButton.icon(
-                  onPressed: canSendAudio
-                      ? () => _sendAudioToSelectedModel(selectedModel)
-                      : null,
-                  icon: testBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const StudioSvgIcon('send', size: 22),
-                  label: Text(testBusy ? 'Running...' : 'Send Audio'),
-                )
-              else if (useSpeechOutput && selectedModel != null)
-                FilledButton.icon(
-                  onPressed: canSendSpeech
-                      ? () => _sendTtsToSelectedModel(selectedModel)
-                      : null,
-                  icon: testBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const StudioSvgIcon('mic', size: 22),
-                  label: Text(testBusy ? 'Running...' : 'Generate Speech'),
-                )
-              else if (useImageInput && selectedModel != null)
-                FilledButton.icon(
-                  onPressed: canSendImage
-                      ? () => _sendImageToSelectedModel(selectedModel)
-                      : null,
-                  icon: testBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const StudioSvgIcon('send', size: 22),
-                  label: Text(testBusy ? 'Running...' : 'Send Image'),
-                )
-              else if (useImageGeneration && selectedModel != null)
-                FilledButton.icon(
-                  onPressed: canGenerateImage
-                      ? () => _generateImageWithSelectedModel(selectedModel)
-                      : null,
-                  icon: testBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const StudioSvgIcon('image', size: 22),
-                  label: Text(testBusy ? 'Generating...' : 'Generate Image'),
-                )
-              else
-                FilledButton.icon(
-                  onPressed: canSendText
-                      ? () => _sendPromptToSelectedModel(selectedModel!)
-                      : null,
-                  icon: testBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const StudioSvgIcon('send', size: 22),
-                  label: Text(testBusy ? 'Running...' : 'Send Message'),
-                ),
-              OutlinedButton.icon(
-                onPressed: testBusy || controller.chatTurns.isEmpty
-                    ? null
-                    : controller.clearChat,
-                icon: const StudioSvgIcon('trash', size: 20),
-                label: const Text('Clear'),
-              ),
-            ],
           ),
         ],
       ),
@@ -1523,7 +1587,7 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Widget _buildTestModeSwitch() {
-    return SegmentedButton<_TestWorkspaceMode>(
+    final segmented = SegmentedButton<_TestWorkspaceMode>(
       style: SegmentedButton.styleFrom(
         visualDensity: VisualDensity.compact,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1546,15 +1610,33 @@ class _StudioShellState extends State<StudioShell> {
         ),
       ],
       selected: <_TestWorkspaceMode>{testWorkspaceMode},
-      onSelectionChanged: testBusy || recordingAudio || recordingReferenceVoice
-          ? null
-          : (selection) {
-              setState(() {
-                testWorkspaceMode = selection.first;
-                testErrorMessage = null;
-              });
-            },
+      onSelectionChanged: (selection) {
+        unawaited(_applyTestWorkspaceMode(selection.first));
+      },
     );
+
+    if (recordingAudio || recordingReferenceVoice) {
+      const hint =
+          'Recording in progress: switching modes stops it (same as Stop).';
+      return Tooltip(message: hint, child: segmented);
+    }
+    return segmented;
+  }
+
+  Future<void> _applyTestWorkspaceMode(_TestWorkspaceMode next) async {
+    if (recordingAudio) {
+      await _stopAudioRecording(runVoicePipelineOnStop: false);
+    }
+    if (recordingReferenceVoice) {
+      await _stopReferenceVoiceRecording();
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      testWorkspaceMode = next;
+      testErrorMessage = null;
+    });
   }
 
   Widget _buildVoicePipelineTab(
@@ -1595,11 +1677,18 @@ class _StudioShellState extends State<StudioShell> {
           _buildTestModeSwitch(),
           const SizedBox(height: 12),
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            clipBehavior: Clip.antiAlias,
+            child: LayoutBuilder(
+              builder: (context, _) {
+                final maxH = (MediaQuery.sizeOf(context).height * 0.46)
+                    .clamp(240.0, 540.0);
+                return ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxH),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                   Row(
                     children: [
                       Expanded(
@@ -1612,27 +1701,13 @@ class _StudioShellState extends State<StudioShell> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Record once, then run ASR → LLM response → TTS playback locally.',
+                              'Pick ASR, chat, and TTS models. Use ⚙ on each row for path, tools (chat), voices (TTS), and streaming.',
                               style: TextStyle(
                                 color: Theme.of(context).colorScheme.outline,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      IconButton.filledTonal(
-                        tooltip: 'Generation, TTS & streaming parameters',
-                        onPressed:
-                            testBusy ||
-                                recordingAudio ||
-                                recordingReferenceVoice
-                            ? null
-                            : () => _openVoicePipelineSettingsDialog(
-                                  context,
-                                  chatModel: chatModel,
-                                  ttsModel: ttsModel,
-                                ),
-                        icon: const StudioSvgIcon('settings', size: 22),
                       ),
                     ],
                   ),
@@ -1641,7 +1716,7 @@ class _StudioShellState extends State<StudioShell> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Use the gear for LLM / TTS parameters and optional OpenAI-compatible streaming TTS. Record your reference under My Voices.',
+                          'TTS ⚙ also has optional OpenAI-compatible streaming. Record your reference under My Voices.',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.outline,
                           ),
@@ -1658,26 +1733,39 @@ class _StudioShellState extends State<StudioShell> {
                   ),
                   const SizedBox(height: 16),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: _buildModelDropdown(
+                        child: _buildVoicePipelineModelRow(
                           label: 'ASR model',
                           icon: const StudioSvgIcon('audio', size: 22),
                           models: asrModels,
                           value: asrModel,
                           emptyText: 'Install a speech-to-text model',
+                          settingsTooltip:
+                              'ASR model path (and session fields if available)',
                           onChanged: (value) =>
                               setState(() => selectedAsrModel = value),
+                          onOpenSettings: asrModel == null
+                              ? null
+                              : () => unawaited(
+                                    _openTestSessionSettingsDialog(
+                                      context,
+                                      selectedModel: asrModel,
+                                    ),
+                                  ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: _buildModelDropdown(
+                        child: _buildVoicePipelineModelRow(
                           label: 'Response model',
                           icon: const StudioSvgIcon('chat', size: 22),
                           models: chatModels,
                           value: chatModel,
                           emptyText: 'Install a chat model',
+                          settingsTooltip:
+                              'Generation, LLM tools (JSON), model folder',
                           onChanged: (value) {
                             setState(() {
                               selectedVoiceChatModel = value;
@@ -1685,16 +1773,28 @@ class _StudioShellState extends State<StudioShell> {
                               _applyStoredPrefsForChatModel(value);
                             });
                           },
+                          onOpenSettings: chatModel == null
+                              ? null
+                              : () => unawaited(
+                                    _openTestSessionSettingsDialog(
+                                      context,
+                                      selectedModel: chatModel,
+                                      voicePipelineSuppressVlmInput: true,
+                                      persistGenerationPrefsOnDone: true,
+                                    ),
+                                  ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: _buildModelDropdown(
+                        child: _buildVoicePipelineModelRow(
                           label: 'TTS model',
                           icon: const StudioSvgIcon('mic', size: 22),
                           models: ttsModels,
                           value: ttsModel,
                           emptyText: 'Install a text-to-speech model',
+                          settingsTooltip:
+                              'Voice, clone, remote streaming TTS',
                           onChanged: (value) {
                             setState(() {
                               selectedTtsModel = value;
@@ -1702,6 +1802,14 @@ class _StudioShellState extends State<StudioShell> {
                               _applyStoredPrefsForTtsModel(value);
                             });
                           },
+                          onOpenSettings: ttsModel == null
+                              ? null
+                              : () => unawaited(
+                                    _openVoicePipelineSettingsDialog(
+                                      context,
+                                      ttsModel: ttsModel,
+                                    ),
+                                  ),
                         ),
                       ),
                     ],
@@ -1719,38 +1827,17 @@ class _StudioShellState extends State<StudioShell> {
                           'Optional: e.g. answer briefly, translate, explain...',
                     ),
                   ),
-                  if (chatModel != null &&
-                      _modelSupportsToolCallingUi(chatModel)) ...[
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: chatToolsJsonController,
-                      minLines: 3,
-                      maxLines: 10,
-                      enabled: !testBusy,
-                      onChanged: (_) => setState(() {}),
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Tools (JSON array)',
-                        border: const OutlineInputBorder(),
-                        alignLabelWithHint: true,
-                        helperText:
-                            'Для моделей с tool calling. Пусто — выключено.',
-                        errorText: _chatToolsFieldError(chatModel),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 14),
                   _buildAudioInputBar(asrModel),
                   if (testErrorMessage != null) ...[
                     const SizedBox(height: 12),
                     _buildSelectableError(testErrorMessage!),
                   ],
-                ],
-              ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(height: 16),
@@ -1760,23 +1847,39 @@ class _StudioShellState extends State<StudioShell> {
             spacing: 12,
             runSpacing: 12,
             children: [
-              FilledButton.icon(
-                onPressed: canRun
-                    ? () => _runVoicePipeline(
-                        asrModel: asrModel,
-                        chatModel: chatModel,
-                        ttsModel: ttsModel,
-                      )
-                    : null,
-                icon: testBusy
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const StudioSvgIcon('send', size: 22),
-                label: Text(testBusy ? 'Running pipeline...' : 'Run Voice UX'),
+              BlocBuilder<VoicePipelineCubit, VoicePipelinePhase>(
+                builder: (context, phase) {
+                  return Tooltip(
+                    message:
+                        'Voice UX runs the full loop on the selected audio: ASR → new model reply '
+                        '→ new TTS. This is not "replay last message": with temperature > 0, text '
+                        'and prosody can differ each run. Console: [VoiceUX], [VoiceUX:chain].',
+                    child: FilledButton.icon(
+                      onPressed: canRun
+                          ? () => _runVoicePipeline(
+                              asrModel: asrModel,
+                              chatModel: chatModel,
+                              ttsModel: ttsModel,
+                            )
+                          : null,
+                      icon: testBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const StudioSvgIcon('send', size: 22),
+                      label: Text(_voicePipelinePrimaryLabel(phase)),
+                    ),
+                  );
+                },
               ),
+              if (testBusy)
+                OutlinedButton.icon(
+                  onPressed: () => _voicePipelineCancel?.cancel(),
+                  icon: const Icon(Icons.stop_circle_outlined, size: 22),
+                  label: const Text('Stop'),
+                ),
               OutlinedButton.icon(
                 onPressed: testBusy || controller.chatTurns.isEmpty
                     ? null
@@ -2052,6 +2155,91 @@ class _StudioShellState extends State<StudioShell> {
         turn.progress == null;
   }
 
+  Widget _buildVoicePipelineModelRow({
+    required String label,
+    required Widget icon,
+    required List<InstalledModel> models,
+    required InstalledModel? value,
+    required String emptyText,
+    required ValueChanged<InstalledModel?> onChanged,
+    required String settingsTooltip,
+    required VoidCallback? onOpenSettings,
+  }) {
+    final busyFlag = testBusy || recordingAudio || recordingReferenceVoice;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _buildModelDropdown(
+            label: label,
+            icon: icon,
+            models: models,
+            value: value,
+            emptyText: emptyText,
+            onChanged: onChanged,
+          ),
+        ),
+        const SizedBox(width: 2),
+        IconButton(
+          tooltip: settingsTooltip,
+          onPressed: busyFlag || onOpenSettings == null ? null : onOpenSettings,
+          icon: const Icon(Icons.settings_outlined),
+        ),
+      ],
+    );
+  }
+
+  sdk.VoiceTtsCoalescing _voicePipelineTtsCoalescing(InstalledModel ttsModel) {
+    final extra = ttsModel.manifest.runtimeConfig.extra;
+    final mode = extra['qwen_tts_mode'] as String? ?? '';
+    final id = ttsModel.manifest.id.toLowerCase();
+    if (mode == 'voice_design' ||
+        mode == 'base' ||
+        extra['supports_voice_clone'] == true ||
+        id.contains('voxcpm')) {
+      return const sdk.VoiceTtsCoalescing.singleUtterancePerReply();
+    }
+    return const sdk.VoiceTtsCoalescing();
+  }
+
+  String _voiceUxTtsCoalescingLabel(sdk.VoiceTtsCoalescing c) {
+    if (c.flushEveryDelta) {
+      return 'immediate (each delta)';
+    }
+    if (c.maxCharsPerSegment >= 100000) {
+      return 'singleUtterancePerReply (one local TTS call per reply)';
+    }
+    return 'phraseCoalesce (maxChars=${c.maxCharsPerSegment})';
+  }
+
+  String _voiceUxPreview(String text, int maxChars) {
+    final single = text.replaceAll('\n', ' ').trim();
+    if (single.length <= maxChars) {
+      return single;
+    }
+    return '${single.substring(0, maxChars)}…';
+  }
+
+  void _voiceUxLog(String message) {
+    debugPrint('[VoiceUX] $message');
+  }
+
+  String _voicePipelinePrimaryLabel(VoicePipelinePhase phase) {
+    if (!testBusy) {
+      return 'Run Voice UX';
+    }
+    switch (phase) {
+      case VoicePipelinePhase.transcribing:
+        return 'Transcribing…';
+      case VoicePipelinePhase.replying:
+        return 'Model replying…';
+      case VoicePipelinePhase.synthesizing:
+        return 'Generating speech…';
+      case VoicePipelinePhase.idle:
+        return 'Working…';
+    }
+  }
+
   Widget _buildModelDropdown({
     required String label,
     required Widget icon,
@@ -2090,8 +2278,10 @@ class _StudioShellState extends State<StudioShell> {
     final voiceNames = _ttsVoiceOptions(config);
     final mode = config.extra['qwen_tts_mode'] as String? ?? '';
     final needsQuickSpeakerPick = voiceNames.isNotEmpty;
-    final voicePickOptions =
-        _withCurrentOption(voiceNames, ttsVoiceController.text.trim());
+    final voicePickOptions = _withCurrentOption(
+      voiceNames,
+      ttsVoiceController.text.trim(),
+    );
     final voicePickValue =
         voicePickOptions.contains(ttsVoiceController.text.trim()) &&
             ttsVoiceController.text.trim().isNotEmpty
@@ -2170,9 +2360,7 @@ class _StudioShellState extends State<StudioShell> {
               SizedBox(
                 width: 210,
                 child: DropdownButtonFormField<String>(
-                  key: ValueKey<String>(
-                    'tts_compact_speaker_$voicePickValue',
-                  ),
+                  key: ValueKey<String>('tts_compact_speaker_$voicePickValue'),
                   initialValue: voicePickValue,
                   isDense: true,
                   decoration: const InputDecoration(
@@ -2238,15 +2426,21 @@ class _StudioShellState extends State<StudioShell> {
     if (!forDialog) {
       return _buildTtsVoiceCompactSummaryBar(
         model,
-        onOpenSettings: () =>
-            unawaited(_openTestSessionSettingsDialog(context, selectedModel: model)),
+        onOpenSettings: () => unawaited(
+          _openTestSessionSettingsDialog(context, selectedModel: model),
+        ),
       );
     }
     final config = model.manifest.runtimeConfig;
     final voiceNames = _ttsVoiceOptions(config);
     final languageOptions = _ttsLanguageOptions(config);
     final speedOptions = _withCurrentOption(const <String>[
-      '0.75', '0.9', '1.0', '1.1', '1.25', '1.5',
+      '0.75',
+      '0.9',
+      '1.0',
+      '1.1',
+      '1.25',
+      '1.5',
     ], ttsSpeedController.text.trim());
     final mode = config.extra['qwen_tts_mode'] as String? ?? '';
     final vibevoiceMode = config.extra['vibevoice_tts_mode'] as String? ?? '';
@@ -2296,10 +2490,9 @@ class _StudioShellState extends State<StudioShell> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Theme.of(context)
-                  .colorScheme
-                  .secondaryContainer
-                  .withValues(alpha: 0.4),
+              color: Theme.of(
+                context,
+              ).colorScheme.secondaryContainer.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -2344,9 +2537,7 @@ class _StudioShellState extends State<StudioShell> {
                     setState(() => _ttsVoiceDesignUsesPreset = sel.first);
                     dialogRefresh?.call();
                   },
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-            ),
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
           ),
           const SizedBox(height: 16),
           if (_ttsVoiceDesignUsesPreset) ...[
@@ -2427,9 +2618,7 @@ class _StudioShellState extends State<StudioShell> {
                     });
                     dialogRefresh?.call();
                   },
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-            ),
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
           ),
           const SizedBox(height: 16),
           if (!inCloneMode) ...[
@@ -2505,7 +2694,10 @@ class _StudioShellState extends State<StudioShell> {
           ],
         ),
         const SizedBox(height: 10),
-        _buildLanguageQuickChoices(languageOptions, onAfterChange: dialogRefresh),
+        _buildLanguageQuickChoices(
+          languageOptions,
+          onAfterChange: dialogRefresh,
+        ),
       ],
     );
   }
@@ -2545,9 +2737,7 @@ class _StudioShellState extends State<StudioShell> {
                       ),
                 icon: const Icon(Icons.person_pin_outlined, size: 18),
                 label: Text(
-                  usingMyVoice
-                      ? 'My Voice (active)'
-                      : 'Use My Voice',
+                  usingMyVoice ? 'My Voice (active)' : 'Use My Voice',
                 ),
               ),
             ],
@@ -2559,7 +2749,10 @@ class _StudioShellState extends State<StudioShell> {
           children: [
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(
                     color: ttsReferenceAudioPath != null
@@ -2607,10 +2800,10 @@ class _StudioShellState extends State<StudioShell> {
                 onPressed: testBusy
                     ? null
                     : () => setState(() {
-                          ttsReferenceAudioPath = null;
-                          ttsReferenceTextController.clear();
-                          dialogRefresh?.call();
-                        }),
+                        ttsReferenceAudioPath = null;
+                        ttsReferenceTextController.clear();
+                        dialogRefresh?.call();
+                      }),
                 icon: const Icon(Icons.close, size: 18),
                 tooltip: 'Clear',
                 style: IconButton.styleFrom(
@@ -2647,6 +2840,8 @@ class _StudioShellState extends State<StudioShell> {
   Future<void> _openTestSessionSettingsDialog(
     BuildContext context, {
     required InstalledModel? selectedModel,
+    bool voicePipelineSuppressVlmInput = false,
+    bool persistGenerationPrefsOnDone = false,
   }) async {
     if (selectedModel == null) {
       return;
@@ -2677,7 +2872,8 @@ class _StudioShellState extends State<StudioShell> {
                       const SizedBox(height: 18),
                       if (selectedModel.manifest.runtimeAdapter ==
                               RuntimeAdapter.mlxVlm &&
-                          selectedModel.textPromptSupported) ...[
+                          selectedModel.textPromptSupported &&
+                          !voicePipelineSuppressVlmInput) ...[
                         Text(
                           'Input modality',
                           style: Theme.of(dialogContext).textTheme.titleSmall,
@@ -2697,8 +2893,8 @@ class _StudioShellState extends State<StudioShell> {
                                 label: Text('Audio'),
                               ),
                             if (selectedModel.manifest.tasks.contains(
-                                  ModelTask.vision,
-                                ))
+                              ModelTask.vision,
+                            ))
                               const ButtonSegment<_TestInputMode>(
                                 value: _TestInputMode.image,
                                 icon: StudioSvgIcon('image', size: 20),
@@ -2733,8 +2929,36 @@ class _StudioShellState extends State<StudioShell> {
                         ),
                         const SizedBox(height: 18),
                       ],
+                      if (voicePipelineSuppressVlmInput &&
+                          selectedModel.manifest.runtimeAdapter ==
+                              RuntimeAdapter.mlxVlm &&
+                          selectedModel.textPromptSupported) ...[
+                        Text(
+                          'Voice → Voice uses the recorder in this tab for user audio. '
+                          'Text / image session modes are for the Single model tab.',
+                          style: Theme.of(dialogContext).textTheme.bodySmall
+                              ?.copyWith(
+                            color: Theme.of(dialogContext).colorScheme.outline,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                      ],
                       if (selectedModel.textPromptSupported) ...[
                         _buildGenerationControls(selectedModel),
+                        const SizedBox(height: 18),
+                      ],
+                      if (_modelSupportsToolCallingUi(selectedModel)) ...[
+                        Text(
+                          'LLM tools (JSON)',
+                          style: Theme.of(dialogContext).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        _buildChatToolsJsonField(
+                          selectedModel,
+                          onExtraChanged: () => setDialogState(() {}),
+                          minLines: 3,
+                          maxLines: 8,
+                        ),
                         const SizedBox(height: 18),
                       ],
                       if (selectedModel.textToSpeechSupported) ...[
@@ -2754,7 +2978,12 @@ class _StudioShellState extends State<StudioShell> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
+                  onPressed: () {
+                    if (persistGenerationPrefsOnDone) {
+                      _persistGenerationPrefsForModel(selectedModel);
+                    }
+                    Navigator.pop(dialogContext);
+                  },
                   child: const Text('Done'),
                 ),
               ],
@@ -2766,8 +2995,7 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Widget _buildGenerationControls(InstalledModel? model) {
-    final isVlm =
-        model?.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm;
+    final isVlm = model?.manifest.runtimeAdapter == RuntimeAdapter.mlxVlm;
     final hint = isVlm
         ? 'mlx-vlm: max tokens + temperature (top_p skipped).'
         : _modelSupportsThinking(model)
@@ -2796,9 +3024,8 @@ class _StudioShellState extends State<StudioShell> {
                     value: generationThinkingEnabled,
                     onChanged: testBusy
                         ? null
-                        : (value) => setState(
-                              () => generationThinkingEnabled = value,
-                            ),
+                        : (value) =>
+                              setState(() => generationThinkingEnabled = value),
                   ),
                 ],
               ],
@@ -2872,7 +3099,6 @@ class _StudioShellState extends State<StudioShell> {
       ),
     );
   }
-
 
   Widget _buildStringComboBox({
     required String label,
@@ -3018,6 +3244,21 @@ class _StudioShellState extends State<StudioShell> {
         .map((voice) => voice.id)
         .where((id) => id.trim().isNotEmpty && id != 'default')
         .toList(growable: false);
+  }
+
+  /// The compact speaker strip may show [voicePickOptions.first] while
+  /// [ttsVoiceController] is still empty — always align synthesis with a real
+  /// catalog preset when one exists.
+  String _effectiveTtsVoiceForModel(InstalledModel model) {
+    final presets = _ttsVoiceOptions(model.manifest.runtimeConfig);
+    final picked = ttsVoiceController.text.trim();
+    if (presets.isEmpty) {
+      return picked;
+    }
+    if (picked.isNotEmpty && presets.contains(picked)) {
+      return picked;
+    }
+    return presets.first;
   }
 
   List<String> _ttsLanguageOptions(ModelRuntimeConfig? config) {
@@ -3712,7 +3953,6 @@ class _StudioShellState extends State<StudioShell> {
 
   Future<void> _openVoicePipelineSettingsDialog(
     BuildContext context, {
-    required InstalledModel? chatModel,
     required InstalledModel? ttsModel,
   }) async {
     await showDialog<void>(
@@ -3721,7 +3961,7 @@ class _StudioShellState extends State<StudioShell> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Voice pipeline parameters'),
+              title: const Text('TTS & remote streaming'),
               content: SizedBox(
                 width: 560,
                 child: SingleChildScrollView(
@@ -3729,10 +3969,6 @@ class _StudioShellState extends State<StudioShell> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (chatModel != null) ...[
-                        _buildGenerationControls(chatModel),
-                        const SizedBox(height: 16),
-                      ],
                       if (ttsModel != null) ...[
                         _buildTtsVoicePanel(
                           ttsModel,
@@ -3786,7 +4022,7 @@ class _StudioShellState extends State<StudioShell> {
                   onPressed: () {
                     Navigator.pop(dialogContext);
                     _persistVoicePipelinePrefs(
-                      chatModel: chatModel,
+                      chatModel: null,
                       ttsModel: ttsModel,
                     );
                   },
@@ -3871,23 +4107,29 @@ class _StudioShellState extends State<StudioShell> {
     }
   }
 
+  void _persistGenerationPrefsForModel(InstalledModel model) {
+    unawaited(
+      _prefsStore.mergeModelPrefs(model.manifest.id, {
+        'generation': <String, Object?>{
+          'maxTokens': int.tryParse(
+            generationMaxTokensController.text.trim(),
+          ),
+          'temperature': double.tryParse(
+            generationTemperatureController.text.trim(),
+          ),
+          'topP': double.tryParse(generationTopPController.text.trim()),
+          'thinking': generationThinkingEnabled,
+        },
+      }),
+    );
+  }
+
   void _persistVoicePipelinePrefs({
     InstalledModel? chatModel,
     InstalledModel? ttsModel,
   }) {
     if (chatModel != null) {
-      unawaited(
-        _prefsStore.mergeModelPrefs(chatModel.manifest.id, {
-          'generation': <String, Object?>{
-            'maxTokens':
-                int.tryParse(generationMaxTokensController.text.trim()),
-            'temperature':
-                double.tryParse(generationTemperatureController.text.trim()),
-            'topP': double.tryParse(generationTopPController.text.trim()),
-            'thinking': generationThinkingEnabled,
-          },
-        }),
-      );
+      _persistGenerationPrefsForModel(chatModel);
     }
     if (ttsModel != null) {
       unawaited(
@@ -3918,6 +4160,10 @@ class _StudioShellState extends State<StudioShell> {
         defaults['lang_code'] as String? ?? defaults['language'] as String?;
     final speed = defaults['speed'];
     ttsVoiceController.text = voice?.trim() ?? '';
+    final presetNames = _ttsVoiceOptions(model.manifest.runtimeConfig);
+    if (presetNames.isNotEmpty && ttsVoiceController.text.trim().isEmpty) {
+      ttsVoiceController.text = presetNames.first;
+    }
     ttsInstructController.clear();
     if (ttsReferenceAudioPath == null) {
       ttsReferenceTextController.clear();
@@ -4012,11 +4258,17 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   Future<void> _stopReferenceVoiceRecording() async {
-    final path = await audioRecorder.stop();
+    String? path;
+    try {
+      path = await audioRecorder.stop();
+    } finally {
+      if (mounted) {
+        setState(() => recordingReferenceVoice = false);
+      }
+    }
     if (!mounted) {
       return;
     }
-    setState(() => recordingReferenceVoice = false);
     if (path == null) {
       return;
     }
@@ -4192,15 +4444,23 @@ class _StudioShellState extends State<StudioShell> {
     });
   }
 
-  Future<void> _stopAudioRecording() async {
-    final path = await audioRecorder.stop();
-    setState(() {
-      recordingAudio = false;
-      if (path != null) {
-        selectedAudioPath = path;
+  Future<void> _stopAudioRecording({bool runVoicePipelineOnStop = true}) async {
+    String? path;
+    try {
+      path = await audioRecorder.stop();
+    } finally {
+      if (mounted) {
+        setState(() {
+          recordingAudio = false;
+          if (path != null) {
+            selectedAudioPath = path;
+          }
+        });
       }
-    });
-    if (path != null && testWorkspaceMode == _TestWorkspaceMode.voicePipeline) {
+    }
+    if (path != null &&
+        runVoicePipelineOnStop &&
+        testWorkspaceMode == _TestWorkspaceMode.voicePipeline) {
       _runVoicePipelineWithCurrentSelection();
     }
   }
@@ -4680,9 +4940,9 @@ class _StudioShellState extends State<StudioShell> {
               ChatTurn.assistant(
                 asrModel == null
                     ? 'Audio input for chat models requires a speech-to-text '
-                        'model to be installed. Install a Whisper or VibeVoice '
-                        'ASR model and try again.\n\n'
-                        'Audio file: ${p.basename(audioPath)}'
+                          'model to be installed. Install a Whisper or VibeVoice '
+                          'ASR model and try again.\n\n'
+                          'Audio file: ${p.basename(audioPath)}'
                     : 'Audio transcription failed. Please try again.',
                 generationDuration: stopwatch.elapsed,
               ),
@@ -4692,7 +4952,8 @@ class _StudioShellState extends State<StudioShell> {
         }
 
         // Build a prompt that includes the transcript and user text.
-        final transcriptLabel = '📢 Audio transcript (${p.basename(audioPath)}):';
+        final transcriptLabel =
+            '📢 Audio transcript (${p.basename(audioPath)}):';
         final fullPrompt = prompt.isEmpty
             ? '$transcriptLabel\n$transcript'
             : '$transcriptLabel\n$transcript\n\n$prompt';
@@ -4889,7 +5150,7 @@ class _StudioShellState extends State<StudioShell> {
       final file = await controller.synthesizeSpeech(
         model: model,
         text: text,
-        options: _speechOptionsFromUi(),
+        options: _speechOptionsFromUi(ttsModel: model),
       );
       stopwatch.stop();
       final duration = await _probeAudioDuration(file.path);
@@ -4915,6 +5176,53 @@ class _StudioShellState extends State<StudioShell> {
     }
   }
 
+  Future<String?> _writeVoicePipelineTtsSegment(
+    sdk.VoiceAudioChunk chunk,
+    int index,
+  ) async {
+    if (chunk.bytes.isEmpty) {
+      return null;
+    }
+    final ext = switch (chunk.mediaType) {
+      'audio/opus' => 'opus',
+      'audio/mpeg' => 'mp3',
+      _ => 'wav',
+    };
+    final dir = await Directory.systemTemp.createTemp('flm-v2v-seg-');
+    final path = p.join(
+      dir.path,
+      'seg_${index.toString().padLeft(4, '0')}.$ext',
+    );
+    await File(path).writeAsBytes(chunk.bytes);
+    return path;
+  }
+
+  Future<void> _playVoicePipelineSegmentsSequentially(
+    List<String> paths,
+  ) async {
+    for (final path in paths) {
+      if (!mounted) {
+        return;
+      }
+      if (!File(path).existsSync()) {
+        continue;
+      }
+      try {
+        await audioPlayer.stop();
+        await audioPlayer.play(DeviceFileSource(path));
+        if (mounted) {
+          setState(() => playingAudioPath = path);
+        }
+        await audioPlayer.onPlayerComplete.first;
+      } catch (_) {
+        break;
+      }
+    }
+    if (mounted) {
+      setState(() => playingAudioPath = null);
+    }
+  }
+
   Future<void> _runVoicePipeline({
     required InstalledModel asrModel,
     required InstalledModel chatModel,
@@ -4929,7 +5237,7 @@ class _StudioShellState extends State<StudioShell> {
       testErrorMessage = null;
       generatedAudioPath = null;
     });
-    final voiceCubit = context.read<VoicePipelineCubit>();
+    final voiceCubit = _voicePipelineCubit;
     voiceCubit.setTranscribing();
     final validationError = await _prepareSpeechOptionsForModel(ttsModel);
     if (validationError != null) {
@@ -4965,59 +5273,153 @@ class _StudioShellState extends State<StudioShell> {
     _scrollChatToBottom();
 
     final stopwatch = Stopwatch()..start();
+    var voicePipelineUserCancelled = false;
     try {
+      _voicePipelineCancel = sdk.Voice2VoiceCancelToken();
       final instruction = chatPromptController.text.trim();
-      final result = await Voice2VoicePipeline.run(
-        audioRunner: controller.audioRunner,
-        chatRunner: controller.chatRunner,
-        asrModel: asrModel,
-        chatModel: chatModel,
-        ttsModel: ttsModel,
-        userAudioPath: audioPath,
-        instruction: instruction,
-        chatParams: _chatParamsForModel(chatModel),
-        chatToolRegistry: _chatToolRegistryForSend(chatModel),
-        ttsOptions: _speechOptionsFromUi(),
-        onTranscript: (transcript) {
-          if (!mounted) {
-            return;
-          }
-          voiceCubit.setReplying();
-          setState(() {
-            if (controller.chatTurns.isNotEmpty &&
-                !controller.chatTurns.last.isUser) {
-              controller.chatTurns[controller.chatTurns.length - 1] =
-                  ChatTurn.assistant('Transcript: $transcript');
-            }
-            controller.chatTurns.add(ChatTurn.user(transcript));
-            controller.chatTurns.add(const ChatTurn.assistant(''));
-          });
-          _scrollChatToBottom();
-        },
-        onAssistantText: (partial, done) {
-          if (!mounted) {
-            return;
-          }
-          _replaceStreamingAssistant(partial);
-          if (done) {
-            voiceCubit.setSynthesizing();
-          }
-        },
+      final chatParams = _chatParamsForModel(chatModel);
+      final speechOpts = _speechOptionsFromUi(ttsModel: ttsModel);
+      final ttsCoalescing = _voicePipelineTtsCoalescing(ttsModel);
+      _voiceUxLog(
+        'Full generation trace: filter console by [VoiceUX:chain] (pipeline steps, '
+        'speaker on each TTS segment). Also: [VoiceUX], [TTS], native_mlx_*.',
       );
+      _voiceUxLog(
+        'Pipeline start: same audio file is run again through ASR → chat → TTS; '
+        'LLM output and speech are recomputed from scratch.',
+      );
+      _voiceUxLog(
+        'audio=${p.basename(audioPath)} instruction=${_voiceUxPreview(instruction, 120)}',
+      );
+      _voiceUxLog(
+        'models asr=${asrModel.manifest.id} chat=${chatModel.manifest.id} tts=${ttsModel.manifest.id}',
+      );
+      _voiceUxLog(
+        'chat sampling temp=${chatParams.temperature} topP=${chatParams.topP} maxTokens=${chatParams.maxTokens}',
+      );
+      _voiceUxLog('TTS coalescing: ${_voiceUxTtsCoalescingLabel(ttsCoalescing)}');
+      _voiceUxLog(
+        'TTS UI: voiceRaw="${ttsVoiceController.text.trim()}" voiceResolved="${speechOpts.voice}" '
+        'voiceDesignPreset=$_ttsVoiceDesignUsesPreset cloneMode=$_ttsCloneMode '
+        'instruct=${_voiceUxPreview(speechOpts.instruct, 80)} lang=${speechOpts.languageCode} '
+        'speed=${speechOpts.speed} streamRemote=${speechOpts.streamSpeech}',
+      );
+      final pipeline = sdk.StreamingVoice2VoicePipeline(
+        asrEngine: StudioFileStreamingAsrEngine(
+          audioRunner: controller.audioRunner,
+          audioFilePath: audioPath,
+        ),
+        chatRunner: StudioStreamingChatRunnerAdapter(controller.chatRunner),
+        ttsEngine: StudioLocalStreamingTtsEngine(
+          controller.audioRunner,
+          speechOpts,
+        ),
+      );
+
+      final assistantAccum = StringBuffer();
+      var assistantFinal = '';
+      final segmentPaths = <String>[];
+      var segmentIndex = 0;
+      var ttsStarted = false;
+
+      await for (final event in pipeline.run(
+        asrModel: installedModelToSdk(asrModel),
+        chatModel: installedModelToSdk(chatModel),
+        ttsModel: installedModelToSdk(ttsModel),
+        userAudio: voiceFileChunkStream(audioPath),
+        instruction: instruction,
+        chatParams: chatParams,
+        chatToolRegistry: _chatToolRegistryForSend(chatModel),
+        ttsOptions: sdk.VoiceSynthesisOptions(
+          voice: speechOpts.voice,
+          languageCode: speechOpts.languageCode.isEmpty
+              ? 'auto'
+              : speechOpts.languageCode,
+          speed: speechOpts.speed,
+          referenceAudioPath: speechOpts.referenceAudioPath,
+          referenceText: speechOpts.referenceText.isEmpty
+              ? null
+              : speechOpts.referenceText,
+          instruct:
+              speechOpts.instruct.isEmpty ? null : speechOpts.instruct,
+        ),
+        ttsCoalescing: ttsCoalescing,
+        cancelToken: _voicePipelineCancel,
+      )) {
+        if (!mounted) {
+          break;
+        }
+        switch (event.type) {
+          case sdk.Voice2VoiceEventType.asrPartial:
+            break;
+          case sdk.Voice2VoiceEventType.asrFinal:
+            voiceCubit.setReplying();
+            setState(() {
+              if (controller.chatTurns.isNotEmpty &&
+                  !controller.chatTurns.last.isUser) {
+                controller.chatTurns[controller.chatTurns.length - 1] =
+                    ChatTurn.assistant('Transcript: ${event.text}');
+              }
+              controller.chatTurns.add(ChatTurn.user(event.text!));
+              controller.chatTurns.add(const ChatTurn.assistant(''));
+            });
+            _scrollChatToBottom();
+          case sdk.Voice2VoiceEventType.assistantDelta:
+            assistantAccum.write(event.text);
+            _replaceStreamingAssistant(assistantAccum.toString());
+          case sdk.Voice2VoiceEventType.assistantFinal:
+            assistantFinal = event.text!;
+            _replaceStreamingAssistant(assistantFinal);
+            _voiceUxLog(
+              'assistantFinal chars=${assistantFinal.length} '
+              'preview=${_voiceUxPreview(assistantFinal, 100)}',
+            );
+          case sdk.Voice2VoiceEventType.ttsAudio:
+            final audio = event.audio!;
+            if (!audio.isFinal && audio.bytes.isNotEmpty) {
+              if (!ttsStarted) {
+                ttsStarted = true;
+                voiceCubit.setSynthesizing();
+              }
+              final idx = segmentIndex++;
+              final path = await _writeVoicePipelineTtsSegment(
+                audio,
+                idx,
+              );
+              if (path != null) {
+                segmentPaths.add(path);
+                _voiceUxLog(
+                  'TTS segment file: idx=$idx bytes=${audio.bytes.length} '
+                  '${p.basename(path)}',
+                );
+              }
+            }
+          case sdk.Voice2VoiceEventType.cancelled:
+            voicePipelineUserCancelled = true;
+            try {
+              await audioPlayer.stop();
+            } catch (_) {}
+            voiceCubit.reset();
+            break;
+          case sdk.Voice2VoiceEventType.done:
+            break;
+        }
+      }
       stopwatch.stop();
 
-      String? speechPath;
-      if (result.synthesizedAudio.isNotEmpty) {
-        final ext = result.audioMediaType == 'audio/opus'
-            ? 'opus'
-            : result.audioMediaType == 'audio/mpeg'
-            ? 'mp3'
-            : 'wav';
-        final tmp = await Directory.systemTemp.createTemp('flm-v2v-');
-        final outFile = File(p.join(tmp.path, 'speech.$ext'));
-        await outFile.writeAsBytes(result.synthesizedAudio);
-        speechPath = outFile.path;
+      if (voicePipelineUserCancelled) {
+        _voiceUxLog(
+          'Pipeline stopped by user after ${stopwatch.elapsed.inMilliseconds}ms',
+        );
+        return;
       }
+
+      _voiceUxLog(
+        'Pipeline finished: segments=${segmentPaths.length} elapsed=${stopwatch.elapsed.inMilliseconds}ms',
+      );
+
+      final speechPath =
+          segmentPaths.isNotEmpty ? segmentPaths.last : null;
 
       final duration = speechPath != null
           ? await _probeAudioDuration(speechPath)
@@ -5028,36 +5430,44 @@ class _StudioShellState extends State<StudioShell> {
             !controller.chatTurns.last.isUser) {
           controller.chatTurns[controller.chatTurns.length - 1] =
               ChatTurn.assistant(
-            result.assistantText,
-            audioPath: speechPath,
-            duration: duration,
-            generationDuration: stopwatch.elapsed,
-          );
+                assistantFinal,
+                audioPath: speechPath,
+                duration: duration,
+                generationDuration: stopwatch.elapsed,
+              );
         }
       });
       voiceCubit.reset();
-      if (speechPath != null) {
-        await _playAudioPath(speechPath);
+      if (segmentPaths.isNotEmpty) {
+        await _playVoicePipelineSegmentsSequentially(segmentPaths);
       }
     } catch (error) {
       voiceCubit.reset();
       setState(() => testErrorMessage = '$error');
     } finally {
+      _voicePipelineCancel = null;
       setState(() => testBusy = false);
       _scrollChatToBottom();
     }
   }
 
-  SpeechSynthesisOptions _speechOptionsFromUi() {
+  SpeechSynthesisOptions _speechOptionsFromUi({required InstalledModel ttsModel}) {
     final endpointText = streamingTtsEndpointController.text.trim();
     final endpoint = endpointText.isEmpty ? null : Uri.tryParse(endpointText);
     final modelOverride = streamingTtsModelIdController.text.trim();
+    final extra = ttsModel.manifest.runtimeConfig.extra;
+    final qwenTtsMode = extra['qwen_tts_mode'] as String? ?? '';
+    // VoiceDesign: design-prompt tab must not send a stale preset name as `voice`
+    // (see LocalAudioRunner.synthesizeSpeech voice_clone routing).
+    var voice = qwenTtsMode == 'voice_design' && !_ttsVoiceDesignUsesPreset
+        ? ''
+        : _effectiveTtsVoiceForModel(ttsModel);
     // In preset mode (_ttsCloneMode == false) never send reference audio — it
     // would override the chosen speaker and make presets sound identical.
     final refPath = _ttsCloneMode ? ttsReferenceAudioPath : null;
     final refText = _ttsCloneMode ? ttsReferenceTextController.text.trim() : '';
     return SpeechSynthesisOptions(
-      voice: ttsVoiceController.text.trim(),
+      voice: voice,
       instruct: ttsInstructController.text.trim(),
       languageCode: _normalizeTtsLanguageCode(ttsLanguageController.text),
       referenceAudioPath: refPath,
@@ -5125,9 +5535,9 @@ class _StudioShellState extends State<StudioShell> {
   }
 
   LocalChatParams _chatParamsForModel(InstalledModel model) {
-    final tools =
-        _modelSupportsToolCallingUi(model) ? _parseToolsListOrEmpty() : const <
-            LocalTool>[];
+    final tools = _modelSupportsToolCallingUi(model)
+        ? _parseToolsListOrEmpty()
+        : const <LocalTool>[];
     return LocalChatParams(
       modelId: model.manifest.id,
       maxTokens: int.tryParse(generationMaxTokensController.text.trim()) ?? 256,
@@ -5142,6 +5552,134 @@ class _StudioShellState extends State<StudioShell> {
     );
   }
 
+  Widget _buildChatToolsJsonField(
+    InstalledModel model, {
+    VoidCallback? onExtraChanged,
+    String? helperText,
+    int minLines = 4,
+    int maxLines = 12,
+  }) {
+    return TextField(
+      controller: chatToolsJsonController,
+      minLines: minLines,
+      maxLines: maxLines,
+      onChanged: (_) {
+        setState(() {});
+        onExtraChanged?.call();
+      },
+      enabled: !testBusy,
+      style: TextStyle(
+        fontFamily: 'monospace',
+        fontSize: 12,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+      decoration: InputDecoration(
+        labelText: 'Tools (JSON array)',
+        border: const OutlineInputBorder(),
+        alignLabelWithHint: true,
+        hintText: 'Clear to send no tools',
+        helperText:
+            helperText ??
+            'JSON array of LocalTool objects (name, description, parametersJsonSchema). '
+                'Default sample is pre-filled; edit as needed. On tool call, a snackbar appears; '
+                'the model receives a JSON stub with ok and receivedArguments.',
+        errorText: _chatToolsFieldError(model),
+      ),
+    );
+  }
+
+  Widget _buildChatToolsCompactPanel(InstalledModel model) {
+    final theme = Theme.of(context);
+    final error = _chatToolsFieldError(model);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.45,
+        ),
+        border: Border.all(
+          color: error == null
+              ? theme.colorScheme.outlineVariant
+              : theme.colorScheme.error,
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () {
+              setState(() => chatToolsExpanded = !chatToolsExpanded);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.build_circle_outlined,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'LLM tools: ${_chatToolsSummary(model)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    chatToolsExpanded ? 'Hide' : 'Edit',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  Icon(
+                    chatToolsExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 20,
+                    color: theme.colorScheme.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (chatToolsExpanded) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: _buildChatToolsJsonField(
+                model,
+                minLines: 3,
+                maxLines: 8,
+                helperText:
+                    'JSON array of LocalTool objects. Collapse this panel to keep chat history readable.',
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _chatToolsSummary(InstalledModel model) {
+    final raw = chatToolsJsonController.text.trim();
+    if (raw.isEmpty) {
+      return 'disabled';
+    }
+    try {
+      final tools = _parseToolsListOrEmpty();
+      if (tools.isEmpty) {
+        return 'disabled';
+      }
+      final names = tools.map((tool) => tool.name).join(', ');
+      return '${tools.length} configured ($names)';
+    } catch (_) {
+      return 'invalid JSON';
+    }
+  }
+
   bool _modelSupportsToolCallingUi(InstalledModel model) {
     return model.toolCallingUiSupported;
   }
@@ -5152,12 +5690,14 @@ class _StudioShellState extends State<StudioShell> {
       return const <LocalTool>[];
     }
     final decoded = jsonDecode(raw) as List<dynamic>;
-    return decoded.map((item) {
-      final m = Map<String, Object?>.from(
-        (item as Map).map((k, v) => MapEntry('$k', v)),
-      );
-      return LocalTool.fromJsonMap(m);
-    }).toList(growable: false);
+    return decoded
+        .map((item) {
+          final m = Map<String, Object?>.from(
+            (item as Map).map((k, v) => MapEntry('$k', v)),
+          );
+          return LocalTool.fromJsonMap(m);
+        })
+        .toList(growable: false);
   }
 
   String? _chatToolsFieldError(InstalledModel model) {
@@ -5178,9 +5718,9 @@ class _StudioShellState extends State<StudioShell> {
           return 'Each tool must be a JSON object '
               '(fields: name, description, parametersJsonSchema).';
         }
-        LocalTool.fromJsonMap(Map<String, Object?>.from(
-          item.map((k, v) => MapEntry('$k', v)),
-        ));
+        LocalTool.fromJsonMap(
+          Map<String, Object?>.from(item.map((k, v) => MapEntry('$k', v))),
+        );
       }
       return null;
     } catch (e) {
@@ -5203,10 +5743,7 @@ class _StudioShellState extends State<StudioShell> {
     final reg = LmToolRegistry();
     for (final t in tools) {
       reg.register(t.name, (args) async {
-        final payload = <String, Object?>{
-          'tool': t.name,
-          'arguments': args,
-        };
+        final payload = <String, Object?>{'tool': t.name, 'arguments': args};
         final summary = _shortJsonForSnackBar(payload);
         if (mounted) {
           ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -5220,6 +5757,8 @@ class _StudioShellState extends State<StudioShell> {
           'ok': true,
           'tool': t.name,
           'receivedArguments': args,
+          if (t.name == 'get_current_time')
+            'currentTimeUtc': DateTime.now().toUtc().toIso8601String(),
           'stubResult':
               'Studio UI stub response; replace with real logic in production.',
         });

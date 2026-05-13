@@ -6,11 +6,15 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:local_models_core/local_models_core.dart';
+import 'package:local_models_sdk/local_models_sdk.dart' as sdk;
 import 'package:path/path.dart' as p;
 
 import 'openai_audio_speech_client.dart';
+import 'runtime/embedded_gemma_tool_calls.dart';
 import 'runtime/lm_tool_registry.dart';
 import 'runtime/native_engines.dart';
+
+const int _maxEmbeddedGemmaToolIterations = 3;
 
 const _installMetadataFileName = '.flutter_local_model.json';
 const _downloadQueueFileName = 'download_queue.json';
@@ -72,11 +76,7 @@ Map<String, Object?> _mergeParameterSchemaGapFill({
       primary: primaryMap[key],
     );
   }
-  return <String, Object?>{
-    ...gapFill,
-    ...primary,
-    'properties': mergedProps,
-  };
+  return <String, Object?>{...gapFill, ...primary, 'properties': mergedProps};
 }
 
 Object? _mergeJsonSchemaPropertyGapFill({Object? gapFill, Object? primary}) {
@@ -374,6 +374,12 @@ class StudioSettings {
   };
 }
 
+/// Manifest ids may use `gemma4…`, `gemma-4…`, etc.
+bool manifestIdLooksLikeGemma4(String id) {
+  final n = id.toLowerCase().replaceAll('_', '-');
+  return n.startsWith('gemma4') || n.startsWith('gemma-4');
+}
+
 class InstalledModel {
   const InstalledModel({
     required this.manifest,
@@ -409,7 +415,7 @@ class InstalledModel {
           manifest.runtimeAdapter == RuntimeAdapter.mlxAudio) ||
       (manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
           manifest.tasks.contains(ModelTask.audioInput) &&
-          manifest.id.startsWith('gemma4'));
+          manifestIdLooksLikeGemma4(manifest.id));
 
   /// Whisper / mlx-audio ASR checkpoints — transcribe-only UX, not Gemma4 chat+VLM.
   bool get dedicatedSpeechToTextModel =>
@@ -433,7 +439,7 @@ class InstalledModel {
       (manifest.capabilities.toolCalling ||
           (manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
               manifest.tasks.contains(ModelTask.chat) &&
-              manifest.id.startsWith('gemma4')));
+              manifestIdLooksLikeGemma4(manifest.id)));
 }
 
 class ChatTurn {
@@ -793,6 +799,7 @@ class LocalChatRunner {
   }) async {
     _checkRuntime(model);
     await _yieldHostUiFrame();
+    final toolHandler = _toolCallHandler(tools, onToolCall);
 
     final raw = await _engine.complete(
       LmCompletionRequest(
@@ -806,10 +813,27 @@ class LocalChatRunner {
         topP: topP,
         enableThinking: enableThinking,
         tools: tools,
-        onToolCall: onToolCall,
+        onToolCall: toolHandler,
       ),
     );
-    final output = _cleanGeneratedText(raw).trim();
+    var output = _cleanGeneratedText(raw).trim();
+    if (tools.isNotEmpty && toolHandler != null) {
+      output = await _completeEmbeddedGemmaToolLoop(
+        engine: _engine,
+        model: model,
+        prompt: prompt,
+        audioPath: audioPath,
+        imagePath: imagePath,
+        maxTokens: maxTokens,
+        temperature: temperature,
+        topP: topP,
+        enableThinking: enableThinking,
+        tools: tools,
+        onToolCall: toolHandler,
+        rawModelOutput: raw,
+        cleanedOutput: output,
+      );
+    }
     if (output.isEmpty) {
       throw StateError('Local generation returned an empty response.');
     }
@@ -831,6 +855,7 @@ class LocalChatRunner {
   }) async {
     _checkRuntime(model);
     await _yieldHostUiFrame();
+    final toolHandler = _toolCallHandler(tools, onToolCall);
 
     final buffer = StringBuffer();
     final raw = await _engine.completeStreaming(
@@ -845,17 +870,37 @@ class LocalChatRunner {
         topP: topP,
         enableThinking: enableThinking,
         tools: tools,
-        onToolCall: onToolCall,
+        onToolCall: toolHandler,
       ),
       (delta) {
         buffer.write(delta);
-        final soFar = _cleanGeneratedText(buffer.toString()).trim();
+        final stripped = stripEmbeddedGemmaToolCallBlocks(buffer.toString());
+        final soFar = _cleanGeneratedText(stripped).trim();
         if (soFar.isNotEmpty) {
           onText(soFar);
         }
       },
     );
-    final output = _cleanGeneratedText(raw).trim();
+    var output = _cleanGeneratedText(
+      stripEmbeddedGemmaToolCallBlocks(raw),
+    ).trim();
+    if (tools.isNotEmpty && toolHandler != null) {
+      output = await _completeEmbeddedGemmaToolLoop(
+        engine: _engine,
+        model: model,
+        prompt: prompt,
+        audioPath: audioPath,
+        imagePath: imagePath,
+        maxTokens: maxTokens,
+        temperature: temperature,
+        topP: topP,
+        enableThinking: enableThinking,
+        tools: tools,
+        onToolCall: toolHandler,
+        rawModelOutput: raw,
+        cleanedOutput: output,
+      );
+    }
     if (output.isEmpty) {
       throw StateError('Local generation returned an empty response.');
     }
@@ -911,6 +956,147 @@ class LocalChatRunner {
       onText: onText,
     );
   }
+}
+
+Future<String> Function(String name, Map<String, Object?> args)?
+_toolCallHandler(
+  List<LocalTool> tools,
+  Future<String> Function(String name, Map<String, Object?> args)? onToolCall,
+) {
+  if (tools.isEmpty || onToolCall == null) {
+    return null;
+  }
+  return (name, args) {
+    if (_isToolListRequest(name)) {
+      return Future<String>.value(_encodeAvailableTools(tools));
+    }
+    return onToolCall(name, args);
+  };
+}
+
+bool _isToolListRequest(String name) {
+  return name == 'get_tools' ||
+      name == 'list_tools' ||
+      name == 'get_available_tools';
+}
+
+String _encodeAvailableTools(List<LocalTool> tools) {
+  return jsonEncode(<String, Object?>{
+    'tools': tools.map((tool) => tool.toOpenAIJson()).toList(growable: false),
+  });
+}
+
+Future<String> _completeEmbeddedGemmaToolLoop({
+  required LmEngine engine,
+  required InstalledModel model,
+  required String prompt,
+  required String? audioPath,
+  required String? imagePath,
+  required int maxTokens,
+  required double? temperature,
+  required double? topP,
+  required bool? enableThinking,
+  required List<LocalTool> tools,
+  required Future<String> Function(String name, Map<String, Object?> args)
+  onToolCall,
+  required String rawModelOutput,
+  required String cleanedOutput,
+}) async {
+  var currentPrompt = prompt;
+  var currentRaw = rawModelOutput;
+  var currentCleaned = cleanedOutput;
+  var lastToolResults = const <_GemmaToolResult>[];
+
+  for (var i = 0; i < _maxEmbeddedGemmaToolIterations; i++) {
+    final calls = extractEmbeddedGemmaToolCalls(currentRaw);
+    if (calls.isEmpty) {
+      return stripEmbeddedGemmaToolCallBlocks(currentCleaned).trim();
+    }
+
+    lastToolResults = await _invokeEmbeddedGemmaTools(calls, onToolCall);
+    currentPrompt = _appendEmbeddedGemmaToolResultsToPrompt(
+      prompt: currentPrompt,
+      rawAssistantOutput: currentRaw,
+      toolResults: lastToolResults,
+    );
+    currentRaw = await engine.complete(
+      LmCompletionRequest(
+        modelPath: model.directory.path,
+        manifest: model.manifest,
+        prompt: currentPrompt,
+        audioPath: audioPath,
+        imagePath: imagePath,
+        maxTokens: maxTokens,
+        temperature: temperature,
+        topP: topP,
+        enableThinking: enableThinking,
+        tools: const <LocalTool>[],
+        onToolCall: null,
+      ),
+    );
+    currentCleaned = _cleanGeneratedText(currentRaw).trim();
+  }
+
+  final fallback = _formatEmbeddedGemmaToolResults(lastToolResults);
+  return fallback.isEmpty
+      ? stripEmbeddedGemmaToolCallBlocks(currentCleaned).trim()
+      : fallback;
+}
+
+Future<List<_GemmaToolResult>> _invokeEmbeddedGemmaTools(
+  List<EmbeddedGemmaToolInvocation> calls,
+  Future<String> Function(String name, Map<String, Object?> args) onToolCall,
+) async {
+  final results = <_GemmaToolResult>[];
+  for (final call in calls) {
+    final args = parseEmbeddedGemmaToolArgs(call.argsBody);
+    final output = (await onToolCall(call.name, args)).trim();
+    results.add(_GemmaToolResult(call.name, args, output));
+  }
+  return results;
+}
+
+String _appendEmbeddedGemmaToolResultsToPrompt({
+  required String prompt,
+  required String rawAssistantOutput,
+  required List<_GemmaToolResult> toolResults,
+}) {
+  final buffer = StringBuffer();
+  final base = prompt.trim();
+  if (base.isNotEmpty) {
+    buffer.writeln(base);
+    buffer.writeln();
+  }
+  final assistantText = stripEmbeddedGemmaToolCallBlocks(
+    rawAssistantOutput,
+  ).trim();
+  if (assistantText.isNotEmpty) {
+    buffer.writeln('assistant: $assistantText');
+  }
+  buffer.writeln(
+    'tool: The assistant called tool(s). Use these result(s) to answer the user naturally. Do not expose raw JSON unless the user asks for it.',
+  );
+  buffer.write(_formatEmbeddedGemmaToolResults(toolResults));
+  buffer.writeln();
+  buffer.write('assistant:');
+  return buffer.toString().trim();
+}
+
+String _formatEmbeddedGemmaToolResults(List<_GemmaToolResult> results) {
+  return results
+      .map(
+        (result) =>
+            '[${result.name}] arguments=${jsonEncode(result.arguments)} result=${result.output}',
+      )
+      .join('\n');
+}
+
+final class _GemmaToolResult {
+  const _GemmaToolResult(this.name, this.arguments, this.output);
+
+  final String name;
+  final Map<String, Object?> arguments;
+  final String output;
 }
 
 String _promptFromMessages(List<LocalChatMessage> messages) {
@@ -1022,17 +1208,31 @@ class LocalAudioRunner {
     final maxTokens =
         _intParameter(runtimeDefaults['max_tokens']) ??
         _intParameter(runtimeDefaults['maxTokens']);
-    final temperature = _numberParameter(runtimeDefaults['temperature']);
-    // For VoiceDesign models the `voice` field must carry the natural-language
-    // description (the "instruct" prompt), NOT a speaker name. Sending a speaker
-    // name like "Serena" as `voice` on a VoiceDesign checkpoint causes the Swift
-    // runtime to prefer that short name over the instruct prompt, so the voice
-    // never changes regardless of the prompt text.
     final extra = model.manifest.runtimeConfig.extra;
     final qwenTtsMode = extra['qwen_tts_mode'] as String? ?? '';
     final vibevoiceTtsMode = extra['vibevoice_tts_mode'] as String? ?? '';
     final isVoiceDesign = qwenTtsMode == 'voice_design';
     final isVibeVoice = vibevoiceTtsMode.isNotEmpty;
+
+    var ttsTemperature = _numberParameter(runtimeDefaults['temperature']);
+    if (ttsTemperature == null) {
+      ttsTemperature = _numberParameter(runtimeDefaults['audio_temperature']);
+    }
+    if (ttsTemperature == null &&
+        !isVibeVoice &&
+        (qwenTtsMode.isNotEmpty ||
+            model.manifest.id.toLowerCase().contains('qwen3-tts'))) {
+      // Native Qwen3TTSModel defaults can leave decoding sampled; omitting
+      // temperature in the manifest then makes the same text/speaker sound
+      // different on every run. Greedy decode unless the manifest sets a value.
+      ttsTemperature = 0.0;
+    }
+
+    // For VoiceDesign models the `voice` field must carry the natural-language
+    // description (the "instruct" prompt), NOT a speaker name. Sending a speaker
+    // name like "Serena" as `voice` on a VoiceDesign checkpoint causes the Swift
+    // runtime to prefer that short name over the instruct prompt, so the voice
+    // never changes regardless of the prompt text.
 
     String? voiceField;
     String? instructField;
@@ -1062,9 +1262,20 @@ class LocalAudioRunner {
       referenceText = options.referenceText;
     }
 
-    debugPrint('[TTS] model=${model.manifest.id} qwenMode=$qwenTtsMode vibeMode=$vibevoiceTtsMode');
-    debugPrint('[TTS] UI voice="${options.voice}" instruct="${options.instruct}"');
+    debugPrint(
+      '[TTS] model=${model.manifest.id} qwenMode=$qwenTtsMode vibeMode=$vibevoiceTtsMode',
+    );
+    debugPrint(
+      '[TTS] UI voice="${options.voice}" instruct="${options.instruct}"',
+    );
     debugPrint('[TTS] payload voice="$voiceField" instruct="$instructField"');
+    debugPrint(
+      '[VoiceUX:chain] dart_tts_dispatch | model=${model.manifest.id} | '
+      'speaker_ui="${options.voice}" | speaker_payload="$voiceField" | '
+      'qwenMode=$qwenTtsMode | vibeMode=$vibevoiceTtsMode | lang=${options.languageCode} | '
+      'manifest_temp=$ttsTemperature | speed=${options.speed} | refActive=${referenceAudioPath != null} | '
+      'cfg_scale=$cfgScale',
+    );
     final fields = <String, Object?>{
       'runtimeDefaults': runtimeDefaults,
       'audio_format': audioFormat,
@@ -1072,7 +1283,7 @@ class LocalAudioRunner {
       'cfg_scale': ?cfgScale,
       'ddpm_steps': ?ddpmSteps,
       'max_tokens': ?maxTokens,
-      'temperature': ?temperature,
+      'temperature': ?ttsTemperature,
       'voice': voiceField,
       'instruct': instructField,
       'languageCode': options.languageCode,
@@ -1126,11 +1337,7 @@ class LocalAudioRunner {
       } finally {
         client.close();
       }
-      yield TtsAudioChunk(
-        bytes: Uint8List(0),
-        isFinal: true,
-        mediaType: null,
-      );
+      yield TtsAudioChunk(bytes: Uint8List(0), isFinal: true, mediaType: null);
       return;
     }
 
@@ -1150,11 +1357,7 @@ class LocalAudioRunner {
       isFinal: false,
       mediaType: _ttsMimeForExtension(ext),
     );
-    yield TtsAudioChunk(
-      bytes: Uint8List(0),
-      isFinal: true,
-      mediaType: null,
-    );
+    yield TtsAudioChunk(bytes: Uint8List(0), isFinal: true, mediaType: null);
   }
 }
 
@@ -1317,12 +1520,17 @@ class StudioController extends ChangeNotifier {
        audioRunner = audioRunner ?? LocalAudioRunner(),
        imageRunner = imageRunner ?? LocalImageRunner() {
     hfToken = Platform.environment['HF_TOKEN'] ?? '';
+    modelStore = sdk.LocalModelStore(
+      registry: registry,
+      paths: sdk.LocalModelsSdkPaths(baseDirectory: this.paths.baseDirectory),
+    );
   }
 
   final ModelRegistry registry;
   final NativeRuntimeSummary runtimeSummary;
   final StudioApiClient apiClient;
   final StudioPaths paths;
+  late final sdk.LocalModelStore modelStore;
   final LocalChatRunner chatRunner;
   final LocalAudioRunner audioRunner;
   final LocalImageRunner imageRunner;
@@ -1568,63 +1776,9 @@ class StudioController extends ChangeNotifier {
 
   Future<void> reloadInstalledModels() async {
     await _ensureDirectories();
-    final discovered = <InstalledModel>[];
-    await for (final entity in paths.modelsDirectory.list()) {
-      if (entity is! Directory) {
-        continue;
-      }
-      final sizeBytes = await _directorySizeBytes(entity);
-      final metadataFile = File(p.join(entity.path, _installMetadataFileName));
-      if (metadataFile.existsSync()) {
-        final decoded =
-            jsonDecode(await metadataFile.readAsString())
-                as Map<String, dynamic>;
-        final manifest = _manifestWithRegistryRuntimeGapFill(
-          primary: LocalModelManifest.fromJsonMap(
-            Map<String, Object?>.from(decoded['manifest'] as Map),
-          ),
-          registry: registry,
-        );
-        discovered.add(
-          InstalledModel(
-            manifest: manifest,
-            directory: entity,
-            sourceLabel: decoded['sourceLabel'] as String? ?? 'Unknown',
-            installedAt:
-                DateTime.tryParse(decoded['installedAt'] as String? ?? '') ??
-                DateTime.now(),
-            metadataUpdatedAt: DateTime.tryParse(
-              decoded['metadataUpdatedAt'] as String? ?? '',
-            ),
-            sizeBytes: sizeBytes,
-          ),
-        );
-        continue;
-      }
-      final manifest = _firstWhereOrNull(
-        registry.manifests,
-        (item) => item.id == p.basename(entity.path),
-      );
-      if (manifest != null) {
-        discovered.add(
-          InstalledModel(
-            manifest: _manifestWithRegistryRuntimeGapFill(
-              primary: manifest,
-              registry: registry,
-            ),
-            directory: entity,
-            sourceLabel: 'Unknown',
-            installedAt: (await entity.stat()).modified,
-            sizeBytes: sizeBytes,
-            metadataUpdatedAt: null,
-          ),
-        );
-      }
-    }
-    discovered.sort(
-      (left, right) =>
-          left.manifest.displayName.compareTo(right.manifest.displayName),
-    );
+    final discovered = (await modelStore.listInstalledModels())
+        .map(_installedModelFromSdk)
+        .toList(growable: false);
     installedModels = List<InstalledModel>.unmodifiable(discovered);
     if (selectedChatModel != null) {
       selectedChatModel = _firstWhereOrNull(
@@ -1633,6 +1787,17 @@ class StudioController extends ChangeNotifier {
       );
     }
     notifyListeners();
+  }
+
+  InstalledModel _installedModelFromSdk(sdk.InstalledModel model) {
+    return InstalledModel(
+      manifest: model.manifest,
+      directory: model.directory,
+      sourceLabel: model.sourceLabel,
+      installedAt: model.installedAt,
+      sizeBytes: model.sizeBytes,
+      metadataUpdatedAt: model.metadataUpdatedAt,
+    );
   }
 
   Future<void> deleteInstalledModel(InstalledModel model) async {
@@ -2398,8 +2563,7 @@ class StudioController extends ChangeNotifier {
       registry.manifests,
       (item) => item.id == model.manifest.id,
     );
-    final next =
-        releaseManifest ?? registryManifest ?? model.manifest;
+    final next = releaseManifest ?? registryManifest ?? model.manifest;
     return _manifestWithRegistryRuntimeGapFill(
       primary: next,
       registry: registry,

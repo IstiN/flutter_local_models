@@ -66,6 +66,24 @@ enum FlmGemma4AudioTower {
         return MLXFast.rmsNorm(x, weight: MLXArray.mlxNone, eps: eps)
     }
 
+    /// `y = x @ Wᵀ` matching ``gemma4_asr.py`` `_clipped_linear` (`x @ w.T`).
+    /// Weights may be `[out_features, in_features]` (HuggingFace) or
+    /// `[in_features, out_features]` (some MLX exports) for non-square matrices.
+    private static func matmulInputByLinearWeight(_ x: MLXArray, wMat: MLXArray) -> MLXArray {
+        let inDim = x.dim(-1)
+        let shape = wMat.shape.map { Int($0) }
+        guard shape.count == 2 else {
+            return matmul(x, wMat.transposed(0, 1))
+        }
+        if shape[1] == inDim {
+            return matmul(x, wMat.transposed(0, 1))
+        }
+        if shape[0] == inDim {
+            return matmul(x, wMat)
+        }
+        return matmul(x, wMat.transposed(0, 1))
+    }
+
     /// Clipped affine: `y = clip(x) @ w.T` with optional IO clipping (Gemma4 clipped linear).
     private static func clippedLinear(
         _ x: MLXArray,
@@ -79,7 +97,7 @@ enum FlmGemma4AudioTower {
             t = MLX.clip(t, min: MLXArray(lo), max: MLXArray(hi))
         }
         let wMat = try w(weights, "\(weightKey).linear.weight")
-        var y = matmul(t, wMat.transposed(0, 1))
+        var y = matmulInputByLinearWeight(t, wMat: wMat)
         if weights.keys.contains("\(weightKey).output_min") {
             let lo = try w(weights, "\(weightKey).output_min").item(Float.self)
             let hi = try w(weights, "\(weightKey).output_max").item(Float.self)
@@ -353,7 +371,7 @@ enum FlmGemma4AudioTower {
         x = x.reshaped(b2, t2, w2 * c2)
 
         let wProj = try w(weights, "audio_tower.subsample_conv_projection.input_proj_linear.weight")
-        x = matmul(x, wProj.transposed(0, 1))
+        x = matmulInputByLinearWeight(x, wMat: wProj)
         return x
     }
 
@@ -371,7 +389,7 @@ enum FlmGemma4AudioTower {
             wq, scales: scales, biases: biases, groupSize: groupSize, bits: bits, mode: .affine,
             dtype: .bfloat16)
         _ = outFeatures
-        x = matmul(x, wFp.transposed(0, 1))
+        x = matmulInputByLinearWeight(x, wMat: wFp)
         return x
     }
 
@@ -398,7 +416,7 @@ enum FlmGemma4AudioTower {
 
         let outW = try w(weights, "audio_tower.output_proj.weight")
         let outB = try w(weights, "audio_tower.output_proj.bias")
-        hidden = matmul(hidden, outW.transposed(0, 1)) + outB
+        hidden = matmulInputByLinearWeight(hidden, wMat: outW) + outB
         return try embedAudio(hidden: hidden, weights: weights)
     }
 }

@@ -2560,7 +2560,8 @@
         "join_audio": true,
         "lang_code": "auto",
         "voice": "Ryan",
-        "speed": 1.0
+        "speed": 1.0,
+        "temperature": 0.0
       },
       "parameterSchema": {
         "type": "object",

@@ -13,7 +13,8 @@ let package = Package(
         .package(url: "https://github.com/ml-explore/mlx-swift-lm", from: "3.31.3"),
         .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
-        .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", branch: "main"),
+        // Patched locally: base Qwen3-TTS routes preset `--voice` as `speaker` (matches Python).
+        .package(path: "../../../mlx-audio-swift"),
     ],
     targets: [
         .target(

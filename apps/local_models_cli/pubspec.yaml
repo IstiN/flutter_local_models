@@ -2,6 +2,7 @@ name: local_models_cli
 description: CLI for inspecting local model manifests, runtime plans, and release metadata.
 version: 0.1.0
 repository: https://github.com/IstiN/flutter_local_models
+publish_to: none
 
 environment:
   sdk: ^3.10.8
@@ -10,6 +11,8 @@ dependencies:
   args: ^2.7.0
   local_models_core:
     path: ../../packages/local_models_core
+  local_models_sdk:
+    path: ../../packages/local_models_sdk
   path: ^1.9.1
 
 dev_dependencies:

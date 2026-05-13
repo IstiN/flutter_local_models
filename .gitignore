@@ -21,3 +21,4 @@ Pods/
 **/GeneratedPluginRegistrant.*
 **/Flutter/ephemeral/
 **/pubspec.lock
+/out/

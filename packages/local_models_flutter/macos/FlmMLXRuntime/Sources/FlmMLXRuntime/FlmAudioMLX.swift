@@ -248,6 +248,9 @@ private actor FlmQwenMLXRuntime {
         if let t = temperatureOverride {
             genParams.temperature = t
         }
+        print(
+            "[VoiceUX:chain] qwen_tts_generate | temperature=\(genParams.temperature) maxTokens=\(genParams.maxTokens)"
+        )
 
         var refAudioMLX: MLXArray?
         if let refPath = referenceAudioPath, !refPath.isEmpty, let rt = refText, !rt.isEmpty {
@@ -295,6 +298,10 @@ enum FlmAudioMLX {
         guard FileManager.default.fileExists(atPath: audioPath) else {
             return ["ok": false, "error": "audio file missing: \(audioPath)"]
         }
+
+        NSLog("[VoiceUX:chain] native_mlx_asr_begin | model=%@ | audio=%@",
+              (modelPath as NSString).lastPathComponent,
+              (audioPath as NSString).lastPathComponent)
 
         if isWhisperASR(modelDir: modelDir) {
             return [
@@ -420,7 +427,7 @@ enum FlmAudioMLX {
         let langCode = payload["languageCode"] as? String
         let language = normalizedTtsLanguage(langCode)
 
-        NSLog("[FlmTTS] voice=%@ instruct=%@ voiceParam=%@ lang=%@ refPath=%@",
+        NSLog("[VoiceUX:chain] native_mlx_tts | voice=%@ instruct=%@ voiceParam=%@ lang=%@ refPath=%@",
               voiceName ?? "<nil>",
               instruct ?? "<nil>",
               voiceParam ?? "<nil>",
