@@ -77,6 +77,12 @@ registry/
   models/                 # Internal manifest source for release workflows
 ```
 
+## Integrating into your own Flutter app
+
+If you consume this repo from **another repository**, use a **full checkout** (e.g. git submodule) and a **`path:`** dependency on `packages/local_models_flutter` or `packages/local_models_sdk`. You must also link the **macOS Swift** runtime (**FlmMLXRuntime**) for local LM / native Qwen ASR–TTS.
+
+Step-by-step guide: **[docs/INTEGRATION.md](docs/INTEGRATION.md)** (downloads, ASR + chat wiring, checklist).
+
 ## Flutter-first API direction
 
 The intended public API should feel like Flutter, not like shell orchestration.
