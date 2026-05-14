@@ -4,7 +4,7 @@ version: 0.1.0
 repository: https://github.com/IstiN/flutter_local_models
 
 environment:
-  sdk: ^3.10.8
+  sdk: '>=3.9.0 <4.0.0'
 
 dependencies:
   crypto: ^3.0.6
