@@ -227,10 +227,23 @@ bool manifestSupportsTextPrompt(LocalModelManifest manifest) {
   return isLm || isVlm;
 }
 
-bool _manifestUsesNativeGemma4Asr(LocalModelManifest manifest) {
+bool _manifestIdLooksLikeGemma4(String id) {
+  final n = id.toLowerCase().replaceAll('_', '-');
+  return n.startsWith('gemma4') || n.startsWith('gemma-4');
+}
+
+/// Gemma 4 MLX audio-tower ASR is off by default (GPU/driver crashes).
+/// Re-enable only after that path is verified stable.
+const bool kNativeGemma4AsrEnabled = false;
+
+bool _manifestIsGemma4VlmWithAudioInput(LocalModelManifest manifest) {
   return manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
       manifest.tasks.contains(ModelTask.audioInput) &&
-      manifest.id.startsWith('gemma4');
+      _manifestIdLooksLikeGemma4(manifest.id);
+}
+
+bool _manifestUsesNativeGemma4Asr(LocalModelManifest manifest) {
+  return kNativeGemma4AsrEnabled && _manifestIsGemma4VlmWithAudioInput(manifest);
 }
 
 String _mergePromptWithAudioTranscript(String prompt, String transcript) {
@@ -250,6 +263,15 @@ final class NativeLmEngine implements LmEngine {
   @override
   Future<String> complete(LmCompletionRequest request) async {
     final audio = request.audioPath;
+    if (audio != null &&
+        audio.isNotEmpty &&
+        !kNativeGemma4AsrEnabled &&
+        _manifestIsGemma4VlmWithAudioInput(request.manifest)) {
+      throw StateError(
+        'Gemma 4 on-device speech-to-text is disabled in this build (unstable). '
+        'Use an mlx_audio ASR model (e.g. Whisper) for voice input, or type text.',
+      );
+    }
     if (audio != null &&
         audio.isNotEmpty &&
         _manifestUsesNativeGemma4Asr(request.manifest)) {
@@ -317,6 +339,15 @@ final class NativeLmEngine implements LmEngine {
     void Function(String chunk) onChunk,
   ) async {
     final audio = request.audioPath;
+    if (audio != null &&
+        audio.isNotEmpty &&
+        !kNativeGemma4AsrEnabled &&
+        _manifestIsGemma4VlmWithAudioInput(request.manifest)) {
+      throw StateError(
+        'Gemma 4 on-device speech-to-text is disabled in this build (unstable). '
+        'Use an mlx_audio ASR model (e.g. Whisper) for voice input, or type text.',
+      );
+    }
     if (audio != null &&
         audio.isNotEmpty &&
         _manifestUsesNativeGemma4Asr(request.manifest)) {
@@ -471,17 +502,8 @@ abstract class AudioEngine {
 }
 
 bool manifestSupportsSpeechToText(LocalModelManifest manifest) {
-  if (manifest.tasks.contains(ModelTask.speechToText) &&
-      manifest.runtimeAdapter == RuntimeAdapter.mlxAudio) {
-    return true;
-  }
-  // Gemma 4 (mlx_vlm): native ASR reuses the same checkpoint via `audio.transcribe`.
-  if (manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
-      manifest.tasks.contains(ModelTask.audioInput) &&
-      manifest.id.startsWith('gemma4')) {
-    return true;
-  }
-  return false;
+  return manifest.tasks.contains(ModelTask.speechToText) &&
+      manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
 }
 
 bool manifestSupportsTts(LocalModelManifest manifest) {
@@ -504,7 +526,7 @@ final class NativeAudioEngine implements AudioEngine {
   }) async {
     if (!manifestSupportsSpeechToText(manifest)) {
       throw StateError(
-        'Speech-to-text requires an mlx_audio ASR model or a Gemma 4 mlx_vlm checkpoint.',
+        'Speech-to-text requires an installed mlx_audio ASR model (e.g. Whisper).',
       );
     }
     final map = await _invokeFlmDispatch(

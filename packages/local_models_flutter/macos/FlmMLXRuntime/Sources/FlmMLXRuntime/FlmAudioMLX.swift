@@ -322,21 +322,12 @@ enum FlmAudioMLX {
         }
 
         if isGemma4WithAudio(modelDir: modelDir) {
-            do {
-                let maxTok = intFromAny(payload["max_tokens"]) ?? 256
-                let text = try await FlmGemma4ASRBridge.transcribe(
-                    modelPath: modelPath,
-                    audioURL: audioURL,
-                    language: payload["language"] as? String,
-                    maxTokens: maxTok
-                )
-                if text.isEmpty {
-                    return ["ok": false, "error": "Gemma4 ASR returned an empty transcript"]
-                }
-                return ["ok": true, "text": text]
-            } catch {
-                return ["ok": false, "error": String(describing: error)]
-            }
+            return [
+                "ok": false,
+                "error":
+                    "Gemma 4 native speech-to-text is disabled in this build (unstable). "
+                    + "Use Qwen3-ASR or another mlx_audio ASR checkpoint.",
+            ]
         }
 
         if !isQwen3ASR(modelDir: modelDir) {

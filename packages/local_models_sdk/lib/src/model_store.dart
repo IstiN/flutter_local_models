@@ -97,11 +97,8 @@ class InstalledModel {
       manifest.runtimeAdapter == RuntimeAdapter.mlxVlm;
 
   bool get speechToTextSupported =>
-      (manifest.tasks.contains(ModelTask.speechToText) &&
-          manifest.runtimeAdapter == RuntimeAdapter.mlxAudio) ||
-      (manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
-          manifest.tasks.contains(ModelTask.audioInput) &&
-          manifestIdLooksLikeGemma4(manifest.id));
+      manifest.tasks.contains(ModelTask.speechToText) &&
+      manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
 
   bool get dedicatedSpeechToTextModel =>
       manifest.tasks.contains(ModelTask.speechToText) &&

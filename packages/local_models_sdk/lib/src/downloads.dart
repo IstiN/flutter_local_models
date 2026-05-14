@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -67,6 +68,136 @@ class RemoteFileDescriptor {
     if (sizeBytes != null) 'sizeBytes': sizeBytes,
     if (sha256 != null) 'sha256': sha256,
   };
+}
+
+String? _stripGithubDigestSha256(String? value) {
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  return value.startsWith('sha256:') ? value.substring(7) : value;
+}
+
+Future<List<RemoteFileDescriptor>> fetchGitHubReleaseFileDescriptors({
+  required String owner,
+  required String repository,
+  required String releaseTag,
+  String? githubToken,
+}) async {
+  final client = HttpClient();
+  try {
+    final uri = Uri.https(
+      'api.github.com',
+      '/repos/$owner/$repository/releases/tags/${Uri.encodeComponent(releaseTag)}',
+    );
+    final request = await client.getUrl(uri);
+    request.headers.set(HttpHeaders.userAgentHeader, 'flutter_local_models_sdk/0.1');
+    request.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
+    final token = githubToken?.trim();
+    if (token != null && token.isNotEmpty) {
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+    }
+    final response = await request.close();
+    final body = await response.transform(utf8.decoder).join();
+    if (response.statusCode != HttpStatus.ok) {
+      throw HttpException(
+        'GitHub release API ${response.statusCode} for $releaseTag: '
+        '${body.length > 500 ? '${body.substring(0, 500)}…' : body}',
+        uri: uri,
+      );
+    }
+    final decoded = jsonDecode(body) as Map<String, dynamic>;
+    final assets = (decoded['assets'] as List<dynamic>? ?? const <dynamic>[])
+        .cast<Map<String, dynamic>>();
+    return assets
+        .map(
+          (asset) => RemoteFileDescriptor(
+            relativePath: asset['name'] as String,
+            downloadUri: Uri.parse(asset['browser_download_url'] as String),
+            sizeBytes: (asset['size'] as num?)?.toInt(),
+            sha256: _stripGithubDigestSha256(asset['digest'] as String?),
+          ),
+        )
+        .toList(growable: false);
+  } finally {
+    client.close(force: true);
+  }
+}
+
+Future<void> _concatenateFilesToDestination(List<File> parts, File destination) async {
+  if (destination.existsSync()) {
+    await destination.delete();
+  }
+  final sink = destination.openWrite();
+  for (final part in parts) {
+    await sink.addStream(part.openRead());
+  }
+  await sink.flush();
+  await sink.close();
+}
+
+Future<InstalledModel> installGitHubReleaseFromStageDirectory({
+  required LocalModelStore store,
+  required Directory stageDirectory,
+  required LocalModelManifest baseManifest,
+  required String sourceLabel,
+}) async {
+  final manifestFile = File(p.join(stageDirectory.path, 'manifest.source.yaml'));
+  var manifest = baseManifest;
+  if (manifestFile.existsSync()) {
+    manifest = LocalModelManifest.fromYaml(await manifestFile.readAsString());
+  }
+
+  final metadataFile = File(p.join(stageDirectory.path, 'release_metadata.json'));
+  if (!metadataFile.existsSync()) {
+    throw StateError('Missing release_metadata.json in ${stageDirectory.path}');
+  }
+  final metadata =
+      jsonDecode(await metadataFile.readAsString()) as Map<String, dynamic>;
+  final partNames = ((metadata['parts'] as List<dynamic>? ?? const <dynamic>[])
+          .cast<Map<String, dynamic>>())
+      .map((part) => part['file_name'] as String)
+      .toList(growable: false);
+  final archiveName = metadata['archive_name'] as String;
+  final archivePath = p.join(stageDirectory.path, archiveName);
+
+  await _concatenateFilesToDestination(
+    partNames.map((name) => File(p.join(stageDirectory.path, name))).toList(),
+    File(archivePath),
+  );
+
+  final installDir = Directory(
+    p.join(store.paths.modelsDirectory.path, manifest.id),
+  );
+  if (installDir.existsSync()) {
+    await installDir.delete(recursive: true);
+  }
+
+  await store.paths.modelsDirectory.create(recursive: true);
+
+  final result = await Process.run('tar', <String>[
+    '-xf',
+    archivePath,
+    '-C',
+    store.paths.modelsDirectory.path,
+  ]);
+  if (result.exitCode != 0) {
+    throw StateError(
+      'Failed to extract release archive: ${result.stderr}',
+    );
+  }
+
+  await store.writeInstallMetadata(
+    installDir,
+    manifest,
+    sourceLabel: sourceLabel,
+  );
+  return InstalledModel(
+    manifest: manifest,
+    directory: installDir,
+    sourceLabel: sourceLabel,
+    installedAt: DateTime.now(),
+    sizeBytes: await directorySizeBytes(installDir),
+  );
 }
 
 class DownloadTaskRecord {
@@ -159,12 +290,15 @@ class LocalModelDownloadManager {
     this.maxRetries = 5,
     this.onTaskChanged,
     String? hfToken,
-  }) : hfToken = hfToken ?? '';
+    String? githubToken,
+  }) : hfToken = hfToken ?? '',
+       githubToken = githubToken ?? '';
 
   final LocalModelStore store;
   final int maxRetries;
   final DownloadTaskChanged? onTaskChanged;
   String hfToken;
+  String githubToken;
 
   Future<DownloadTaskRecord> startDownload({
     required LocalModelManifest manifest,
@@ -194,7 +328,55 @@ class LocalModelDownloadManager {
     return record;
   }
 
-  Future<InstalledModel> run(DownloadTaskRecord record) async {
+  Future<InstalledModel> downloadAndInstallFromGitHubRelease({
+    required LocalModelManifest manifest,
+    String githubOwner = 'IstiN',
+    String githubRepository = 'flutter_local_models',
+    String sourceLabel = 'GitHub Release',
+  }) async {
+    final files = await fetchGitHubReleaseFileDescriptors(
+      owner: githubOwner,
+      repository: githubRepository,
+      releaseTag: manifest.packaging.releaseTag,
+      githubToken: githubToken,
+    );
+    if (files.isEmpty) {
+      throw StateError(
+        'No assets in GitHub release ${manifest.packaging.releaseTag}',
+      );
+    }
+    await store.paths.ensureCreated();
+    final stageDir = Directory(
+      p.join(
+        store.paths.downloadsDirectory.path,
+        'gh-${manifest.packaging.releaseTag}-${DateTime.now().millisecondsSinceEpoch}',
+      ),
+    );
+    final record = DownloadTaskRecord(
+      id: 'gh-${manifest.id}-${DateTime.now().microsecondsSinceEpoch}',
+      title: manifest.displayName,
+      sourceKind: DownloadSourceKind.githubRelease,
+      modelId: manifest.id,
+      sourceLabel: sourceLabel,
+      stageDirectory: stageDir,
+      files: files,
+      manifest: manifest,
+    );
+    return run(
+      record,
+      customInstall: (task) => installGitHubReleaseFromStageDirectory(
+        store: store,
+        stageDirectory: task.stageDirectory,
+        baseManifest: task.manifest,
+        sourceLabel: task.sourceLabel,
+      ),
+    );
+  }
+
+  Future<InstalledModel> run(
+    DownloadTaskRecord record, {
+    Future<InstalledModel> Function(DownloadTaskRecord record)? customInstall,
+  }) async {
     await store.paths.ensureCreated();
     record.status = DownloadTaskStatus.running;
     record.totalBytes = record.files.fold<int>(
@@ -212,7 +394,9 @@ class LocalModelDownloadManager {
         }
         record.status = DownloadTaskStatus.installing;
         onTaskChanged?.call(record);
-        final installed = await _installDownloadedModel(record);
+        final install =
+            customInstall ?? _installDownloadedModel;
+        final installed = await install(record);
         record.status = DownloadTaskStatus.completed;
         record.installedPath = installed.directory.path;
         if (record.stageDirectory.existsSync()) {
@@ -311,6 +495,9 @@ class LocalModelDownloadManager {
           if (record.sourceKind == DownloadSourceKind.huggingFace &&
               hfToken.trim().isNotEmpty)
             HttpHeaders.authorizationHeader: 'Bearer ${hfToken.trim()}',
+          if (record.sourceKind == DownloadSourceKind.githubRelease &&
+              githubToken.trim().isNotEmpty)
+            HttpHeaders.authorizationHeader: 'Bearer ${githubToken.trim()}',
         }),
         if (alreadyWritten > 0) ...<String>['-C', '-'],
         '-o',

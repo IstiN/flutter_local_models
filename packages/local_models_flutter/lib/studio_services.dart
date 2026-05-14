@@ -411,11 +411,8 @@ class InstalledModel {
       manifest.runtimeAdapter == RuntimeAdapter.mlxVlm;
 
   bool get speechToTextSupported =>
-      (manifest.tasks.contains(ModelTask.speechToText) &&
-          manifest.runtimeAdapter == RuntimeAdapter.mlxAudio) ||
-      (manifest.runtimeAdapter == RuntimeAdapter.mlxVlm &&
-          manifest.tasks.contains(ModelTask.audioInput) &&
-          manifestIdLooksLikeGemma4(manifest.id));
+      manifest.tasks.contains(ModelTask.speechToText) &&
+      manifest.runtimeAdapter == RuntimeAdapter.mlxAudio;
 
   /// Whisper / mlx-audio ASR checkpoints — transcribe-only UX, not Gemma4 chat+VLM.
   bool get dedicatedSpeechToTextModel =>

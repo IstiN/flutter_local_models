@@ -7,6 +7,8 @@ import MLXNN
 import MLXVLM
 import Tokenizers
 
+/// Serializes Gemma 4 audio-tower MLX ops off Swift's cooperative executor.
+private let flmGemma4AsrMlxQueue = DispatchQueue(label: "dev.flm.gemma4asr.mlx", qos: .userInitiated)
 private enum FlmGemma4ASRError: Error {
     case notGemma4
     case missingAudioConfig
@@ -66,9 +68,12 @@ private actor FlmGemma4ASRRuntime {
             samples = Array(samples.prefix(cap))
         }
 
-        let mel = FlmGemma4Mel.logMel(samples).asType(.bfloat16)
-        let audioFeatures = try FlmGemma4AudioTower.encode(mel: mel, weights: weights, config: audioCfg)
-        eval(audioFeatures)
+        let audioFeatures: MLXArray = try flmGemma4AsrMlxQueue.sync {
+            let mel = FlmGemma4Mel.logMel(samples).asType(.bfloat16)
+            let encoded = try FlmGemma4AudioTower.encode(mel: mel, weights: weights, config: audioCfg)
+            eval(encoded)
+            return encoded
+        }
 
         var genParams = GenerateParameters()
         genParams.maxTokens = maxTokens

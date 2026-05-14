@@ -20,7 +20,19 @@ enum _TestInputMode { text, audio, image }
 
 enum _TestWorkspaceMode { single, voicePipeline, e2eBenchmark }
 
+/// Local native/MLX TTS chunking for Voice → Voice (overrides per-model heuristics).
+enum _VoicePipelineLocalTtsChunking {
+  /// Base / VoiceDesign / clone → one TTS call; CustomVoice → phrase stream (current defaults).
+  auto,
+  /// Phrase-sized segments while the LLM streams (faster first audio; prosody may vary per chunk).
+  streamPhrases,
+  /// Single synthesis pass after the full assistant reply (smoother; longer wait for audio).
+  wholeReply,
+}
+
 enum _E2eBenchmarkStatus { running, passed, failed, skipped }
+
+const String _kVoicePipelinePrefsModelId = '__voice_pipeline__';
 
 class _BenchmarkRunOutput {
   const _BenchmarkRunOutput({required this.duration, required this.output});
@@ -117,6 +129,9 @@ class _StudioShellState extends State<StudioShell> {
   late final ScrollController chatScrollController;
   late final AudioRecorder audioRecorder;
   late final AudioPlayer audioPlayer;
+  /// Never used for [audioPlayer] playback — avoids audioplayers channel races
+  /// when probing duration via `setSource` right before `play`.
+  late final AudioPlayer _audioDurationProbePlayer;
   late final VoicePipelineCubit _voicePipelineCubit;
   InstalledModel? selectedTestModel;
   InstalledModel? selectedAsrModel;
@@ -141,6 +156,8 @@ class _StudioShellState extends State<StudioShell> {
   late final TextEditingController streamingTtsEndpointController;
   late final TextEditingController streamingTtsModelIdController;
   bool streamSpeechEnabled = false;
+  _VoicePipelineLocalTtsChunking voicePipelineLocalTtsChunking =
+      _VoicePipelineLocalTtsChunking.auto;
   bool generationThinkingEnabled = false;
   bool testBusy = false;
   sdk.Voice2VoiceCancelToken? _voicePipelineCancel;
@@ -165,6 +182,7 @@ class _StudioShellState extends State<StudioShell> {
           runtimeSummary: widget.snapshot.runtimeSummary,
         );
     _prefsStore = ModelRuntimePreferencesStore(paths: controller.paths);
+    _hydrateVoicePipelineLocalTtsChunkingFromPrefs();
     hfTokenController = TextEditingController(text: controller.hfToken);
     githubRepoController = TextEditingController(
       text: controller.githubRepoPath,
@@ -195,6 +213,7 @@ class _StudioShellState extends State<StudioShell> {
     streamingTtsModelIdController = TextEditingController();
     audioRecorder = AudioRecorder();
     audioPlayer = AudioPlayer();
+    _audioDurationProbePlayer = AudioPlayer();
     _voicePipelineCubit = VoicePipelineCubit();
     controller.addListener(_handleControllerUpdate);
     unawaited(controller.initialize());
@@ -235,6 +254,7 @@ class _StudioShellState extends State<StudioShell> {
     streamingTtsModelIdController.dispose();
     audioRecorder.dispose();
     audioPlayer.dispose();
+    unawaited(_audioDurationProbePlayer.dispose());
     _voicePipelineCubit.close();
     super.dispose();
   }
@@ -1060,8 +1080,8 @@ class _StudioShellState extends State<StudioShell> {
         ? null
         : installedModels.first;
     // Audio test UX: dedicated mlx-audio ASR models always; VLM audio only when
-    // session settings set Input modality to Audio (not merely speechToTextSupported,
-    // which Gemma reports for its audio-input capability even in Text mode).
+    // session settings set Input modality to Audio (Gemma 4 native ASR is
+    // disabled; see kNativeGemma4AsrEnabled in native_engines).
     final useAudioInput =
         selectedModel != null &&
         (selectedModel.dedicatedSpeechToTextModel ||
@@ -1079,11 +1099,17 @@ class _StudioShellState extends State<StudioShell> {
         !useImageGeneration &&
         chatPromptController.text.trim().isNotEmpty &&
         !testBusy;
+    final gemmaNativeAsrDisabled =
+        !kNativeGemma4AsrEnabled &&
+        selectedModel != null &&
+        selectedModel.audioPromptSupported &&
+        manifestIdLooksLikeGemma4(selectedModel.manifest.id);
     final canSendAudio =
         useAudioInput &&
         selectedAudioPath != null &&
         !recordingAudio &&
         !testBusy &&
+        !gemmaNativeAsrDisabled &&
         (selectedModel.speechToTextSupported ||
             chatPromptController.text.trim().isNotEmpty);
     final canSendImage =
@@ -2189,7 +2215,33 @@ class _StudioShellState extends State<StudioShell> {
     );
   }
 
-  sdk.VoiceTtsCoalescing _voicePipelineTtsCoalescing(InstalledModel ttsModel) {
+  _VoicePipelineLocalTtsChunking _parseVoicePipelineLocalTtsChunking(
+    String? raw,
+  ) {
+    for (final v in _VoicePipelineLocalTtsChunking.values) {
+      if (v.name == raw) {
+        return v;
+      }
+    }
+    return _VoicePipelineLocalTtsChunking.auto;
+  }
+
+  void _hydrateVoicePipelineLocalTtsChunkingFromPrefs() {
+    final global = _prefsStore.prefsForModel(_kVoicePipelinePrefsModelId);
+    voicePipelineLocalTtsChunking = _parseVoicePipelineLocalTtsChunking(
+      global?['localTtsChunking'] as String?,
+    );
+  }
+
+  Future<void> _persistVoicePipelineGlobalPrefs() async {
+    await _prefsStore.mergeModelPrefs(_kVoicePipelinePrefsModelId, {
+      'localTtsChunking': voicePipelineLocalTtsChunking.name,
+    });
+  }
+
+  sdk.VoiceTtsCoalescing _voicePipelineTtsCoalescingHeuristic(
+    InstalledModel ttsModel,
+  ) {
     final extra = ttsModel.manifest.runtimeConfig.extra;
     final mode = extra['qwen_tts_mode'] as String? ?? '';
     final id = ttsModel.manifest.id.toLowerCase();
@@ -2200,6 +2252,17 @@ class _StudioShellState extends State<StudioShell> {
       return const sdk.VoiceTtsCoalescing.singleUtterancePerReply();
     }
     return const sdk.VoiceTtsCoalescing();
+  }
+
+  sdk.VoiceTtsCoalescing _voicePipelineTtsCoalescing(InstalledModel ttsModel) {
+    switch (voicePipelineLocalTtsChunking) {
+      case _VoicePipelineLocalTtsChunking.auto:
+        return _voicePipelineTtsCoalescingHeuristic(ttsModel);
+      case _VoicePipelineLocalTtsChunking.streamPhrases:
+        return const sdk.VoiceTtsCoalescing();
+      case _VoicePipelineLocalTtsChunking.wholeReply:
+        return const sdk.VoiceTtsCoalescing.singleUtterancePerReply();
+    }
   }
 
   String _voiceUxTtsCoalescingLabel(sdk.VoiceTtsCoalescing c) {
@@ -2249,6 +2312,7 @@ class _StudioShellState extends State<StudioShell> {
     required ValueChanged<InstalledModel?> onChanged,
   }) {
     return DropdownButtonFormField<InstalledModel>(
+      isExpanded: true,
       initialValue: value,
       decoration: InputDecoration(
         prefixIcon: Padding(padding: const EdgeInsets.all(12), child: icon),
@@ -3981,6 +4045,59 @@ class _StudioShellState extends State<StudioShell> {
                         ),
                         const SizedBox(height: 16),
                       ],
+                      Text(
+                        'Local TTS chunking (Voice UX)',
+                        style: Theme.of(dialogContext).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Controls how assistant text is fed to local/native MLX TTS while the '
+                        'model is still generating. Use Full reply if early segments sound '
+                        'too stretched or disconnected.',
+                        style: Theme.of(dialogContext).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(dialogContext).colorScheme.outline,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SegmentedButton<_VoicePipelineLocalTtsChunking>(
+                        segments: const [
+                          ButtonSegment<_VoicePipelineLocalTtsChunking>(
+                            value: _VoicePipelineLocalTtsChunking.auto,
+                            label: Text('Auto'),
+                            tooltip:
+                                'Model defaults: Base / VoiceDesign / clone → one pass; '
+                                'CustomVoice → phrase stream.',
+                          ),
+                          ButtonSegment<_VoicePipelineLocalTtsChunking>(
+                            value: _VoicePipelineLocalTtsChunking.streamPhrases,
+                            label: Text('Stream'),
+                            tooltip:
+                                'Send phrase-sized chunks as the LLM streams (earlier audio, '
+                                'prosody may shift between chunks).',
+                          ),
+                          ButtonSegment<_VoicePipelineLocalTtsChunking>(
+                            value: _VoicePipelineLocalTtsChunking.wholeReply,
+                            label: Text('Full reply'),
+                            tooltip:
+                                'Wait for the full assistant reply, then one synthesis (smoother '
+                                'delivery, longer silence before speech).',
+                          ),
+                        ],
+                        selected: <_VoicePipelineLocalTtsChunking>{
+                          voicePipelineLocalTtsChunking,
+                        },
+                        onSelectionChanged: testBusy
+                            ? null
+                            : (selection) {
+                                setState(() {
+                                  voicePipelineLocalTtsChunking = selection.first;
+                                });
+                                setDialogState(() {});
+                                unawaited(_persistVoicePipelineGlobalPrefs());
+                              },
+                      ),
+                      const SizedBox(height: 16),
                       const Divider(),
                       SwitchListTile(
                         title: const Text('Stream TTS (OpenAI-compatible)'),
@@ -4021,6 +4138,7 @@ class _StudioShellState extends State<StudioShell> {
                 TextButton(
                   onPressed: () {
                     Navigator.pop(dialogContext);
+                    unawaited(_persistVoicePipelineGlobalPrefs());
                     _persistVoicePipelinePrefs(
                       chatModel: null,
                       ttsModel: ttsModel,
@@ -5297,7 +5415,7 @@ class _StudioShellState extends State<StudioShell> {
       _voiceUxLog(
         'chat sampling temp=${chatParams.temperature} topP=${chatParams.topP} maxTokens=${chatParams.maxTokens}',
       );
-      _voiceUxLog('TTS coalescing: ${_voiceUxTtsCoalescingLabel(ttsCoalescing)}');
+      _voiceUxLog('TTS coalescing: mode=${voicePipelineLocalTtsChunking.name} → ${_voiceUxTtsCoalescingLabel(ttsCoalescing)}');
       _voiceUxLog(
         'TTS UI: voiceRaw="${ttsVoiceController.text.trim()}" voiceResolved="${speechOpts.voice}" '
         'voiceDesignPreset=$_ttsVoiceDesignUsesPreset cloneMode=$_ttsCloneMode '
@@ -5892,8 +6010,12 @@ class _StudioShellState extends State<StudioShell> {
       if (!File(path).existsSync()) {
         return null;
       }
-      await audioPlayer.setSource(DeviceFileSource(path));
-      return audioPlayer.getDuration();
+      final probe = _audioDurationProbePlayer;
+      await probe.stop();
+      await probe.setSource(DeviceFileSource(path));
+      final duration = await probe.getDuration();
+      await probe.stop();
+      return duration;
     } catch (_) {
       return null;
     }

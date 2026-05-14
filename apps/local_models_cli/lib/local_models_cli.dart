@@ -24,7 +24,24 @@ class LocalModelsCli {
         help: 'Registry directory.',
         defaultsTo: resolveDefaultRegistryPath(cwd),
       )
-      ..addOption('base-dir', help: 'Local models SDK base directory.');
+      ..addOption('base-dir', help: 'Local models SDK base directory.')
+      ..addOption(
+        'github-owner',
+        help: 'GitHub owner for models install (GitHub Releases).',
+        defaultsTo: 'IstiN',
+      )
+      ..addOption(
+        'github-repo',
+        help: 'GitHub repository for models install (GitHub Releases).',
+        defaultsTo: 'flutter_local_models',
+      )
+      ..addOption(
+        'github-token',
+        help:
+            'Optional GitHub token for API/download rate limits. '
+            'Defaults to GITHUB_TOKEN env when unset.',
+        defaultsTo: '',
+      );
 
     if (arguments.isEmpty ||
         arguments.first == 'help' ||
@@ -61,7 +78,7 @@ class LocalModelsCli {
     StringSink err,
   ) async {
     if (arguments.isEmpty) {
-      err.writeln('Missing models subcommand. Use list or show.');
+      err.writeln('Missing models subcommand. Use list, show, or install.');
       return 64;
     }
 
@@ -130,6 +147,46 @@ class LocalModelsCli {
         out.writeln('path: ${model.directory.path}');
         out.writeln('source: ${model.sourceLabel}');
         out.writeln('installedAt: ${model.installedAt.toIso8601String()}');
+        return 0;
+      case 'install':
+        final ids = rest.where((item) => !item.startsWith('-')).toList();
+        if (ids.isEmpty) {
+          err.writeln('Missing model id for models install.');
+          return 64;
+        }
+        final id = ids.first;
+        late final LocalModelManifest manifest;
+        try {
+          manifest = registry.byId(id);
+        } on StateError catch (error) {
+          err.writeln(error.message);
+          return 2;
+        }
+        final rawToken = (results['github-token'] as String).trim();
+        final envToken = Platform.environment['GITHUB_TOKEN'] ?? '';
+        final githubToken =
+            rawToken.isEmpty ? envToken.trim() : rawToken;
+        final githubOwner = results['github-owner'] as String;
+        final githubRepo = results['github-repo'] as String;
+        out.writeln(
+          'Installing ${manifest.id} from $githubOwner/$githubRepo '
+          'release ${manifest.packaging.releaseTag}…',
+        );
+        try {
+          final manager = sdk.LocalModelDownloadManager(
+            store: store,
+            githubToken: githubToken,
+          );
+          final installed = await manager.downloadAndInstallFromGitHubRelease(
+            manifest: manifest,
+            githubOwner: githubOwner,
+            githubRepository: githubRepo,
+          );
+          out.writeln('Installed: ${installed.directory.path}');
+        } catch (error) {
+          err.writeln('$error');
+          return 1;
+        }
         return 0;
       default:
         err.writeln('Unknown models subcommand: $subcommand');
@@ -221,7 +278,8 @@ class LocalModelsCli {
     sink.writeln('  doctor');
     sink.writeln('  models list [--dir <registry path>] [--base-dir <path>]');
     sink.writeln(
-      '  models show <id> [--dir <registry path>] [--base-dir <path>]',
+      '  models install <id> [--dir …] [--base-dir …] '
+      '[--github-owner …] [--github-repo …] [--github-token …]',
     );
     sink.writeln('  registry list [--dir <path>]');
     sink.writeln('  registry show <id> [--dir <path>]');
