@@ -151,6 +151,10 @@ class LocalModelStore {
           ),
           registry: registry,
         );
+        final missing = missingCriticalFiles(directory: entity);
+        if (missing.isNotEmpty) {
+          continue;
+        }
         discovered.add(
           InstalledModel(
             manifest: manifest,
@@ -173,12 +177,17 @@ class LocalModelStore {
         (item) => item.id == p.basename(entity.path),
       );
       if (manifest != null) {
+        final effectiveManifest = manifestWithRegistryRuntimeGapFill(
+          primary: manifest,
+          registry: registry,
+        );
+        final missing = missingCriticalFiles(directory: entity);
+        if (missing.isNotEmpty) {
+          continue;
+        }
         discovered.add(
           InstalledModel(
-            manifest: manifestWithRegistryRuntimeGapFill(
-              primary: manifest,
-              registry: registry,
-            ),
+            manifest: effectiveManifest,
             directory: entity,
             sourceLabel: 'Unknown',
             installedAt: (await entity.stat()).modified,
@@ -229,6 +238,22 @@ class LocalModelStore {
       const JsonEncoder.withIndent('  ').convert(payload),
     );
   }
+
+  static List<String> missingCriticalFiles({required Directory directory}) {
+    final requiredRelative = _requiredCriticalFiles();
+    final missing = <String>[];
+    for (final rel in requiredRelative) {
+      final filePath = p.join(directory.path, rel);
+      if (!File(filePath).existsSync()) {
+        missing.add(rel);
+      }
+    }
+    return missing;
+  }
+}
+
+List<String> _requiredCriticalFiles() {
+  return const <String>['config.json'];
 }
 
 LocalModelManifest manifestWithRegistryRuntimeGapFill({

@@ -10,9 +10,11 @@ import Tokenizers
 private actor ModelContainerCache {
     private var containers: [String: ModelContainer] = [:]
 
-    func container(forModelPath path: String) async throws -> ModelContainer {
+    /// Returns the model container together with a flag indicating whether the
+    /// container was already in the cache (`true`) or had to be loaded (`false`).
+    func container(forModelPath path: String) async throws -> (container: ModelContainer, cacheHit: Bool) {
         if let cached = containers[path] {
-            return cached
+            return (cached, true)
         }
         guard FileManager.default.fileExists(atPath: path) else {
             throw FlmDispatchError.modelPathMissing(path)
@@ -23,7 +25,7 @@ private actor ModelContainerCache {
             using: #huggingFaceTokenizerLoader()
         )
         containers[path] = loaded
-        return loaded
+        return (loaded, false)
     }
 }
 
@@ -331,27 +333,184 @@ private func makeToolDispatch(
 private func makeChatSession(
     modelContainer: ModelContainer,
     generateParameters: GenerateParameters,
+    enableThinking: Bool?,
     tools: [ToolSpec]?,
     toolDispatch: (@Sendable (ToolCall) async throws -> String)?
 ) -> ChatSession {
+    let additionalContext: [String: any Sendable]? = enableThinking.map { ["enable_thinking": $0] }
     if let tools, !tools.isEmpty {
         return ChatSession(
             modelContainer,
             generateParameters: generateParameters,
+            additionalContext: additionalContext,
             tools: tools,
             toolDispatch: toolDispatch
         )
     }
-    return ChatSession(modelContainer, generateParameters: generateParameters)
+    return ChatSession(modelContainer, generateParameters: generateParameters,
+                       additionalContext: additionalContext)
+}
+
+/// Parse a Dart `messages` array (each entry `{role, content}`) into a
+/// `ChatSession`-initialisation triple:
+///   - `instructions`  – the system message content (nil if none)
+///   - `history`       – all messages except the last user message
+///   - `lastUserMessage` – the final user turn to pass to `respond(to:)`
+///
+/// Falls back to `(nil, [], prompt)` when the payload contains only the
+/// legacy `prompt` string (no `messages` array).
+private func parseMessagesPayload(
+    _ payload: [String: Any]
+) -> (instructions: String?, history: [Chat.Message], lastUserMessage: String) {
+    guard let rawMessages = payload["messages"] as? [[String: String]],
+          !rawMessages.isEmpty
+    else {
+        // Legacy path: flat prompt string
+        let prompt = payload["prompt"] as? String ?? ""
+        return (nil, [], prompt)
+    }
+
+    var instructions: String? = nil
+    var history: [Chat.Message] = []
+
+    for entry in rawMessages {
+        let role = entry["role"] ?? "user"
+        let content = entry["content"] ?? ""
+        switch role {
+        case "system":
+            instructions = content
+        case "user":
+            history.append(Chat.Message(role: .user, content: content))
+        case "assistant":
+            history.append(Chat.Message(role: .assistant, content: content))
+        case "tool":
+            history.append(Chat.Message(role: .tool, content: content))
+        default:
+            history.append(Chat.Message(role: .user, content: content))
+        }
+    }
+
+    // The last user message is passed to respond(to:); everything before it
+    // is the history the ChatSession is pre-loaded with.
+    var lastUserMessage = ""
+    var historyWithoutLast = history
+
+    // Walk backwards to find the last user-role entry.
+    for i in stride(from: history.count - 1, through: 0, by: -1) {
+        if history[i].role == .user {
+            lastUserMessage = history[i].content
+            historyWithoutLast.remove(at: i)
+            break
+        }
+    }
+
+    return (instructions, historyWithoutLast, lastUserMessage)
+}
+
+private func makeChatSessionWithHistory(
+    modelContainer: ModelContainer,
+    generateParameters: GenerateParameters,
+    enableThinking: Bool?,
+    instructions: String?,
+    history: [Chat.Message],
+    tools: [ToolSpec]?,
+    toolDispatch: (@Sendable (ToolCall) async throws -> String)?
+) -> ChatSession {
+    let additionalContext: [String: any Sendable]? = enableThinking.map { ["enable_thinking": $0] }
+    if let tools, !tools.isEmpty {
+        if !history.isEmpty {
+            return ChatSession(
+                modelContainer,
+                instructions: instructions,
+                history: history,
+                generateParameters: generateParameters,
+                additionalContext: additionalContext,
+                tools: tools,
+                toolDispatch: toolDispatch
+            )
+        }
+        return ChatSession(
+            modelContainer,
+            instructions: instructions,
+            generateParameters: generateParameters,
+            additionalContext: additionalContext,
+            tools: tools,
+            toolDispatch: toolDispatch
+        )
+    }
+    if !history.isEmpty {
+        return ChatSession(
+            modelContainer,
+            instructions: instructions,
+            history: history,
+            generateParameters: generateParameters,
+            additionalContext: additionalContext
+        )
+    }
+    return ChatSession(
+        modelContainer,
+        instructions: instructions,
+        generateParameters: generateParameters,
+        additionalContext: additionalContext
+    )
+}
+
+/// Logs the full LLM request to stdout so it appears in the Flutter run console.
+private func logLmRequest(
+    instructions: String?,
+    history: [Chat.Message],
+    prompt: String,
+    maxTokens: Int?,
+    temperature: Float?,
+    enableThinking: Bool?
+) {
+    print("flutter: [LLM→Swift] ══════════════════════════════════════════════")
+    print("flutter: [LLM→Swift] enableThinking: \(enableThinking.map { "\($0)" } ?? "nil (not set)")")
+    print("flutter: [LLM→Swift] maxTokens: \(maxTokens.map { "\($0)" } ?? "nil")")
+    print("flutter: [LLM→Swift] temperature: \(temperature.map { "\($0)" } ?? "nil")")
+    if let sys = instructions {
+        let preview = sys.count > 200 ? String(sys.prefix(200)) + "…" : sys
+        print("flutter: [LLM→Swift] instructions (\(sys.count) chars): \(preview)")
+    } else {
+        print("flutter: [LLM→Swift] instructions: nil")
+    }
+    print("flutter: [LLM→Swift] history (\(history.count) messages):")
+    for (i, msg) in history.enumerated() {
+        let preview = msg.content.count > 150 ? String(msg.content.prefix(150)) + "…" : msg.content
+        print("flutter: [LLM→Swift]   [\(i)] \(msg.role): \(preview)")
+    }
+    print("flutter: [LLM→Swift] prompt (last user msg): \(prompt)")
+    print("flutter: [LLM→Swift] ══════════════════════════════════════════════")
+}
+
+/// Appends `/no_think` or `/think` to the user message for Qwen3-style thinking models.
+/// When `enableThinking` is `false`, appends `/no_think` to suppress the thinking block.
+/// When `enableThinking` is `true`, appends `/think` to explicitly request thinking.
+/// When `nil` (not set), the message is returned unchanged (model default).
+private func applyThinkingSwitch(_ message: String, enableThinking: Bool?) -> String {
+    guard let enable = enableThinking else { return message }
+    let stripped = message
+        .replacingOccurrences(of: " /no_think", with: "")
+        .replacingOccurrences(of: " /think", with: "")
+        .replacingOccurrences(of: "/no_think", with: "")
+        .replacingOccurrences(of: "/think", with: "")
+        .trimmingCharacters(in: .whitespaces)
+    return stripped + (enable ? " /think" : " /no_think")
 }
 
 private func handleLmGenerate(payload: [String: Any]) async -> [String: Any] {
     guard let modelPath = payload["modelPath"] as? String, !modelPath.isEmpty else {
         return ["ok": false, "error": "missing modelPath"]
     }
-    guard let prompt = payload["prompt"] as? String else {
-        return ["ok": false, "error": "missing prompt"]
+
+    let (instructions, history, rawPrompt) = parseMessagesPayload(payload)
+    if rawPrompt.isEmpty {
+        return ["ok": false, "error": "missing prompt or messages"]
     }
+
+    // Qwen3 thinking soft-switch: append /no_think to disable thinking mode.
+    let enableThinking = payload["enableThinking"] as? Bool
+    let prompt = applyThinkingSwitch(rawPrompt, enableThinking: enableThinking)
 
     let maxTokens = intFromJson(payload["maxTokens"])
     let temperature = floatFromJson(payload["temperature"])
@@ -369,11 +528,6 @@ private func handleLmGenerate(payload: [String: Any]) async -> [String: Any] {
     let imagePath = payload["imagePath"] as? String
     let audioPath = payload["audioPath"] as? String
 
-    // The mlx-swift UserInput type does not expose an audio field, so
-    // audio-conditioned LM inference is not available natively. The Dart layer
-    // transcribes the audio via an ASR model before reaching this call, so
-    // audioPath should always be nil here. Guard against any future direct
-    // caller that bypasses the Dart transcription step.
     if let audioPath, !audioPath.isEmpty {
         return [
             "ok": false,
@@ -400,15 +554,21 @@ private func handleLmGenerate(payload: [String: Any]) async -> [String: Any] {
     }
     let toolDispatch = makeToolDispatch(listener: listener)
 
+    let t0 = Date()
     do {
-        let modelContainer = try await containerCache.container(forModelPath: modelPath)
-        let session = makeChatSession(
+        let (modelContainer, cacheHit) = try await containerCache.container(forModelPath: modelPath)
+        let loadMs = Int(Date().timeIntervalSince(t0) * 1000)
+        let session = makeChatSessionWithHistory(
             modelContainer: modelContainer,
             generateParameters: generateParameters,
+            enableThinking: enableThinking,
+            instructions: instructions,
+            history: history,
             tools: tools,
             toolDispatch: toolDispatch
         )
 
+        let tGen = Date()
         if let imagePath, !imagePath.isEmpty {
             guard FileManager.default.fileExists(atPath: imagePath) else {
                 return ["ok": false, "error": "image file missing: \(imagePath)"]
@@ -416,13 +576,22 @@ private func handleLmGenerate(payload: [String: Any]) async -> [String: Any] {
             let url = URL(fileURLWithPath: imagePath)
             let image = UserInput.Image.url(url)
             let text = try await session.respond(to: prompt, image: image)
-            return ["ok": true, "text": text]
+            let generateMs = Int(Date().timeIntervalSince(tGen) * 1000)
+            return ["ok": true, "text": text,
+                    "swiftCacheHit": cacheHit, "swiftLoadMs": loadMs,
+                    "swiftGenerateMs": generateMs, "swiftFirstTokenMs": generateMs,
+                    "swiftTotalMs": Int(Date().timeIntervalSince(t0) * 1000)]
         }
 
         let text = try await session.respond(to: prompt)
-        return ["ok": true, "text": text]
+        let generateMs = Int(Date().timeIntervalSince(tGen) * 1000)
+        return ["ok": true, "text": text,
+                "swiftCacheHit": cacheHit, "swiftLoadMs": loadMs,
+                "swiftGenerateMs": generateMs, "swiftFirstTokenMs": generateMs,
+                "swiftTotalMs": Int(Date().timeIntervalSince(t0) * 1000)]
     } catch {
-        return ["ok": false, "error": String(describing: error)]
+        return ["ok": false, "error": String(describing: error),
+                "swiftTotalMs": Int(Date().timeIntervalSince(t0) * 1000)]
     }
 }
 
@@ -454,9 +623,15 @@ private func handleLmGenerateStreaming(
     guard let modelPath = payload["modelPath"] as? String, !modelPath.isEmpty else {
         return ["ok": false, "error": "missing modelPath"]
     }
-    guard let prompt = payload["prompt"] as? String else {
-        return ["ok": false, "error": "missing prompt"]
+
+    let (instructions, history, rawPrompt) = parseMessagesPayload(payload)
+    if rawPrompt.isEmpty {
+        return ["ok": false, "error": "missing prompt or messages"]
     }
+
+    // Qwen3 thinking soft-switch: append /no_think to disable thinking mode.
+    let enableThinking = payload["enableThinking"] as? Bool
+    let prompt = applyThinkingSwitch(rawPrompt, enableThinking: enableThinking)
 
     let maxTokens = intFromJson(payload["maxTokens"])
     let temperature = floatFromJson(payload["temperature"])
@@ -470,6 +645,11 @@ private func handleLmGenerateStreaming(
     if let topP {
         generateParameters.topP = topP
     }
+
+    // ── Swift-level LLM request debug log ────────────────────────────────────
+    logLmRequest(instructions: instructions, history: history, prompt: prompt,
+                 maxTokens: maxTokens, temperature: temperature,
+                 enableThinking: enableThinking)
 
     let imagePath = payload["imagePath"] as? String
     let audioPath = payload["audioPath"] as? String
@@ -504,15 +684,22 @@ private func handleLmGenerateStreaming(
         return await handleLmGenerate(payload: payload)
     }
 
+    let t0 = Date()
     do {
-        let modelContainer = try await containerCache.container(forModelPath: modelPath)
-        let session = makeChatSession(
+        let (modelContainer, cacheHit) = try await containerCache.container(forModelPath: modelPath)
+        let loadMs = Int(Date().timeIntervalSince(t0) * 1000)
+        let session = makeChatSessionWithHistory(
             modelContainer: modelContainer,
             generateParameters: generateParameters,
+            enableThinking: enableThinking,
+            instructions: instructions,
+            history: history,
             tools: tools,
             toolDispatch: toolDispatch
         )
         var accumulated = ""
+        var firstTokenMs: Int = -1
+        let tGen = Date()
 
         if let imagePath, !imagePath.isEmpty {
             guard FileManager.default.fileExists(atPath: imagePath) else {
@@ -521,21 +708,35 @@ private func handleLmGenerateStreaming(
             let url = URL(fileURLWithPath: imagePath)
             let image = UserInput.Image.url(url)
             for try await piece in session.streamResponse(to: prompt, image: image) {
+                if firstTokenMs < 0 && !piece.isEmpty {
+                    firstTokenMs = Int(Date().timeIntervalSince(tGen) * 1000)
+                }
                 accumulated += piece
                 emitStreamChunk(piece, chunkCallback, userData)
             }
         } else {
             for try await piece in session.streamResponse(to: prompt) {
+                if firstTokenMs < 0 && !piece.isEmpty {
+                    firstTokenMs = Int(Date().timeIntervalSince(tGen) * 1000)
+                }
                 accumulated += piece
                 emitStreamChunk(piece, chunkCallback, userData)
             }
         }
+        let generateMs = Int(Date().timeIntervalSince(tGen) * 1000)
         if accumulated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return ["ok": false, "error": "Native LM returned empty text"]
+            return ["ok": false, "error": "Native LM returned empty text",
+                    "swiftCacheHit": cacheHit, "swiftLoadMs": loadMs,
+                    "swiftTotalMs": Int(Date().timeIntervalSince(t0) * 1000)]
         }
-        return ["ok": true, "text": accumulated]
+        return ["ok": true, "text": accumulated,
+                "swiftCacheHit": cacheHit, "swiftLoadMs": loadMs,
+                "swiftFirstTokenMs": firstTokenMs,
+                "swiftGenerateMs": generateMs,
+                "swiftTotalMs": Int(Date().timeIntervalSince(t0) * 1000)]
     } catch {
-        return ["ok": false, "error": String(describing: error)]
+        return ["ok": false, "error": String(describing: error),
+                "swiftTotalMs": Int(Date().timeIntervalSince(t0) * 1000)]
     }
 }
 

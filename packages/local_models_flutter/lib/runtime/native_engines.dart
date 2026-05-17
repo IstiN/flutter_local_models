@@ -156,10 +156,15 @@ void _assertToolsConsistent(LmCompletionRequest request) {
 }
 
 Map<String, Object?> _lmGeneratePayload(LmCompletionRequest request) {
+  final hasMessages =
+      request.messages != null && request.messages!.isNotEmpty;
   return <String, Object?>{
     'modelPath': request.modelPath,
     'runtimeAdapter': runtimeAdapterWireName(request.manifest.runtimeAdapter),
-    'prompt': request.prompt,
+    // Prefer structured messages; fall back to flat prompt string.
+    // Swift checks 'messages' first.
+    if (hasMessages) 'messages': request.messages,
+    if (!hasMessages) 'prompt': request.prompt,
     'maxTokens': request.maxTokens,
     if (request.temperature != null) 'temperature': request.temperature,
     if (request.topP != null) 'topP': request.topP,
@@ -173,10 +178,11 @@ Map<String, Object?> _lmGeneratePayload(LmCompletionRequest request) {
 }
 
 class LmCompletionRequest {
-  const LmCompletionRequest({
+  LmCompletionRequest({
     required this.modelPath,
     required this.manifest,
-    required this.prompt,
+    this.prompt = '',
+    this.messages,
     this.audioPath,
     this.imagePath,
     this.maxTokens = 256,
@@ -185,11 +191,23 @@ class LmCompletionRequest {
     this.enableThinking,
     this.tools = const <LocalTool>[],
     this.onToolCall,
-  });
+  }) : assert(
+         prompt.isNotEmpty || (messages != null && messages.isNotEmpty),
+         'LmCompletionRequest: provide either prompt or messages',
+       );
 
   final String modelPath;
   final LocalModelManifest manifest;
+
+  /// Flat text prompt (legacy / fallback). Used when [messages] is null.
   final String prompt;
+
+  /// Structured messages list. Each entry is a map with keys 'role' and
+  /// 'content'. Roles: 'system', 'user', 'assistant', 'tool'.
+  /// When provided, Swift builds a proper Chat.Message history and passes
+  /// only the last user message to ChatSession.respond(to:).
+  final List<Map<String, String>>? messages;
+
   final String? audioPath;
   final String? imagePath;
   final int maxTokens;
@@ -260,6 +278,15 @@ final class NativeLmEngine implements LmEngine {
 
   final FlmDispatching _dispatch;
 
+  /// The raw response map from the last `lm.generate` or `lm.generate.stream`
+  /// call. Contains Swift-side timing fields when available:
+  ///   `swiftCacheHit`    – bool: true if the model container was already cached
+  ///   `swiftLoadMs`      – int: ms spent loading the model (0 if cache hit)
+  ///   `swiftFirstTokenMs`– int: ms from generation start to first token
+  ///   `swiftGenerateMs`  – int: ms for the full generation loop
+  ///   `swiftTotalMs`     – int: total ms inside handleLmGenerate*
+  Map<String, Object?>? lastNativeTimings;
+
   @override
   Future<String> complete(LmCompletionRequest request) async {
     final audio = request.audioPath;
@@ -323,6 +350,7 @@ final class NativeLmEngine implements LmEngine {
     } else {
       map = await _invokeFlmDispatch(_dispatch, 'lm.generate', payload);
     }
+    lastNativeTimings = map;
     if (map['ok'] == true) {
       final text = map['text'];
       if (text is! String || text.trim().isEmpty) {
@@ -426,6 +454,7 @@ final class NativeLmEngine implements LmEngine {
               jsonEncode(payloadWithListener),
               addr,
             );
+            lastNativeTimings = map;
             if (map['ok'] == true) {
               final text = map['text'];
               if (text is! String || text.trim().isEmpty) {
@@ -469,6 +498,7 @@ final class NativeLmEngine implements LmEngine {
     try {
       final addr = chunkHook.nativeFunction.address;
       final map = await _isolateRunLmGenerateStream(jsonEncode(payload), addr);
+      lastNativeTimings = map;
       if (map['ok'] == true) {
         final text = map['text'];
         if (text is! String || text.trim().isEmpty) {

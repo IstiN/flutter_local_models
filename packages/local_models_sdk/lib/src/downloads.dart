@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:local_models_core/local_models_core.dart';
@@ -90,8 +91,14 @@ Future<List<RemoteFileDescriptor>> fetchGitHubReleaseFileDescriptors({
       '/repos/$owner/$repository/releases/tags/${Uri.encodeComponent(releaseTag)}',
     );
     final request = await client.getUrl(uri);
-    request.headers.set(HttpHeaders.userAgentHeader, 'flutter_local_models_sdk/0.1');
-    request.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
+    request.headers.set(
+      HttpHeaders.userAgentHeader,
+      'flutter_local_models_sdk/0.1',
+    );
+    request.headers.set(
+      HttpHeaders.acceptHeader,
+      'application/vnd.github+json',
+    );
     final token = githubToken?.trim();
     if (token != null && token.isNotEmpty) {
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
@@ -123,7 +130,10 @@ Future<List<RemoteFileDescriptor>> fetchGitHubReleaseFileDescriptors({
   }
 }
 
-Future<void> _concatenateFilesToDestination(List<File> parts, File destination) async {
+Future<void> _concatenateFilesToDestination(
+  List<File> parts,
+  File destination,
+) async {
   if (destination.existsSync()) {
     await destination.delete();
   }
@@ -141,22 +151,27 @@ Future<InstalledModel> installGitHubReleaseFromStageDirectory({
   required LocalModelManifest baseManifest,
   required String sourceLabel,
 }) async {
-  final manifestFile = File(p.join(stageDirectory.path, 'manifest.source.yaml'));
+  final manifestFile = File(
+    p.join(stageDirectory.path, 'manifest.source.yaml'),
+  );
   var manifest = baseManifest;
   if (manifestFile.existsSync()) {
     manifest = LocalModelManifest.fromYaml(await manifestFile.readAsString());
   }
 
-  final metadataFile = File(p.join(stageDirectory.path, 'release_metadata.json'));
+  final metadataFile = File(
+    p.join(stageDirectory.path, 'release_metadata.json'),
+  );
   if (!metadataFile.existsSync()) {
     throw StateError('Missing release_metadata.json in ${stageDirectory.path}');
   }
   final metadata =
       jsonDecode(await metadataFile.readAsString()) as Map<String, dynamic>;
-  final partNames = ((metadata['parts'] as List<dynamic>? ?? const <dynamic>[])
-          .cast<Map<String, dynamic>>())
-      .map((part) => part['file_name'] as String)
-      .toList(growable: false);
+  final partNames =
+      ((metadata['parts'] as List<dynamic>? ?? const <dynamic>[])
+              .cast<Map<String, dynamic>>())
+          .map((part) => part['file_name'] as String)
+          .toList(growable: false);
   final archiveName = metadata['archive_name'] as String;
   final archivePath = p.join(stageDirectory.path, archiveName);
 
@@ -181,9 +196,7 @@ Future<InstalledModel> installGitHubReleaseFromStageDirectory({
     store.paths.modelsDirectory.path,
   ]);
   if (result.exitCode != 0) {
-    throw StateError(
-      'Failed to extract release archive: ${result.stderr}',
-    );
+    throw StateError('Failed to extract release archive: ${result.stderr}');
   }
 
   await store.writeInstallMetadata(
@@ -288,14 +301,17 @@ class LocalModelDownloadManager {
   LocalModelDownloadManager({
     required this.store,
     this.maxRetries = 5,
+    this.maxConcurrentDownloads = 4,
     this.onTaskChanged,
     String? hfToken,
     String? githubToken,
   }) : hfToken = hfToken ?? '',
-       githubToken = githubToken ?? '';
+       githubToken = githubToken ?? '',
+       assert(maxConcurrentDownloads >= 1);
 
   final LocalModelStore store;
   final int maxRetries;
+  final int maxConcurrentDownloads;
   final DownloadTaskChanged? onTaskChanged;
   String hfToken;
   String githubToken;
@@ -324,7 +340,21 @@ class LocalModelDownloadManager {
       files: files,
       manifest: manifest,
     );
-    unawaited(run(record));
+    if (sourceKind == DownloadSourceKind.githubRelease) {
+      unawaited(
+        run(
+          record,
+          customInstall: (task) => installGitHubReleaseFromStageDirectory(
+            store: store,
+            stageDirectory: task.stageDirectory,
+            baseManifest: task.manifest,
+            sourceLabel: task.sourceLabel,
+          ),
+        ),
+      );
+    } else {
+      unawaited(run(record));
+    }
     return record;
   }
 
@@ -378,6 +408,9 @@ class LocalModelDownloadManager {
     Future<InstalledModel> Function(DownloadTaskRecord record)? customInstall,
   }) async {
     await store.paths.ensureCreated();
+    record.pauseRequested = false;
+    record.cancelRequested = false;
+    record.errorMessage = null;
     record.status = DownloadTaskStatus.running;
     record.totalBytes = record.files.fold<int>(
       0,
@@ -389,13 +422,72 @@ class LocalModelDownloadManager {
     var attempt = 0;
     while (true) {
       try {
-        for (final file in record.files) {
-          await _downloadFile(record, file);
+        final downloadedByFile = <String, int>{};
+        final speedByFile = <String, int>{};
+
+        Future<void> emitAggregatedProgress() async {
+          var downloaded = 0;
+          for (final file in record.files) {
+            final known = downloadedByFile[file.relativePath];
+            if (known != null) {
+              downloaded += known;
+              continue;
+            }
+            final destination = File(
+              p.join(record.stageDirectory.path, file.relativePath),
+            );
+            if (destination.existsSync()) {
+              downloaded += await destination.length();
+            }
+          }
+          record.downloadedBytes = downloaded;
+          record.downloadSpeedBytesPerSecond = speedByFile.values.fold<int>(
+            0,
+            (sum, speed) => sum + speed,
+          );
+          onTaskChanged?.call(record);
         }
+
+        await emitAggregatedProgress();
+
+        var nextFileIndex = 0;
+        final workerCount = math.min(
+          maxConcurrentDownloads,
+          record.files.length,
+        );
+
+        Future<void> worker() async {
+          while (true) {
+            if (record.cancelRequested) throw const DownloadCanceledException();
+            if (record.pauseRequested) throw const DownloadPausedException();
+
+            final fileIndex = nextFileIndex;
+            if (fileIndex >= record.files.length) return;
+            nextFileIndex += 1;
+
+            final file = record.files[fileIndex];
+            await _downloadFile(
+              record,
+              file,
+              onProgress: (downloadedBytes, speedBytesPerSecond) {
+                downloadedByFile[file.relativePath] = downloadedBytes;
+                speedByFile[file.relativePath] = speedBytesPerSecond;
+                unawaited(emitAggregatedProgress());
+              },
+            );
+            speedByFile[file.relativePath] = 0;
+            await emitAggregatedProgress();
+          }
+        }
+
+        await Future.wait(
+          List<Future<void>>.generate(workerCount, (_) => worker()),
+          eagerError: true,
+        );
         record.status = DownloadTaskStatus.installing;
+        record.downloadSpeedBytesPerSecond = 0;
         onTaskChanged?.call(record);
-        final install =
-            customInstall ?? _installDownloadedModel;
+        final install = customInstall ?? _installDownloadedModel;
         final installed = await install(record);
         record.status = DownloadTaskStatus.completed;
         record.installedPath = installed.directory.path;
@@ -405,6 +497,18 @@ class LocalModelDownloadManager {
         onTaskChanged?.call(record);
         return installed;
       } catch (error) {
+        if (error is DownloadPausedException) {
+          record.status = DownloadTaskStatus.paused;
+          record.errorMessage = null;
+          onTaskChanged?.call(record);
+          rethrow;
+        }
+        if (error is DownloadCanceledException) {
+          record.status = DownloadTaskStatus.canceled;
+          record.errorMessage = null;
+          onTaskChanged?.call(record);
+          rethrow;
+        }
         if (!_isRetryableDownloadError(error) || attempt >= maxRetries) {
           record.status = DownloadTaskStatus.failed;
           record.errorMessage = '$error';
@@ -457,8 +561,9 @@ class LocalModelDownloadManager {
 
   Future<void> _downloadFile(
     DownloadTaskRecord record,
-    RemoteFileDescriptor file,
-  ) async {
+    RemoteFileDescriptor file, {
+    void Function(int downloadedBytes, int speedBytesPerSecond)? onProgress,
+  }) async {
     final destination = File(
       p.join(record.stageDirectory.path, file.relativePath),
     );
@@ -482,7 +587,6 @@ class LocalModelDownloadManager {
         return;
       }
 
-      final baselineDownloaded = record.downloadedBytes - alreadyWritten;
       final args = <String>[
         '-L',
         '--fail',
@@ -504,21 +608,66 @@ class LocalModelDownloadManager {
         destination.path,
         file.downloadUri.toString(),
       ];
+      final process = await Process.start(_curlExecutable, args);
+      final stderrBuffer = StringBuffer();
+      final stderrSub = process.stderr
+          .transform(utf8.decoder)
+          .listen(stderrBuffer.write);
+      final stdoutSub = process.stdout.listen((_) {});
+      var lastLength = alreadyWritten;
+      var lastAt = DateTime.now();
+      var monitorBusy = false;
+      final monitor = Timer.periodic(const Duration(milliseconds: 250), (
+        _,
+      ) async {
+        if (monitorBusy) return;
+        monitorBusy = true;
+        try {
+          if (record.cancelRequested || record.pauseRequested) {
+            process.kill(ProcessSignal.sigterm);
+          }
+          if (destination.existsSync()) {
+            final currentLength = await destination.length();
+            final now = DateTime.now();
+            final elapsedMs = now.difference(lastAt).inMilliseconds;
+            final deltaBytes = currentLength - lastLength;
+            if (elapsedMs > 0 && deltaBytes >= 0) {
+              onProgress?.call(
+                currentLength,
+                (deltaBytes * 1000 / elapsedMs).round(),
+              );
+            }
+            lastLength = currentLength;
+            lastAt = now;
+            onProgress?.call(currentLength, 0);
+          }
+        } finally {
+          monitorBusy = false;
+        }
+      });
 
-      final result = await Process.run(_curlExecutable, args);
-      if (result.exitCode != 0) {
-        final stderr = (result.stderr as String).trim();
+      final exitCode = await process.exitCode;
+      monitor.cancel();
+      await stderrSub.cancel();
+      await stdoutSub.cancel();
+      final stderr = stderrBuffer.toString().trim();
+
+      if (record.cancelRequested) {
+        throw const DownloadCanceledException();
+      }
+      if (record.pauseRequested) {
+        throw const DownloadPausedException();
+      }
+      if (exitCode != 0) {
         throw HttpException(
           'Download failed for ${file.relativePath}: '
-          '${stderr.isEmpty ? 'curl exited with code ${result.exitCode}' : stderr}',
+          '${stderr.isEmpty ? 'curl exited with code $exitCode' : stderr}',
         );
       }
       final finalLength = destination.existsSync()
           ? await destination.length()
           : 0;
-      record.downloadedBytes = baselineDownloaded + finalLength;
-      record.downloadSpeedBytesPerSecond = 0;
-      onTaskChanged?.call(record);
+      onProgress?.call(finalLength, 0);
 
       if (expectedSize != null && finalLength != expectedSize) {
         throw StateError(
