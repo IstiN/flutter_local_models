@@ -21,10 +21,45 @@ final class ProcessFlmDispatcher implements FlmDispatching {
 
   static String _resolvePython() {
     final fromEnv = Platform.environment['FLM_MLX_PYTHON'];
-    if (fromEnv != null && fromEnv.trim().isNotEmpty) {
-      return fromEnv.trim();
+    if (fromEnv != null && fromEnv.trim().isNotEmpty) return fromEnv.trim();
+    if (Platform.isWindows) return 'python';
+    // macOS/Linux GUI apps start with a restricted PATH that often resolves
+    // python3 to Xcode's bundled interpreter, which lacks user-installed
+    // packages (e.g. mlx-audio). Search well-known locations first.
+    final home = Platform.environment['HOME'] ?? '';
+    for (final candidate in [
+      if (home.isNotEmpty) '$home/.pyenv/shims/python3',
+      '/opt/homebrew/bin/python3',
+      '/usr/local/bin/python3',
+      if (home.isNotEmpty) '$home/.local/bin/python3',
+      if (home.isNotEmpty) '$home/Library/Python/3.12/bin/python3',
+      if (home.isNotEmpty) '$home/Library/Python/3.11/bin/python3',
+      if (home.isNotEmpty) '$home/Library/Python/3.10/bin/python3',
+    ]) {
+      if (File(candidate).existsSync()) return candidate;
     }
     return 'python3';
+  }
+
+  /// Runs [_python] with [args], loading the user's shell profile on Unix
+  /// so that pip-installed packages and PATH extensions from ~/.zshrc /
+  /// ~/.bashrc are available (same pattern as run_service.dart).
+  ProcessResult _runPython(List<String> args) {
+    if (!Platform.isMacOS && !Platform.isLinux) {
+      return Process.runSync(_python, args);
+    }
+    final shellCmd = [_python, ...args].map(_shellQuote).join(' ');
+    final shell = Platform.environment['SHELL'] ?? '/bin/zsh';
+    return Process.runSync(
+      shell,
+      ['-ic', shellCmd],
+      environment: {...Platform.environment, 'TERM': 'xterm-256color'},
+    );
+  }
+
+  static String _shellQuote(String s) {
+    if (!s.contains(RegExp(r'''[\s'"\\$`!]'''))) return s;
+    return "'${s.replaceAll("'", "'\\''")}'";
   }
 
   @override
@@ -78,7 +113,7 @@ final class ProcessFlmDispatcher implements FlmDispatching {
         args.addAll(['--language', lang]);
       }
 
-      final result = Process.runSync(_python, args);
+      final result = _runPython(args);
       if (result.exitCode != 0) {
         final err = (result.stderr as String).trim();
         final out = (result.stdout as String).trim();
@@ -172,7 +207,7 @@ final class ProcessFlmDispatcher implements FlmDispatching {
         args.addAll(['--ref_audio', refAudio, '--ref_text', refText]);
       }
 
-      final result = Process.runSync(_python, args);
+      final result = _runPython(args);
       if (result.exitCode != 0) {
         final err = (result.stderr as String).trim();
         final out = (result.stdout as String).trim();
