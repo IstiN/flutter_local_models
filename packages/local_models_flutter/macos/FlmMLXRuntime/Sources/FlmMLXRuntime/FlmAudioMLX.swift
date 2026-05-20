@@ -181,6 +181,46 @@ private func normalizedTtsLanguage(_ raw: String?) -> String? {
     return raw?.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
+// MARK: - Whisper ASR (single actor: MLX models are not Sendable)
+
+private actor FlmWhisperMLXRuntime {
+    static let shared = FlmWhisperMLXRuntime()
+
+    private var models: [String: WhisperASRModel] = [:]
+
+    func transcribe(
+        modelPath: String,
+        audioURL: URL,
+        language: String?
+    ) async throws -> String {
+        let model: WhisperASRModel
+        if let cached = models[modelPath] {
+            model = cached
+        } else {
+            let loaded = try await WhisperASRModel.fromModelDirectory(URL(fileURLWithPath: modelPath))
+            models[modelPath] = loaded
+            model = loaded
+        }
+
+        let (_, audioMLX) = try loadAudioArray(from: audioURL, sampleRate: model.sampleRate)
+        let base = model.defaultGenerationParameters
+        let sttParams = STTGenerateParameters(
+            maxTokens: base.maxTokens,
+            temperature: base.temperature,
+            topP: base.topP,
+            topK: base.topK,
+            verbose: base.verbose,
+            language: language,
+            chunkDuration: base.chunkDuration,
+            minChunkDuration: base.minChunkDuration,
+            repetitionPenalty: base.repetitionPenalty,
+            repetitionContextSize: base.repetitionContextSize
+        )
+        let output = model.generate(audio: audioMLX, generationParameters: sttParams)
+        return output.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 // MARK: - Qwen3 ASR/TTS (single actor: MLX models are not Sendable)
 
 private actor FlmQwenMLXRuntime {
@@ -304,12 +344,18 @@ enum FlmAudioMLX {
               (audioPath as NSString).lastPathComponent)
 
         if isWhisperASR(modelDir: modelDir) {
-            return [
-                "ok": false,
-                "error":
-                    "Whisper ASR is not implemented in the Swift runtime. Use Python mlx-audio (fallback) "
-                    + "or install a Qwen3-ASR checkpoint for native transcription.",
-            ]
+            do {
+                let text = try await FlmWhisperMLXRuntime.shared.transcribe(
+                    modelPath: modelPath,
+                    audioURL: audioURL,
+                    language: payload["language"] as? String
+                )
+                return text.isEmpty
+                    ? ["ok": false, "error": "Whisper returned empty transcript"]
+                    : ["ok": true, "text": text]
+            } catch {
+                return ["ok": false, "error": String(describing: error)]
+            }
         }
 
         if isVibeVoiceASR(modelDir: modelDir) {
@@ -334,8 +380,8 @@ enum FlmAudioMLX {
             return [
                 "ok": false,
                 "error":
-                    "This ASR folder is not a supported native Swift model (expected Qwen3-ASR). "
-                    + "Use Python mlx-audio or a Qwen3-ASR install.",
+                    "This ASR folder is not a supported native Swift model (expected Whisper or Qwen3-ASR). "
+                    + "Use Python mlx-audio or install a supported native checkpoint.",
             ]
         }
 
