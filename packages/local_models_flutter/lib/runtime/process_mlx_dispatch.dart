@@ -25,13 +25,26 @@ final class ProcessFlmDispatcher implements FlmDispatching {
     if (Platform.isWindows) return 'python';
     // macOS/Linux GUI apps start with a restricted PATH that often resolves
     // python3 to Xcode's bundled interpreter, which lacks user-installed
-    // packages (e.g. mlx-audio). Search well-known locations first.
+    // packages (e.g. mlx-audio). Search well-known locations in priority order.
+    // Note: Homebrew on Apple Silicon installs versioned binaries only
+    // (python3.13, python3.12…) — there is no unversioned python3 symlink.
     final home = Platform.environment['HOME'] ?? '';
     for (final candidate in [
       if (home.isNotEmpty) '$home/.pyenv/shims/python3',
+      // Homebrew versioned binaries (Apple Silicon + Intel), newest first
+      '/opt/homebrew/bin/python3.13',
+      '/opt/homebrew/bin/python3.12',
+      '/opt/homebrew/bin/python3.11',
+      '/opt/homebrew/bin/python3.10',
       '/opt/homebrew/bin/python3',
+      // Intel / manual Homebrew
+      '/usr/local/bin/python3.13',
+      '/usr/local/bin/python3.12',
+      '/usr/local/bin/python3.11',
       '/usr/local/bin/python3',
+      // User-local installs
       if (home.isNotEmpty) '$home/.local/bin/python3',
+      if (home.isNotEmpty) '$home/Library/Python/3.13/bin/python3',
       if (home.isNotEmpty) '$home/Library/Python/3.12/bin/python3',
       if (home.isNotEmpty) '$home/Library/Python/3.11/bin/python3',
       if (home.isNotEmpty) '$home/Library/Python/3.10/bin/python3',
@@ -104,7 +117,10 @@ final class ProcessFlmDispatcher implements FlmDispatching {
         '--audio',
         audioPath,
         '--output-path',
-        outDir.path,
+        // mlx_audio.stt.generate appends the format extension to the output
+        // path (e.g. .txt), so pass a file base inside outDir rather than
+        // the directory itself to keep the output file contained.
+        p.join(outDir.path, 'transcript'),
         '--format',
         'txt',
       ];
